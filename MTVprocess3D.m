@@ -14,10 +14,11 @@ function Nio = MTVprocess3D(varargin)
 % Regularisation_scale - Scaling of regularisation, increase this value for stronger denoising [15]
 % WorkersParfor        - Maximum number of parfor workers [Inf]
 % Temporary_directory  - Directory for temporary files ['./tmp']
-% Output_direcotry     - Directory for denoised images ['./out']
+% Output_directory     - Directory for denoised images ['./out']
 % Auxiliary_directory  - Directory of auxiliary toolbox ['./auxiliary-functions']
 % Method               - Does either denoising ('denoise') or super-resolution ('superres') ['denoise']
 % Verbose              - Show verbose [true] 
+% CleanUp              - Delete temporary files [true] 
 % 
 % OUTPUT
 % ------
@@ -51,10 +52,11 @@ p.addParameter('Tolerance', 1e-3, @isnumeric);
 p.addParameter('Regularisation_scale', 15, @isnumeric);
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Temporary_directory',fullfile(fileparts(mfilename('fullpath')),'tmp'), @ischar);
-p.addParameter('Output_direcotry', fullfile(fileparts(mfilename('fullpath')),'out'), @ischar);
+p.addParameter('Output_directory', fullfile(fileparts(mfilename('fullpath')),'out'), @ischar);
 p.addParameter('Auxiliary_directory', 'auxiliary-functions', @(in) (ischar(in) && exist(fullfile(fileparts(mfilename('fullpath')),in),'dir')));
 p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') || strcmpi(in,'superres'))));
 p.addParameter('Verbose', true, @islogical);
+p.addParameter('CleanUp', true, @islogical);
 p.parse(varargin{:});
 nii_x       = p.Results.InputImages;
 nit         = p.Results.IterMax;
@@ -62,10 +64,11 @@ tol         = p.Results.Tolerance;
 scl_lam     = p.Results.Regularisation_scale;
 num_workers = p.Results.WorkersParfor;
 dir_tmp     = p.Results.Temporary_directory;
-dir_out     = p.Results.Output_direcotry;
+dir_out     = p.Results.Output_directory;
 dir_aux     = p.Results.Auxiliary_directory;
 method      = p.Results.Method;
 speak       = p.Results.Verbose; 
+do_clean    = p.Results.CleanUp; 
 
 if strcmpi(method,'superres'), error('Super-resolution not yet added to this code. But coming soon!'); end
 
@@ -214,7 +217,7 @@ if speak, fprintf('%d %g %g %g\n', 0, sum(ll1), ll2, sum(ll1) + ll2); end
 % Start denoising
 %--------------------------------------------------------------------------
 
-if speak, fprintf('\nRunning max %d iterations:\n', nit); end
+if speak, fprintf('\nRunning (max) %d iterations:\n', nit); end
 
 if speak, tic; end
 for it=1:nit
@@ -348,6 +351,8 @@ if speak
     spm_check_registration(char(fnames))
 end
 
-% Clean-up
-rmdir(dir_tmp,'s');
+if do_clean
+    % Clean-up
+    rmdir(dir_tmp,'s');
+end
 %==========================================================================
