@@ -1,5 +1,5 @@
 function Nio = MTVprocess3D(varargin)
-% Multi-channel total variation denoising or super-resolution of MR images. 
+% Multi-channel total variation (MTV) denoising or super-resolution of MR images. 
 % Requires that the SPM software is on the MATLAB path. SPM is available from:
 % https://www.fil.ion.ucl.ac.uk/spm/software/spm12/
 %
@@ -17,7 +17,10 @@ function Nio = MTVprocess3D(varargin)
 % Output_directory     - Directory for denoised images ['./out']
 % Auxiliary_directory  - Directory of auxiliary toolbox ['./auxiliary-functions']
 % Method               - Does either denoising ('denoise') or super-resolution ('superres') ['denoise']
-% Verbose              - Show verbose [true] 
+% Verbose              - Verbosity level:  0  = quiet
+%                                         [1] = write  (log likelihood, parameter estimates)
+%                                          2  = draw   (log likelihood, rice fit, noisy+cleaned)
+%                                          3  = result (show noisy and denoised image(s) in spm_check_registration)
 % CleanUp              - Delete temporary files [true] 
 % 
 % OUTPUT
@@ -55,7 +58,7 @@ p.addParameter('Temporary_directory',fullfile(fileparts(mfilename('fullpath')),'
 p.addParameter('Output_directory', fullfile(fileparts(mfilename('fullpath')),'out'), @ischar);
 p.addParameter('Auxiliary_directory', 'auxiliary-functions', @(in) (ischar(in) && exist(fullfile(fileparts(mfilename('fullpath')),in),'dir')));
 p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') || strcmpi(in,'superres'))));
-p.addParameter('Verbose', true, @islogical);
+p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
 p.parse(varargin{:});
 nii_x       = p.Results.InputImages;
@@ -107,7 +110,7 @@ vx  = sqrt(sum(nii_x(c).mat(1:3,1:3).^2));
 % Estimate model hyper-parameters
 %--------------------------------------------------------------------------
 
-if speak
+if speak >= 2
     figname          = '(SPM) Rice mixture fits';
     f                = findobj('Type', 'Figure', 'Name', figname);
     if isempty(f), f = figure('Name', figname, 'NumberTitle', 'off'); end
@@ -122,10 +125,10 @@ tau = zeros(1,C);
 mu  = zeros(1,C);
 lam = zeros(1,C);
 for c=1:C           
-    if speak, subplot(nr,nc,c); end
+    if speak >= 2, subplot(nr,nc,c); end
     
     % Estimate image noise and mean brain intensity
-    [sd(c),mu_brain] = spm_noise_estimate_mod(nii_x(c),speak);
+    [sd(c),mu_brain] = spm_noise_estimate_mod(nii_x(c),speak >= 2);
     
     tau(c) = 1/(sd(c).^2);          % Noise precision
     mu(c)  = mu_brain;              % Mean brain intensity
@@ -135,7 +138,7 @@ end
 % Estimate rho
 rho = sqrt(mean(tau))/mean(lam); % This value of rho seems to lead to reasonably good convergence
 
-if speak
+if speak  >= 1
     % Print estimates
     for c=1:C
         fprintf('c=%i -> sd=%f, mu=%f -> tau=%f, lam=%f, rho=%f\n', c, sd(c), mu(c), tau(c), lam(c), rho);
@@ -211,15 +214,15 @@ ll2 = -sum(sum(sum(sqrt(ll2))));
 ll  = -sum(ll1) + ll2;
 
 % Print
-if speak, fprintf('%d %g %g %g\n', 0, sum(ll1), ll2, sum(ll1) + ll2); end
+if speak >= 1, fprintf('%d %g %g %g\n', 0, sum(ll1), ll2, sum(ll1) + ll2); end
 
 %--------------------------------------------------------------------------
 % Start denoising
 %--------------------------------------------------------------------------
 
-if speak, fprintf('\nRunning (max) %d iterations:\n', nit); end
+if speak >= 1, fprintf('\nRunning (max) %d iterations:\n', nit); end
 
-if speak, tic; end
+if speak >= 1, tic; end
 for it=1:nit
         
     %------------------------------------------------------------------
@@ -304,7 +307,7 @@ for it=1:nit
     ll   = [ll, sum(ll1) + ll2];    
     gain = abs((ll(end - 1)*(1 + 10*eps) - ll(end))/ll(end));
     
-    if speak
+    if speak >= 1
         % Some verbose
         fprintf('%d %g %g %g %g %g\n', it, sum(ll1), ll2, sum(ll1) + ll2,gain,tol);        
         
@@ -318,7 +321,7 @@ for it=1:nit
 end
 clear u w G x D
 
-if speak, toc; end
+if speak >= 1, toc; end
 
 %--------------------------------------------------------------------------
 % Write results
@@ -339,7 +342,7 @@ end
 % Show original and denoised
 %--------------------------------------------------------------------------
 
-if speak
+if speak >= 3
     fnames = cell(1,2*C);
     cnt    = 1;
     for c=1:2:2*C    
