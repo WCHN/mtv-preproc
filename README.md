@@ -19,11 +19,12 @@ dir_MTVprocess3D      = '/path/to/MTVprocess3D';
 dir_auxiliary_toolbox = '/path/to/auxiliary-functions';
 
 addpath(genpath(dir_MTVprocess3D));
+addpath(dir_auxiliary_toolbox);
 
 % Read some MRI NIfTIs
 dir_data = '/pth/to/nii_data';
 Nii = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
 % Denoise the MRIs
-MTVprocess3D('InputImages',Nii,'Auxiliary_directory',dir_auxiliary_toolbox);
+MTVprocess3D('InputImages',Nii);
 ~~~~
