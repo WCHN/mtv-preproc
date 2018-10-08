@@ -15,7 +15,6 @@ function Nio = MTVprocess3D(varargin)
 % WorkersParfor        - Maximum number of parfor workers [Inf]
 % Temporary_directory  - Directory for temporary files ['./tmp']
 % Output_directory     - Directory for denoised images ['./out']
-% Auxiliary_directory  - Directory of auxiliary toolbox ['./auxiliary-functions']
 % Method               - Does either denoising ('denoise') or super-resolution ('superres') ['denoise']
 % Verbose              - Verbosity level:  0  = quiet
 %                                         [1] = write  (log likelihood, parameter estimates)
@@ -56,7 +55,6 @@ p.addParameter('Regularisation_scale', 15, @isnumeric);
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Temporary_directory', 'tmp', @ischar);
 p.addParameter('Output_directory', 'out', @ischar);
-p.addParameter('Auxiliary_directory', fullfile(fileparts(mfilename('fullpath')),'auxiliary-functions'), @(in) (ischar(in) && exist(in,'dir')));
 p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') || strcmpi(in,'superres'))));
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
@@ -68,7 +66,6 @@ scl_lam     = p.Results.Regularisation_scale;
 num_workers = p.Results.WorkersParfor;
 dir_tmp     = p.Results.Temporary_directory;
 dir_out     = p.Results.Output_directory;
-dir_aux     = p.Results.Auxiliary_directory;
 method      = p.Results.Method;
 speak       = p.Results.Verbose; 
 do_clean    = p.Results.CleanUp; 
@@ -80,7 +77,6 @@ if  exist(dir_tmp,'dir'), rmdir(dir_tmp,'s'); end; mkdir(dir_tmp);
 if ~exist(dir_out,'dir'), mkdir(dir_out);  end
 
 % Add to MATLAB path
-addpath(dir_aux);
 addpath(fullfile(fileparts(mfilename('fullpath')),'code'));
   
 %--------------------------------------------------------------------------
