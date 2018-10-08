@@ -11,3 +11,19 @@ The general principles of the methods are described in the following paper:
      MRI Super-Resolution Using Multi-channel Total Variation.
      In Annual Conference on Medical Image Understanding and Analysis
      2018 Jul 9 (pp. 217-228). Springer, Cham.
+
+## Example 1: Denoising MRIs
+
+~~~~
+dir_MTVprocess3D      = '/path/to/MTVprocess3D';
+dir_auxiliary_toolbox = '/path/to/auxiliary-functions';
+
+addpath(genpath(dir_MTVprocess3D));
+
+% Read some MRI NIfTIs
+dir_data = './pth/to/nii_data';
+Nii = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
+
+% Denoise the MRIs
+MTVprocess3D('InputImages',Nii,'Auxiliary_directory',dir_auxiliary_toolbox);
+~~~~
