@@ -3,7 +3,7 @@
 Multi-channel total variation (MTV) denoising or super-resolution, of magnetic resonance (MR) images. 
 
 Requires that the SPM software, and our Auxiliary toolbox, is on the MATLAB path. SPM is available from
-https://www.fil.ion.ucl.ac.uk/spm/software/spm12/ and the Auxiliary toolbox from https://github.com/WTCN-computational-anatomy-group/auxiliary-functions. If you put the Auxiliary toolbox into the same folder as this code, then it should be added to the MATLAB path automatically.
+https://www.fil.ion.ucl.ac.uk/spm/software/spm12/ and the Auxiliary toolbox from https://github.com/WTCN-computational-anatomy-group/auxiliary-functions.
 
 The general principles of the methods are described in the following paper:
 
