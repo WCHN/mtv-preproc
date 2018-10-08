@@ -62,7 +62,7 @@ p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') 
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
 p.parse(varargin{:});
-nii_x       = p.Results.InputImages;
+Nii_x       = p.Results.InputImages;
 nit         = p.Results.IterMax;
 tol         = p.Results.Tolerance;
 scl_lam     = p.Results.Regularisation_scale;
@@ -78,24 +78,24 @@ if strcmpi(method,'superres'), error('Super-resolution not yet added to this cod
 % Make some directories
 if  exist(dir_tmp,'dir'), rmdir(dir_tmp,'s'); end; mkdir(dir_tmp); 
 if ~exist(dir_out,'dir'), mkdir(dir_out);  end
-
-% Add to MATLAB path
-addpath(fullfile(fileparts(mfilename('fullpath')),'code'));
   
+% Set up boundary conditions that match the gradient operator
+spm_field('boundary',1)
+
 %--------------------------------------------------------------------------
 % Get image data
 %--------------------------------------------------------------------------
 
-if isempty(nii_x)
-    nii_x = nifti(spm_select(Inf,'nifti','Select image'));    
+if isempty(Nii_x)
+    Nii_x = nifti(spm_select(Inf,'nifti','Select image'));    
 else
-    if ~isa(nii_x,'nifti'), nii_x = nifti(nii_x); end
+    if ~isa(Nii_x,'nifti'), Nii_x = nifti(Nii_x); end
 end
-C = numel(nii_x); % Number of channels
+C = numel(Nii_x); % Number of channels
 
 % Sanity check input
 for c=1:C    
-    dm = nii_x(c).dat.dim;
+    dm = Nii_x(c).dat.dim;
     
     if strcmpi(method,'denoise') && c > 1 && (~isequal(dm,odm) || ~isequal(dm,odm))
         error('Images are not all the same size!')
@@ -127,7 +127,7 @@ for c=1:C
     if speak >= 2, subplot(nr,nc,c); end
     
     % Estimate image noise and mean brain intensity
-    [sd(c),mu_brain] = spm_noise_estimate_mod(nii_x(c),speak >= 2);
+    [sd(c),mu_brain] = spm_noise_estimate_mod(Nii_x(c),speak >= 2);
     
     tau(c) = 1/(sd(c).^2);          % Noise precision
     mu(c)  = mu_brain;              % Mean brain intensity
@@ -146,16 +146,13 @@ if speak  >= 1
     fprintf('\n');
 end
 
-% Set up boundary condidtions that match the gradient operator
-spm_field('boundary',1)
-
 %--------------------------------------------------------------------------
 % Initialise NIfTIs
 %--------------------------------------------------------------------------
 
-nii_y = nifti;
-nii_u = nifti;
-nii_w = nifti;
+Nii_y = nifti;
+Nii_u = nifti;
+Nii_w = nifti;
 for c=1:C
     fname_y = fullfile(dir_tmp,['y' num2str(c) '.nii']);
     fname_u = fullfile(dir_tmp,['u' num2str(c) '.nii']); 
@@ -165,9 +162,9 @@ for c=1:C
     create_nii(fname_u,zeros([dm 3],'single'),mat,[spm_type('float32') spm_platform('bigend')],'u');
     create_nii(fname_w,zeros([dm 3],'single'),mat,[spm_type('float32') spm_platform('bigend')],'w');
     
-    nii_y(c) = nifti(fname_y);
-    nii_u(c) = nifti(fname_u);
-    nii_w(c) = nifti(fname_w);
+    Nii_y(c) = nifti(fname_y);
+    Nii_u(c) = nifti(fname_u);
+    Nii_w(c) = nifti(fname_w);
 end
 
 %--------------------------------------------------------------------------
@@ -183,11 +180,11 @@ ll2 = 0;
 parfor c=1:C
     
     % Noisy image
-    x = get_nii(nii_x,c);    
+    x = get_nii(Nii_x,c);    
     
     % Denoised image
     y = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam(c)^2 0  2 2]); 
-    put_nii(nii_y,c,y);
+    put_nii(Nii_y,c,y);
         
     % Objective
     ll1(c) = -(tau(c)/2)*sum(sum(sum((y - x).^2)));
@@ -201,11 +198,11 @@ parfor c=1:C
          
     % Proximal variables
     u = zeros([dm 3],'single');
-    put_nii(nii_u,c,u);
+    put_nii(Nii_u,c,u);
     u = [];
     
     w = zeros([dm 3],'single');    
-    put_nii(nii_w,c,w);
+    put_nii(Nii_w,c,w);
     w = [];
 end
 
@@ -228,16 +225,16 @@ for it=1:nit
 
     unorm = 0;    
     parfor c=1:C  % Loop over channels
-        y = get_nii(nii_y,c);        
+        y = get_nii(Nii_y,c);        
         G = imgrad(y,lam(c),dm,vx);
         y = [];
              
-        w = get_nii(nii_w,c);        
+        w = get_nii(Nii_w,c);        
         u = G + w/rho;
         G = [];
         w = [];
         
-        put_nii(nii_u,c,u);
+        put_nii(Nii_u,c,u);
         
         unorm = unorm + sum(u.^2,4);
         u     = [];
@@ -250,8 +247,8 @@ for it=1:nit
     ll2 = 0;
     parfor c=1:C  % Loop over channels
                 
-        u = get_nii(nii_u,c);   
-        w = get_nii(nii_w,c);   
+        u = get_nii(Nii_u,c);   
+        w = get_nii(Nii_w,c);   
         
         %------------------------------------------------------------------
         % Proximal operator for u (continued)
@@ -266,7 +263,7 @@ for it=1:nit
         g = u - w/rho; 
         g = imdiv(g,lam(c),dm,vx);
                 
-        x = get_nii(nii_x,c);    
+        x = get_nii(Nii_x,c);    
         g = g + x*(tau(c)/rho);
         
         y = spm_field(ones(dm,'single')*tau(c)/rho,g,[vx  0 lam(c)^2 0  2 2]);
@@ -282,7 +279,7 @@ for it=1:nit
         
         G = imgrad(y,lam(c),dm,vx);
         
-        put_nii(nii_y,c,y);
+        put_nii(Nii_y,c,y);
         y = [];
         
         w = w - rho*(u - G);        
@@ -291,10 +288,10 @@ for it=1:nit
         ll2 = ll2 + sum(G.^2,4);      
         G   = [];                
         
-        put_nii(nii_u,c,u);
+        put_nii(Nii_u,c,u);
         u = [];
         
-        put_nii(nii_w,c,w);
+        put_nii(Nii_w,c,w);
         w = [];
     end        
     clear scale
@@ -306,7 +303,7 @@ for it=1:nit
     
     % Some (potential) verbose            
     if speak >= 1, fprintf('%d %g %g %g %g %g\n', it, sum(ll1), ll2, sum(ll1) + ll2,gain,tol); end
-    if speak >= 2, show_progress(ll,nii_x,nii_y,dm,nr,nc); end
+    if speak >= 2, show_progress(ll,Nii_x,Nii_y,dm,nr,nc); end
     
     if gain < tol && it > 10
         % Finished        
@@ -323,12 +320,12 @@ if speak >= 1, toc; end
 
 Nio = nifti;
 for c=1:C
-    Nio(c)           = nii_x(c);
+    Nio(c)           = Nii_x(c);
     [~,nam,ext]      = fileparts(Nio(c).dat.fname);
     Nio(c).dat.fname = fullfile(dir_out,['den_' nam ext]);
     create(Nio(c));
     
-    y                 = get_nii(nii_y,c);        
+    y                 = get_nii(Nii_y,c);        
     Nio(c).dat(:,:,:) = y;
 end
 
@@ -340,7 +337,7 @@ if speak >= 3
     fnames = cell(1,2*C);
     cnt    = 1;
     for c=1:2:2*C    
-        fnames{c}     = nii_x(cnt).dat.fname;    
+        fnames{c}     = Nii_x(cnt).dat.fname;    
         fnames{c + 1} = Nio(cnt).dat.fname;
         cnt           = cnt + 1;
     end
