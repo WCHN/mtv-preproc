@@ -1,4 +1,4 @@
-function Nio = MTVprocess3D(varargin)
+function Nio = spm_MTVprocess3D(varargin)
 % Multi-channel total variation (MTV) denoising or super-resolution of MR images. 
 % Requires that the SPM software is on the MATLAB path. SPM is available from:
 % https://www.fil.ion.ucl.ac.uk/spm/software/spm12/
@@ -94,7 +94,7 @@ C = numel(nii_x); % Number of channels
 for c=1:C    
     dm = nii_x(c).dat.dim;
     
-    if c > 1 && (~isequal(dm,odm) || ~isequal(dm,odm))
+    if strcmpi(method,'denoise') && c > 1 && (~isequal(dm,odm) || ~isequal(dm,odm))
         error('Images are not all the same size!')
     end
     odm = dm;

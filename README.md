@@ -26,5 +26,5 @@ dir_data = '/pth/to/nii_data';
 Nii = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
 % Denoise the MRIs
-MTVprocess3D('InputImages',Nii);
+spm_MTVprocess3D('InputImages',Nii);
 ~~~~
