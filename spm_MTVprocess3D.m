@@ -158,9 +158,9 @@ for c=1:C
     fname_u = fullfile(dir_tmp,['u' num2str(c) '.nii']); 
     fname_w = fullfile(dir_tmp,['w' num2str(c) '.nii']);
     
-    spm_misc('create_nii',fname_y,zeros(dm,'single'),mat,[spm_type('float32') spm_platform('bigend')],'y');
-    spm_misc('create_nii',fname_u,zeros([dm 3],'single'),mat,[spm_type('float32') spm_platform('bigend')],'u');
-    spm_misc('create_nii',fname_w,zeros([dm 3],'single'),mat,[spm_type('float32') spm_platform('bigend')],'w');
+    create_nii(fname_y,zeros(dm,    'single'),mat,[spm_type('float32') spm_platform('bigend')],'y');
+    create_nii(fname_u,zeros([dm 3],'single'),mat,[spm_type('float32') spm_platform('bigend')],'u');
+    create_nii(fname_w,zeros([dm 3],'single'),mat,[spm_type('float32') spm_platform('bigend')],'w');
     
     nii_y(c) = nifti(fname_y);
     nii_u(c) = nifti(fname_u);
@@ -172,8 +172,8 @@ end
 %--------------------------------------------------------------------------
 
 % Manage parfor
-if num_workers == Inf, num_workers = spm_misc('nbr_parfor_workers'); end
-spm_misc('manage_parpool',min(C,num_workers));
+if num_workers == Inf, num_workers = nbr_parfor_workers; end
+manage_parpool(min(C,num_workers));
 
 ll1 = zeros(1,C);
 ll2 = 0;
