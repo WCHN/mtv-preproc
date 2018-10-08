@@ -136,6 +136,7 @@ rho = sqrt(mean(tau))/mean(lam); % This value of rho seems to lead to reasonably
 
 if speak  >= 1
     % Print estimates
+    fprintf('Estimated parameters are:\n');
     for c=1:C
         fprintf('c=%i -> sd=%f, mu=%f -> tau=%f, lam=%f, rho=%f\n', c, sd(c), mu(c), tau(c), lam(c), rho);
     end
@@ -209,14 +210,11 @@ end
 ll2 = -sum(sum(sum(sqrt(ll2))));
 ll  = -sum(ll1) + ll2;
 
-% Print
-if speak >= 1, fprintf('%d %g %g %g\n', 0, sum(ll1), ll2, sum(ll1) + ll2); end
-
 %--------------------------------------------------------------------------
 % Start denoising
 %--------------------------------------------------------------------------
 
-if speak >= 1, fprintf('\nRunning (max) %d iterations:\n', nit); end
+if speak >= 1, fprintf('Started method: %s --- running (max) %d iterations\n', method, nit); end
 
 if speak >= 1, tic; end
 for it=1:nit
