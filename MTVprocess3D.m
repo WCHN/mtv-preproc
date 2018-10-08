@@ -49,14 +49,14 @@ function Nio = MTVprocess3D(varargin)
 
 p              = inputParser;
 p.FunctionName = 'MTVprocess3D';
-p.addParameter('InputImages', '', @(in) (ischar(in) || isstruct(in)));
+p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 30, @isnumeric);
 p.addParameter('Tolerance', 1e-3, @isnumeric);
 p.addParameter('Regularisation_scale', 15, @isnumeric);
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('Temporary_directory',fullfile(fileparts(mfilename('fullpath')),'tmp'), @ischar);
-p.addParameter('Output_directory', fullfile(fileparts(mfilename('fullpath')),'out'), @ischar);
-p.addParameter('Auxiliary_directory', 'auxiliary-functions', @(in) (ischar(in) && exist(fullfile(fileparts(mfilename('fullpath')),in),'dir')));
+p.addParameter('Temporary_directory', 'tmp', @ischar);
+p.addParameter('Output_directory', 'out', @ischar);
+p.addParameter('Auxiliary_directory', fullfile(fileparts(mfilename('fullpath')),'auxiliary-functions'), @(in) (ischar(in) && exist(in,'dir')));
 p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') || strcmpi(in,'superres'))));
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
@@ -80,7 +80,7 @@ if  exist(dir_tmp,'dir'), rmdir(dir_tmp,'s'); end; mkdir(dir_tmp);
 if ~exist(dir_out,'dir'), mkdir(dir_out);  end
 
 % Add to MATLAB path
-addpath(fullfile(fileparts(mfilename('fullpath')),dir_aux));
+addpath(dir_aux);
 addpath(fullfile(fileparts(mfilename('fullpath')),'code'));
   
 %--------------------------------------------------------------------------
@@ -307,12 +307,9 @@ for it=1:nit
     ll   = [ll, sum(ll1) + ll2];    
     gain = abs((ll(end - 1)*(1 + 10*eps) - ll(end))/ll(end));
     
-    if speak >= 1
-        % Some verbose
-        fprintf('%d %g %g %g %g %g\n', it, sum(ll1), ll2, sum(ll1) + ll2,gain,tol);        
-        
-        show_progress(ll,nii_x,nii_y,dm,nr,nc);        
-    end
+    % Some (potential) verbose            
+    if speak >= 1, fprintf('%d %g %g %g %g %g\n', it, sum(ll1), ll2, sum(ll1) + ll2,gain,tol); end
+    if speak >= 2, show_progress(ll,nii_x,nii_y,dm,nr,nc); end
     
     if gain < tol && it > 10
         % Finished        
