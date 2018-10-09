@@ -183,11 +183,11 @@ ll2 = 0;
 parfor c=1:C
     
     % Noisy image
-    x = get_nii(Nii_x,c);    
+    x = get_nii(Nii_x(c));    
     
     % Denoised image
     y = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam(c)^2 0  2 2]); 
-    put_nii(Nii_y,c,y);
+    put_nii(Nii_y(c),y);
         
     % Objective
     ll1(c) = -(tau(c)/2)*sum(sum(sum((y - x).^2)));
@@ -201,11 +201,11 @@ parfor c=1:C
          
     % Proximal variables
     u = zeros([dm 3],'single');
-    put_nii(Nii_u,c,u);
+    put_nii(Nii_u(c),u);
     u = [];
     
     w = zeros([dm 3],'single');    
-    put_nii(Nii_w,c,w);
+    put_nii(Nii_w(c),w);
     w = [];
 end
 
@@ -228,16 +228,16 @@ for it=1:nit
 
     unorm = 0;    
     parfor c=1:C  % Loop over channels
-        y = get_nii(Nii_y,c);        
+        y = get_nii(Nii_y(c));        
         G = lam(c)*imgrad(y,vx);
         y = [];
              
-        w = get_nii(Nii_w,c);        
+        w = get_nii(Nii_w(c));        
         u = G + w/rho;
         G = [];
         w = [];
         
-        put_nii(Nii_u,c,u);
+        put_nii(Nii_u(c),u);
         
         unorm = unorm + sum(u.^2,4);
         u     = [];
@@ -250,8 +250,8 @@ for it=1:nit
     ll2 = 0;
     parfor c=1:C  % Loop over channels
                 
-        u = get_nii(Nii_u,c);   
-        w = get_nii(Nii_w,c);   
+        u = get_nii(Nii_u(c));   
+        w = get_nii(Nii_w(c));   
         
         %------------------------------------------------------------------
         % Proximal operator for u (continued)
@@ -266,7 +266,7 @@ for it=1:nit
         g = u - w/rho; 
         g = lam(c)*imdiv(g(:,:,:,1),g(:,:,:,2),g(:,:,:,3),vx);
                 
-        x = get_nii(Nii_x,c);    
+        x = get_nii(Nii_x(c));    
         g = g + x*(tau(c)/rho);
         
         y = spm_field(ones(dm,'single')*tau(c)/rho,g,[vx  0 lam(c)^2 0  2 2]);
@@ -282,7 +282,7 @@ for it=1:nit
         
         G = lam(c)*imgrad(y,vx);
         
-        put_nii(Nii_y,c,y);
+        put_nii(Nii_y(c),y);
         y = [];
         
         w = w - rho*(u - G);        
@@ -291,10 +291,10 @@ for it=1:nit
         ll2 = ll2 + sum(G.^2,4);      
         G   = [];                
         
-        put_nii(Nii_u,c,u);
+        put_nii(Nii_u(c),u);
         u = [];
         
-        put_nii(Nii_w,c,w);
+        put_nii(Nii_w(c),w);
         w = [];
     end        
     clear scale
@@ -328,7 +328,7 @@ for c=1:C
     Nio(c).dat.fname = fullfile(dir_out,['den_' nam ext]);
     create(Nio(c));
     
-    y                 = get_nii(Nii_y,c);        
+    y                 = get_nii(Nii_y(c));        
     Nio(c).dat(:,:,:) = y;
 end
 

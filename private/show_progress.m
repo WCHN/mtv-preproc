@@ -26,8 +26,8 @@ for c=1:nc
         rngr = ((r - 1)*dm(1) + 1):r*dm(1);
         rngc = ((c - 1)*dm(2) + 1):c*dm(2);
         
-        img_x(rngr,rngc) = get_nii(nii_x,c,z);
-        img_y(rngr,rngc) = get_nii(nii_y,c,z);
+        img_x(rngr,rngc) = get_nii(nii_x(c),z);
+        img_y(rngr,rngc) = get_nii(nii_y(c),z);
         
         cnt = cnt + 1;
         if cnt == C, break; end        
