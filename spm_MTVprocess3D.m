@@ -190,7 +190,7 @@ parfor c=1:C
     ll1(c) = -(tau(c)/2)*sum(sum(sum((y - x).^2)));
     x      = [];         
     
-    G = imgrad(y,lam(c),dm,vx);
+    G = lam(c)*imgrad(y,vx);
     y = [];
     
     ll2 = ll2 + sum(G.^2,4);
@@ -226,7 +226,7 @@ for it=1:nit
     unorm = 0;    
     parfor c=1:C  % Loop over channels
         y = get_nii(Nii_y,c);        
-        G = imgrad(y,lam(c),dm,vx);
+        G = lam(c)*imgrad(y,vx);
         y = [];
              
         w = get_nii(Nii_w,c);        
@@ -261,7 +261,7 @@ for it=1:nit
         %------------------------------------------------------------------
                       
         g = u - w/rho; 
-        g = imdiv(g,lam(c),dm,vx);
+        g = lam(c)*imdiv(g(:,:,:,1),g(:,:,:,2),g(:,:,:,3),vx);
                 
         x = get_nii(Nii_x,c);    
         g = g + x*(tau(c)/rho);
@@ -277,7 +277,7 @@ for it=1:nit
         % Solve for w
         %------------------------------------------------------------------
         
-        G = imgrad(y,lam(c),dm,vx);
+        G = lam(c)*imgrad(y,vx);
         
         put_nii(Nii_y,c,y);
         y = [];
