@@ -75,6 +75,7 @@
 *.m~
 *.mat
 *.txt
+*.md~
 
 ## SPM ignore
 *.ps
