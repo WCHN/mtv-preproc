@@ -8,14 +8,17 @@ function Nio = spm_MTVprocess3D(varargin)
 % KEYWORD
 % -------
 %
-% InputImages          - Either image filenames in a cell array, or images in a nifti object. If empty, uses spm_select ['']
+% InputImages          - Either image filenames in a cell array, or images 
+%                        in a nifti object. If empty, uses spm_select ['']
 % IterMax              - Maximum number of iteration [30]
 % Tolerance            - Convergence threshold [1e-3]
-% Regularisation_scale - Scaling of regularisation, increase this value for stronger denoising [15]
+% Regularisation_scale - Scaling of regularisation, increase this value for 
+%                        stronger denoising [15]
 % WorkersParfor        - Maximum number of parfor workers [Inf]
-% Temporary_directory  - Directory for temporary files ['./tmp']
-% Output_directory     - Directory for denoised images ['./out']
-% Method               - Does either denoising ('denoise') or super-resolution ('superres') ['denoise']
+% TemporaryDirectory  - Directory for temporary files ['./tmp']
+% OutputDirectory     - Directory for denoised images ['./out']
+% Method               - Does either denoising ('denoise') or 
+%                        super-resolution ('superres') ['denoise']
 % Verbose              - Verbosity level:  0  = quiet
 %                                         [1] = write  (log likelihood, parameter estimates)
 %                                          2  = draw   (log likelihood, rice fit, noisy+cleaned)
@@ -56,8 +59,8 @@ p.addParameter('IterMax', 30, @isnumeric);
 p.addParameter('Tolerance', 1e-3, @isnumeric);
 p.addParameter('Regularisation_scale', 15, @isnumeric);
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('Temporary_directory', 'tmp', @ischar);
-p.addParameter('Output_directory', 'out', @ischar);
+p.addParameter('TemporaryDirectory', 'tmp', @ischar);
+p.addParameter('OutputDirectory', 'out', @ischar);
 p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') || strcmpi(in,'superres'))));
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
@@ -67,8 +70,8 @@ nit         = p.Results.IterMax;
 tol         = p.Results.Tolerance;
 scl_lam     = p.Results.Regularisation_scale;
 num_workers = p.Results.WorkersParfor;
-dir_tmp     = p.Results.Temporary_directory;
-dir_out     = p.Results.Output_directory;
+dir_tmp     = p.Results.TemporaryDirectory;
+dir_out     = p.Results.OutputDirectory;
 method      = p.Results.Method;
 speak       = p.Results.Verbose; 
 do_clean    = p.Results.CleanUp; 
