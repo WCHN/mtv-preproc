@@ -63,7 +63,7 @@ p.FunctionName = 'MTVprocess3D';
 p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 30, @isnumeric);
 p.addParameter('Tolerance', 1e-3, @isnumeric);
-p.addParameter('Regularisation_scale', 15, @isnumeric);
+p.addParameter('Regularisation_scale', 10, @isnumeric);
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
 p.addParameter('OutputDirectory', 'out', @ischar);
