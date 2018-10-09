@@ -1,4 +1,4 @@
-function Nio = spm_MTVprocess3D(varargin)
+function Nii = spm_MTVprocess3D(varargin)
 % Multi-channel total variation (MTV) denoising or super-resolution of MR images. 
 % Requires that the SPM software is on the MATLAB path. SPM is available from:
 % https://www.fil.ion.ucl.ac.uk/spm/software/spm12/
@@ -15,8 +15,8 @@ function Nio = spm_MTVprocess3D(varargin)
 % Regularisation_scale - Scaling of regularisation, increase this value for 
 %                        stronger denoising [15]
 % WorkersParfor        - Maximum number of parfor workers [Inf]
-% TemporaryDirectory  - Directory for temporary files ['./tmp']
-% OutputDirectory     - Directory for denoised images ['./out']
+% TemporaryDirectory   - Directory for temporary files ['./tmp']
+% OutputDirectory      - Directory for denoised images ['./out']
 % Method               - Does either denoising ('denoise') or 
 %                        super-resolution ('superres') ['denoise']
 % Verbose              - Verbosity level:  0  = quiet
@@ -165,8 +165,8 @@ rho = sqrt(mean(tau))/mean(lam); % This value of rho seems to lead to reasonably
 if speak  >= 1
     % Print estimates
     fprintf('Estimated parameters are:\n');
-    for c=1:C
-        fprintf('c=%i -> sd=%f, mu=%f -> tau=%f, lam=%f, rho=%f\n', c, sd(c), mu(c), tau(c), lam(c), rho);
+    for c=1:C        
+        fprintf('c=%i | sd=%f, mu=%f | tau=%f, lam=%f, rho=%f\n', c, sd(c), mu(c), tau(c), lam(c), rho);
     end
     fprintf('\n');
 end
@@ -248,9 +248,12 @@ end
 % Start denoising
 %--------------------------------------------------------------------------
 
-if speak >= 1, fprintf('Started method: %s --- running (max) %d iterations\n', method, nit); end
+if speak >= 1
+    fprintf('Start %s, running (max) %d iterations\n', method, nit);
+    tic; 
+end
 
-if speak >= 1, tic; end
+ll = -Inf;
 for it=1:nit
         
     %------------------------------------------------------------------
@@ -359,9 +362,8 @@ for it=1:nit
     ll   = [ll, sum(ll1) + ll2];    
     gain = abs((ll(end - 1)*(1 + 10*eps) - ll(end))/ll(end));
     
-    % Some (potential) verbose            
-    if speak >= 1, fprintf('%d %g %g %g %g %g\n', it, sum(ll1), ll2, sum(ll1) + ll2,gain,tol); end
-    if speak >= 2, show_progress(ll,Nii_x,Nii_y,dm,nr,nc); end
+    % Some (potential) verbose               
+    if speak >= 1, fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); end
     if speak >= 2, show_progress(method,ll,Nii_x,Nii_y,dm,nr,nc); end
     
     if gain < tol && it > 10
@@ -369,7 +371,6 @@ for it=1:nit
         break;
     end
 end
-clear u w G x D
 
 if speak >= 1, toc; end
 
