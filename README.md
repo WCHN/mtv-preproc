@@ -14,12 +14,9 @@ The general principles of the methods are described in the following paper:
 ## Example 1: Denoising MRIs
 
 ~~~~
-dir_MTVprocess3D = '/path/to/MTVprocess3D';
-addpath(dir_MTVprocess3D);
-
 % Read some MRI NIfTIs
 dir_data = '/pth/to/nii_data';
-Nii = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
+Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
 % Denoise the MRIs
 spm_MTVprocess3D('InputImages',Nii);
