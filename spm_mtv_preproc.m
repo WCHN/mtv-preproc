@@ -1,9 +1,9 @@
-function Nii = spm_MTVprocess3D(varargin)
+function Nii = spm_mtv_preproc(varargin)
 % Multi-channel total variation (MTV) denoising or super-resolution of MR images. 
 % Requires that the SPM software is on the MATLAB path. SPM is available from:
 % https://www.fil.ion.ucl.ac.uk/spm/software/spm12/
 %
-% FORMAT Nio = MTVprocess3D(...)
+% FORMAT Nio = spm_mtv_preproc(...)
 %
 % KEYWORD
 % -------

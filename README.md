@@ -23,7 +23,7 @@ dir_data = '/pth/to/nii_data';
 Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
 % Super-resolve the MRIs
-spm_MTVprocess3D('InputImages',Nii,'Method','superres';
+spm_mtv_preproc('InputImages',Nii,'Method','superres';
 ~~~~
 
 The super-resolved images will written to the 'out' folder, prefixed 'sr_'.
@@ -36,7 +36,7 @@ dir_data = '/pth/to/nii_data';
 Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
 % Denoise the MRIs
-spm_MTVprocess3D('InputImages',Nii);
+spm_mtv_preproc('InputImages',Nii);
 ~~~~
 
 The denoised images will written to the 'out' folder, prefixed 'den_'.
