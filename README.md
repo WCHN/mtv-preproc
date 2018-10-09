@@ -10,6 +10,8 @@ The general principles of the methods are described in the following paper:
      MRI Super-Resolution Using Multi-channel Total Variation.
      In Annual Conference on Medical Image Understanding and Analysis
      2018 Jul 9 (pp. 217-228). Springer, Cham.
+     
+The most up-to-date PDF version of this paper is available from https://arxiv.org/abs/1810.03422.
 
 ## Example 1: Denoising MRIs
 
