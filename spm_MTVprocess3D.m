@@ -24,7 +24,13 @@ function Nio = spm_MTVprocess3D(varargin)
 %                                          2  = draw   (log likelihood, rice fit, noisy+cleaned)
 %                                          3  = result (show noisy and denoised image(s) in spm_check_registration)
 % CleanUp              - Delete temporary files [true] 
-% 
+% VoxelSize            - Voxel size of super-resolved image [1 1 1]
+% IterMaxCG            - Maximum number of iterations for conjugate gradient 
+%                        solver used for super-resolution [20]
+% ToleranceCG          - Convergence threshold for conjugate gradient 
+%                        solver used for super-resolution [1e-3]
+% CoRegister           - For super-resolution, co-register input images [true] 
+%
 % OUTPUT
 % ------
 % 
@@ -64,6 +70,10 @@ p.addParameter('OutputDirectory', 'out', @ischar);
 p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') || strcmpi(in,'superres'))));
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
+p.addParameter('VoxelSize', [1 1 1], @(in) (isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0));
+p.addParameter('IterMaxCG', 4, @isnumeric);
+p.addParameter('ToleranceCG', 1e-3, @isnumeric);
+p.addParameter('CoRegister', true, @islogical);
 p.parse(varargin{:});
 Nii_x       = p.Results.InputImages;
 nit         = p.Results.IterMax;
@@ -75,8 +85,10 @@ dir_out     = p.Results.OutputDirectory;
 method      = p.Results.Method;
 speak       = p.Results.Verbose; 
 do_clean    = p.Results.CleanUp; 
-
-if strcmpi(method,'superres'), error('Super-resolution not yet added to this code. But coming soon!'); end
+vx_sr       = p.Results.VoxelSize; 
+nit_cg      = p.Results.IterMaxCG; 
+tol_cg      = p.Results.ToleranceCG; 
+do_coreg    = p.Results.CoRegister; 
 
 % Make some directories
 if  exist(dir_tmp,'dir'), rmdir(dir_tmp,'s'); end; mkdir(dir_tmp); 
@@ -94,7 +106,8 @@ if isempty(Nii_x)
 else
     if ~isa(Nii_x,'nifti'), Nii_x = nifti(Nii_x); end
 end
-C = numel(Nii_x); % Number of channels
+Nii_x0 = Nii_x;        % So that Verbose = 3 works for superres
+C      = numel(Nii_x); % Number of channels
 
 % Sanity check input
 for c=1:C    
@@ -105,8 +118,17 @@ for c=1:C
     end
     odm = dm;
 end
-mat = nii_x(1).mat;
-vx  = sqrt(sum(nii_x(c).mat(1:3,1:3).^2));
+
+% Get voxel size, orientation matrix and image dimensions
+if strcmpi(method,'denoise')
+    mat = Nii_x(1).mat;
+    vx  = sqrt(sum(mat(1:3,1:3).^2));    
+elseif strcmpi(method,'superres')
+    % For super-resolution, calculate orientation matrix and dimensions 
+    % from maximum bounding-box
+    vx       = vx_sr;
+    [mat,dm] = max_bb_orient(Nii_x,vx);
+end
 
 %--------------------------------------------------------------------------
 % Estimate model hyper-parameters
@@ -174,31 +196,44 @@ end
 % Initialise variables
 %--------------------------------------------------------------------------
 
+if strcmpi(method,'superres')    
+    if do_coreg
+        % Co-register input images
+        Nii_x = coreg(Nii_x,dir_tmp);
+    end
+    
+    % Initialise dat struct with projection matrices, etc.
+    dat = init_dat(Nii_x,mat,dm);  
+    
+    % Define Laplace prior (in Fourier space)
+    L = laplace_prior(dm,vx);
+else 
+    % For denoising these variables need to be defined, otherwise parfor
+    % will complain :(
+    dat = zeros(1,C);
+    L   = [];
+end
+
 % Manage parfor
 if num_workers == Inf, num_workers = nbr_parfor_workers; end
 manage_parpool(min(C,num_workers));
 
-ll1 = zeros(1,C);
-ll2 = 0;
-parfor c=1:C
+parfor c=1:C    
     
     % Noisy image
     x = get_nii(Nii_x(c));    
     
-    % Denoised image
-    y = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam(c)^2 0  2 2]); 
-    put_nii(Nii_y(c),y);
-        
-    % Objective
-    ll1(c) = -(tau(c)/2)*sum(sum(sum((y - x).^2)));
-    x      = [];         
-    
-    G = lam(c)*imgrad(y,vx);
+    % Initial guess for solution    
+    if strcmpi(method,'superres')    
+        % Super-resolved image (using bspline interpolation)
+        y = get_y_superres(Nii_x(c),dat(c),dm,mat);
+    else  
+        % Denoised image
+        y = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam(c)^2 0  2 2]); 
+    end
+    put_nii(Nii_y(c),y);                
     y = [];
     
-    ll2 = ll2 + sum(G.^2,4);
-    G   = []; 
-         
     % Proximal variables
     u = zeros([dm 3],'single');
     put_nii(Nii_u(c),u);
@@ -208,10 +243,6 @@ parfor c=1:C
     put_nii(Nii_w(c),w);
     w = [];
 end
-
-% Objective
-ll2 = -sum(sum(sum(sqrt(ll2))));
-ll  = -sum(ll1) + ll2;
 
 %--------------------------------------------------------------------------
 % Start denoising
@@ -224,10 +255,13 @@ for it=1:nit
         
     %------------------------------------------------------------------
     % Proximal operator for u
+    % Here we solve for the MTV term of the objective function using the
+    % vectorial soft thresholding 
     %------------------------------------------------------------------
 
     unorm = 0;    
     parfor c=1:C  % Loop over channels
+        
         y = get_nii(Nii_y(c));        
         G = lam(c)*imgrad(y,vx);
         y = [];
@@ -245,7 +279,7 @@ for it=1:nit
     unorm = sqrt(unorm);
     scale = max(unorm - 1/rho,0)./(unorm + eps);
     clear unorm
-    
+        
     ll1 = zeros(1,C);
     ll2 = 0;
     parfor c=1:C  % Loop over channels
@@ -255,29 +289,50 @@ for it=1:nit
         
         %------------------------------------------------------------------
         % Proximal operator for u (continued)
+        % Here we multiply each contrast image with the same scaling
+        % matrix, this is a key addition of using MTV
         %------------------------------------------------------------------
         
         u = bsxfun(@times,u,scale);
             
         %------------------------------------------------------------------
         % Proximal operator for y
+        % Here we want to solve the linear system: lhs\rhs
         %------------------------------------------------------------------
-                      
-        g = u - w/rho; 
-        g = lam(c)*imdiv(g(:,:,:,1),g(:,:,:,2),g(:,:,:,3),vx);
-                
+                  
+        rhs = u - w/rho; 
+        rhs = lam(c)*imdiv(rhs(:,:,:,1),rhs(:,:,:,2),rhs(:,:,:,3),vx);
+               
         x = get_nii(Nii_x(c));    
-        g = g + x*(tau(c)/rho);
         
-        y = spm_field(ones(dm,'single')*tau(c)/rho,g,[vx  0 lam(c)^2 0  2 2]);
-        g = [];
+        if strcmpi(method,'superres')  
+            % Super-resolution
+            rhs = rhs + At({x},tau(c),dat(c))*(1/rho);            
+            lhs = @(y) AtA(y,@(y) L(y),tau(c)/rho,lam(c)^2,dat(c));
+            
+            % Solve using conjugate gradient
+            y = cg_im_solver(lhs,rhs,get_nii(Nii_y(c)),nit_cg,tol_cg);
+            
+            % Ensure non-negative
+            y(y < 0) = 0;
+        else            
+            % Denoising
+            rhs = rhs + x*(tau(c)/rho);
+            lhs = ones(dm,'single')*tau(c)/rho;
+            
+            % Solve using full multi-grid
+            y = spm_field(lhs,rhs,[vx  0 lam(c)^2 0  2 2]);
+        end                               
+        lhs = [];
+        rhs = [];
 
-        % Objective function
-        ll1(c) = -(tau(c)/2)*sum(sum(sum((y - x).^2)));
+        % Compute likelihood term of posterior
+        ll1(c) = get_ll1(method,y,x,tau(c),dat(c));
         x      = [];
         
         %------------------------------------------------------------------
         % Solve for w
+        % Here we update the Lagrange variable
         %------------------------------------------------------------------
         
         G = lam(c)*imgrad(y,vx);
@@ -287,7 +342,7 @@ for it=1:nit
         
         w = w - rho*(u - G);        
     
-        % Objective function    
+        % Compute prior term of posterior
         ll2 = ll2 + sum(G.^2,4);      
         G   = [];                
         
@@ -299,7 +354,7 @@ for it=1:nit
     end        
     clear scale
     
-    % Objective function    
+    % Compute log-posterior (objective value)
     ll2  = -sum(sum(sum(sqrt(ll2))));    
     ll   = [ll, sum(ll1) + ll2];    
     gain = abs((ll(end - 1)*(1 + 10*eps) - ll(end))/ll(end));
@@ -307,6 +362,7 @@ for it=1:nit
     % Some (potential) verbose            
     if speak >= 1, fprintf('%d %g %g %g %g %g\n', it, sum(ll1), ll2, sum(ll1) + ll2,gain,tol); end
     if speak >= 2, show_progress(ll,Nii_x,Nii_y,dm,nr,nc); end
+    if speak >= 2, show_progress(method,ll,Nii_x,Nii_y,dm,nr,nc); end
     
     if gain < tol && it > 10
         % Finished        
@@ -321,27 +377,34 @@ if speak >= 1, toc; end
 % Write results
 %--------------------------------------------------------------------------
 
-Nio = nifti;
+if strcmpi(method,'superres'), prefix = 'sr';
+else,                          prefix = 'den';
+end
+   
+Nii = nifti;
 for c=1:C
-    Nio(c)           = Nii_x(c);
-    [~,nam,ext]      = fileparts(Nio(c).dat.fname);
-    Nio(c).dat.fname = fullfile(dir_out,['den_' nam ext]);
-    create(Nio(c));
-    
-    y                 = get_nii(Nii_y(c));        
-    Nio(c).dat(:,:,:) = y;
+    VO           = spm_vol(Nii_x(c).dat.fname);
+    [~,name,ext] = fileparts(VO.fname);
+    VO.fname     = fullfile(dir_out,[prefix '_' name ext]);
+    VO.dim(1:3)  = dm(1:3);    
+    VO.mat       = mat;
+    VO           = spm_create_vol(VO);
+        
+    Nii(c)            = nifti(VO.fname);
+    y                 = get_nii(Nii_y(c)); 
+    Nii(c).dat(:,:,:) = y;    
 end
 
 %--------------------------------------------------------------------------
-% Show original and denoised
+% Show input and solved
 %--------------------------------------------------------------------------
 
 if speak >= 3
     fnames = cell(1,2*C);
     cnt    = 1;
     for c=1:2:2*C    
-        fnames{c}     = Nii_x(cnt).dat.fname;    
-        fnames{c + 1} = Nio(cnt).dat.fname;
+        fnames{c}     = Nii_x0(cnt).dat.fname;    
+        fnames{c + 1} = Nii(cnt).dat.fname;
         cnt           = cnt + 1;
     end
 
