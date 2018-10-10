@@ -76,7 +76,7 @@ p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') 
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
 p.addParameter('VoxelSize', [1 1 1], @(in) (isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0));
-p.addParameter('IterMaxCG', 20, @isnumeric);
+p.addParameter('IterMaxCG', 4, @isnumeric);
 p.addParameter('ToleranceCG', 1e-3, @isnumeric);
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('CleanFOV', true, @islogical);
