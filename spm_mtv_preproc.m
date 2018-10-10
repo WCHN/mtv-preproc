@@ -78,20 +78,20 @@ p.addParameter('ToleranceCG', 1e-3, @isnumeric);
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('CleanFOV', true, @islogical);
 p.parse(varargin{:});
-Nii_x       = p.Results.InputImages;
-nit         = p.Results.IterMax;
-tol         = p.Results.Tolerance;
-scl_lam     = p.Results.Regularisation_scale;
-num_workers = p.Results.WorkersParfor;
-dir_tmp     = p.Results.TemporaryDirectory;
-dir_out     = p.Results.OutputDirectory;
-method      = p.Results.Method;
-speak       = p.Results.Verbose; 
-do_clean    = p.Results.CleanUp; 
-vx_sr       = p.Results.VoxelSize; 
-nit_cg      = p.Results.IterMaxCG; 
-tol_cg      = p.Results.ToleranceCG; 
-do_coreg    = p.Results.CoRegister; 
+Nii_x        = p.Results.InputImages;
+nit          = p.Results.IterMax;
+tol          = p.Results.Tolerance;
+scl_lam      = p.Results.Regularisation_scale;
+num_workers  = p.Results.WorkersParfor;
+dir_tmp      = p.Results.TemporaryDirectory;
+dir_out      = p.Results.OutputDirectory;
+method       = p.Results.Method;
+speak        = p.Results.Verbose; 
+do_clean     = p.Results.CleanUp; 
+vx_sr        = p.Results.VoxelSize; 
+nit_cg       = p.Results.IterMaxCG; 
+tol_cg       = p.Results.ToleranceCG; 
+coreg        = p.Results.CoRegister; 
 do_clean_fov = p.Results.CleanFOV; 
 
 % Make some directories
@@ -201,9 +201,9 @@ end
 %--------------------------------------------------------------------------
 
 if strcmpi(method,'superres')    
-    if do_coreg
+    if coreg
         % Co-register input images
-        Nii_x = coreg(Nii_x,dir_tmp);
+        Nii_x = coreg_ims(Nii_x,dir_tmp);
     end
     
     % Initialise dat struct with projection matrices, etc.
@@ -222,7 +222,7 @@ end
 if num_workers == Inf, num_workers = nbr_parfor_workers; end
 manage_parpool(min(C,num_workers));
 
-parfor c=1:C    
+parfor (c=1:C,num_workers)    
     
     % Noisy image
     x = get_nii(Nii_x(c));    
@@ -249,7 +249,7 @@ parfor c=1:C
 end
 
 %--------------------------------------------------------------------------
-% Start denoising
+% Start solving
 %--------------------------------------------------------------------------
 
 if speak >= 1
@@ -267,7 +267,7 @@ for it=1:nit
     %------------------------------------------------------------------
 
     unorm = 0;    
-    parfor c=1:C  % Loop over channels
+    parfor (c=1:C,num_workers) % Loop over channels
         
         y = get_nii(Nii_y(c));        
         G = lam(c)*imgrad(y,vx);
@@ -289,7 +289,7 @@ for it=1:nit
         
     ll1 = zeros(1,C);
     ll2 = 0;
-    parfor c=1:C  % Loop over channels
+    parfor (c=1:C,num_workers) % Loop over channels
                 
         u = get_nii(Nii_u(c));   
         w = get_nii(Nii_w(c));   
@@ -399,12 +399,12 @@ end
    
 Nii = nifti;
 for c=1:C
-    VO           = spm_vol(Nii_x(c).dat.fname);
-    [~,name,ext] = fileparts(VO.fname);
-    VO.fname     = fullfile(dir_out,[prefix '_' name ext]);
-    VO.dim(1:3)  = dm(1:3);    
-    VO.mat       = mat;
-    VO           = spm_create_vol(VO);
+    VO          = spm_vol(Nii_x(c).dat.fname);
+    [~,nam,ext] = fileparts(VO.fname);
+    VO.fname    = fullfile(dir_out,[prefix '_' nam ext]);
+    VO.dim(1:3) = dm(1:3);    
+    VO.mat      = mat;
+    VO          = spm_create_vol(VO);
         
     Nii(c)            = nifti(VO.fname);
     y                 = get_nii(Nii_y(c)); 

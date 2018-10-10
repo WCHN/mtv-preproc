@@ -1,4 +1,4 @@
-function Nii = coreg(Nii,dir_tmp)
+function Nii = coreg_ims(Nii,dir_write)
 % Co-register images
 %__________________________________________________________________________
 % Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -12,7 +12,7 @@ V = spm_vol;
 for c=1:C
     f           = Nii(c).dat.fname;
     [~,nam,ext] = fileparts(f);
-    nf          = fullfile(dir_tmp,[nam ext]);
+    nf          = fullfile(dir_write,[nam ext]);
     
     copyfile(f,nf);
     

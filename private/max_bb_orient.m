@@ -1,4 +1,4 @@
-function [mat,dim] = max_bb_orient(Nii,vx)
+function [mat,dm] = max_bb_orient(Nii,vx)
 % Calculate orientation matrix and dimensions from maximum bounding-box
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -18,6 +18,6 @@ for i=1:numel(Nii)
     mn = min(mn,min(c,[],2));
 end
 mat = spm_matrix(mn-1)*diag([vx 1])*spm_matrix(-[1 1 1]);
-dim = ceil((mat\[mx'+1 1]')');
-dim = dim(1:3);
+dm  = ceil((mat\[mx'+1 1]')');
+dm  = dm(1:3);
 %==========================================================================
