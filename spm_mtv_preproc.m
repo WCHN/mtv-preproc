@@ -318,7 +318,9 @@ for it=1:nit
             lhs = @(y) AtA(y,@(y) L(y),tau(c)/rho,lam(c)^2,dat(c));
             
             % Solve using conjugate gradient
-            y = cg_im_solver(lhs,rhs,get_nii(Nii_y(c)),nit_cg,tol_cg);
+            [y,it_cg,d_cg,t_cg] = cg_im_solver(lhs,rhs,get_nii(Nii_y(c)),nit_cg,tol_cg);
+            
+            if speak >= 1, fprintf('%2d | %2d %10.1f %10.1f\n', c, it_cg, d_cg, t_cg); end
             
             % Ensure non-negative
             y(y < 0) = 0;
