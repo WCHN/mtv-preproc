@@ -30,6 +30,8 @@ function Nii = spm_mtv_preproc(varargin)
 % ToleranceCG          - Convergence threshold for conjugate gradient 
 %                        solver used for super-resolution [1e-3]
 % CoRegister           - For super-resolution, co-register input images [true] 
+% CleanFOV             - Clean-up the field-of-view, after super-resolution 
+%                        has finished [true] 
 %
 % OUTPUT
 % ------
@@ -74,6 +76,7 @@ p.addParameter('VoxelSize', [1 1 1], @(in) (isnumeric(in) && (numel(in) == 1 || 
 p.addParameter('IterMaxCG', 4, @isnumeric);
 p.addParameter('ToleranceCG', 1e-3, @isnumeric);
 p.addParameter('CoRegister', true, @islogical);
+p.addParameter('CleanFOV', true, @islogical);
 p.parse(varargin{:});
 Nii_x       = p.Results.InputImages;
 nit         = p.Results.IterMax;
@@ -89,6 +92,7 @@ vx_sr       = p.Results.VoxelSize;
 nit_cg      = p.Results.IterMaxCG; 
 tol_cg      = p.Results.ToleranceCG; 
 do_coreg    = p.Results.CoRegister; 
+do_clean_fov = p.Results.CleanFOV; 
 
 % Make some directories
 if  exist(dir_tmp,'dir'), rmdir(dir_tmp,'s'); end; mkdir(dir_tmp); 
@@ -373,6 +377,15 @@ for it=1:nit
 end
 
 if speak >= 1, toc; end
+
+if strcmpi(method,'superres') && do_clean_fov
+    % Zero voxels outside the field of view
+    for c=1:C    
+        y = get_nii(Nii_y(c));         
+        y = clean_fov(y,dat(c));
+        put_nii(Nii_y(c),y);  
+    end
+end
 
 %--------------------------------------------------------------------------
 % Write results
