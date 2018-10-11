@@ -223,6 +223,7 @@ if num_workers == Inf, num_workers = nbr_parfor_workers; end
 manage_parpool(min(C,num_workers));
 
 parfor (c=1:C,num_workers)    
+    spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
     
     % Noisy image
     x = get_nii(Nii_x(c));    
@@ -232,8 +233,7 @@ parfor (c=1:C,num_workers)
         % Super-resolved image (using bspline interpolation)
         y = get_y_superres(Nii_x(c),dat(c),dm,mat);
     else  
-        % Denoised image
-        spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
+        % Denoised image        
         y = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam(c)^2 0  2 2]); 
     end
     put_nii(Nii_y(c),y);                
@@ -291,6 +291,7 @@ for it=1:nit
     ll1 = zeros(1,C);
     ll2 = 0;
     parfor (c=1:C,num_workers) % Loop over channels
+        spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
                 
         u = get_nii(Nii_u(c));   
         w = get_nii(Nii_w(c));   
@@ -330,8 +331,7 @@ for it=1:nit
             rhs = rhs + x*(tau(c)/rho);
             lhs = ones(dm,'single')*tau(c)/rho;
             
-            % Solve using full multi-grid
-            spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
+            % Solve using full multi-grid            
             y = spm_field(lhs,rhs,[vx  0 lam(c)^2 0  2 2]);
         end                               
         lhs = [];
