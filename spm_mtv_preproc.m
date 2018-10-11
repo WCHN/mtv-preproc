@@ -101,6 +101,9 @@ do_clean_fov = p.Results.CleanFOV;
 if  exist(dir_tmp,'dir'), rmdir(dir_tmp,'s'); end; mkdir(dir_tmp); 
 if ~exist(dir_out,'dir'), mkdir(dir_out);  end
   
+% Enable bias correction
+correctbias = true;
+
 %--------------------------------------------------------------------------
 % Get image data
 %--------------------------------------------------------------------------
@@ -162,6 +165,7 @@ for c=1:C
     mu(c)  = mu_brain;              % Mean brain intensity
     lam(c) = scl_lam/double(mu(c)); % This scaling is currently a bit arbitrary, and should be based on empiricism
 end
+beta = 1E8 * ones(1,C); % Bias field regularization
 
 % Estimate rho
 rho = sqrt(mean(tau))/mean(lam); % This value of rho seems to lead to reasonably good convergence
@@ -182,6 +186,7 @@ end
 Nii_y = nifti;
 Nii_u = nifti;
 Nii_w = nifti;
+Nii_b = nifti;
 for c=1:C
     fname_y = fullfile(dir_tmp,['y' num2str(c) '.nii']);
     fname_u = fullfile(dir_tmp,['u' num2str(c) '.nii']); 
@@ -194,7 +199,20 @@ for c=1:C
     Nii_y(c) = nifti(fname_y);
     Nii_u(c) = nifti(fname_u);
     Nii_w(c) = nifti(fname_w);
+    
+    if correctbias
+        fname_b = fullfile(dir_tmp,['b' num2str(c) '.nii']);
+        create_nii(fname_b,zeros(dm,'single'),mat,[spm_type('float32') spm_platform('bigend')],'b');
+        Nii_b(c) = nifti(fname_b);
+    else
+        Nii_b(c) = nifti;
+    end
 end
+
+% Start with a higher MTV penalty
+lam0   = lam;
+lam    = [];
+lamscl = 10.^[1 1 1 1 1 1 1 1 0];
 
 %--------------------------------------------------------------------------
 % Initialise variables
@@ -225,6 +243,8 @@ manage_parpool(min(C,num_workers));
 parfor (c=1:C,num_workers)    
     spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
     
+    lam = lam0(c) * lamscl(1);
+    
     % Noisy image
     x = get_nii(Nii_x(c));    
     
@@ -234,7 +254,7 @@ parfor (c=1:C,num_workers)
         y = get_y_superres(Nii_x(c),dat(c),dm,mat);
     else  
         % Denoised image        
-        y = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam(c)^2 0  2 2]); 
+        y = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam^2 0  2 2]); 
     end
     put_nii(Nii_y(c),y);                
     y = [];
@@ -247,7 +267,15 @@ parfor (c=1:C,num_workers)
     w = zeros([dm 3],'single');    
     put_nii(Nii_w(c),w);
     w = [];
+    
+    % Bias field
+    if correctbias
+        b = zeros(dm,'single');    
+        put_nii(Nii_b(c),b);
+        b = [];
+    end
 end
+
 
 %--------------------------------------------------------------------------
 % Start solving
@@ -270,8 +298,10 @@ for it=1:nit
     unorm = 0;    
     parfor (c=1:C,num_workers) % Loop over channels
         
+        lam = lam0(c) * lamscl(1);
+        
         y = get_nii(Nii_y(c));        
-        G = lam(c)*imgrad(y,vx);
+        G = lam*imgrad(y,vx);
         y = [];
              
         w = get_nii(Nii_w(c));        
@@ -289,10 +319,13 @@ for it=1:nit
     clear unorm
         
     ll1 = zeros(1,C);
+    llb = zeros(1,C);
     ll2 = 0;
     parfor (c=1:C,num_workers) % Loop over channels
         spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
                 
+        lam = lam0(c) * lamscl(1);
+        
         u = get_nii(Nii_u(c));   
         w = get_nii(Nii_w(c));   
         
@@ -310,14 +343,23 @@ for it=1:nit
         %------------------------------------------------------------------
                   
         rhs = u - w/rho; 
-        rhs = lam(c)*imdiv(rhs(:,:,:,1),rhs(:,:,:,2),rhs(:,:,:,3),vx);
-               
-        x = get_nii(Nii_x(c));    
-        
+        rhs = lam*imdiv(rhs(:,:,:,1),rhs(:,:,:,2),rhs(:,:,:,3),vx);
+                 
+        x   = get_nii(Nii_x(c));  
+        msk = isfinite(x) & (x ~= 0);
+        if correctbias
+            bc = get_nii(Nii_b(c));
+            b  = exp(bc);
+            b(~msk) = 1; % Do not apply bias to empty voxels
+        else
+            bc = [];
+            b  = 1;
+        end
+            
         if strcmpi(method,'superres')  
             % Super-resolution
             rhs = rhs + At({x},tau(c),dat(c))*(1/rho);            
-            lhs = @(y) AtA(y,@(y) L(y),tau(c)/rho,lam(c)^2,dat(c));
+            lhs = @(y) AtA(y,@(y) L(y),tau(c)/rho,lam^2,dat(c));
             
             % Solve using conjugate gradient
             [y,it_cg,d_cg,t_cg] = cg_im_solver(lhs,rhs,get_nii(Nii_y(c)),nit_cg,tol_cg);
@@ -328,25 +370,57 @@ for it=1:nit
             y(y < 0) = 0;
         else            
             % Denoising
-            rhs = rhs + x*(tau(c)/rho);
-            lhs = ones(dm,'single')*tau(c)/rho;
+            rhs = rhs + (b.*x) * (tau(c)/rho);
+            lhs = (b.^2) .* ones(dm,'single') * tau(c)/rho;
             
             % Solve using full multi-grid            
-            y = spm_field(lhs,rhs,[vx  0 lam(c)^2 0  2 2]);
+            y = spm_field(lhs,rhs,[vx  0 lam^2 0  2 2]);
         end                               
         lhs = [];
         rhs = [];
-
+        
+        %------------------------------------------------------------------
+        % Solve for b
+        %------------------------------------------------------------------
+        if correctbias
+            if strcmpi(method, 'superres')
+                % TODO
+            else
+                b   = b.*y;
+                rhs = tau(c)*b.*(b - x);
+                lhs = tau(c)*(b.^2);
+                lhs(~msk) = 0;
+                rhs(~msk) = 0;
+                b   = [];
+            end
+            vxl = sqrt(sum(Nii_x(c).mat(1:3,1:3).^2));
+            lhs = lhs + spm_field('vel2mom', bc, [vxl 0 0 beta(c)]);
+            lhs = lhs + 1e-7;
+            bc  = spm_field(lhs,rhs,[vxl 0 0 beta(c) 2 2]);                      
+            lhs = [];
+            rhs = [];
+            b       = exp(bc);
+            b(~msk) = 1;
+            
+            tmp = spm_field('vel2mom', bc, [vxl 0 0 beta(c)]);
+            tmp = 0.5*bc(:)'*tmp(:);
+            llb(c) = tmp;
+            
+            put_nii(Nii_b(c),bc);
+            bc      = [];
+        end
+        
         % Compute likelihood term of posterior
-        ll1(c) = get_ll1(method,y,x,tau(c),dat(c));
-        x      = [];
+        ll1(c) = get_ll1(method,y,x,tau(c),dat(c),b);
+        x   = [];
+        b   = [];
         
         %------------------------------------------------------------------
         % Solve for w
         % Here we update the Lagrange variable
         %------------------------------------------------------------------
         
-        G = lam(c)*imgrad(y,vx);
+        G = lam*imgrad(y,vx);
         
         put_nii(Nii_y(c),y);
         y = [];
@@ -362,21 +436,27 @@ for it=1:nit
         
         put_nii(Nii_w(c),w);
         w = [];
-    end        
+        
+        
+    end
     clear scale
     
     % Compute log-posterior (objective value)
     ll2  = -sum(sum(sum(sqrt(ll2))));    
-    ll   = [ll, sum(ll1) + ll2];    
+    ll   = [ll, sum(ll1) + ll2 + sum(llb)];    
     gain = abs((ll(end - 1)*(1 + 10*eps) - ll(end))/ll(end));
     
     % Some (potential) verbose               
     if speak >= 1, fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); end
-    if speak >= 2, show_progress(method,ll,Nii_x,Nii_y,dm,nr,nc); end
+    if speak >= 2, show_progress(method,ll,Nii_x,Nii_y,dm,nr,nc,Nii_b); end
     
-    if gain < tol && it > 10
+    if numel(lamscl) == 1 && gain < tol && it > 10
         % Finished        
         break;
+    end
+    
+    if numel(lamscl) > 1
+        lamscl = lamscl(2:end);
     end
 end
 
