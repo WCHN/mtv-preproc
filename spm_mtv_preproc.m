@@ -101,9 +101,6 @@ do_clean_fov = p.Results.CleanFOV;
 if  exist(dir_tmp,'dir'), rmdir(dir_tmp,'s'); end; mkdir(dir_tmp); 
 if ~exist(dir_out,'dir'), mkdir(dir_out);  end
   
-% Set up boundary conditions that match the gradient operator
-spm_field('boundary',1)
-
 %--------------------------------------------------------------------------
 % Get image data
 %--------------------------------------------------------------------------
@@ -236,6 +233,7 @@ parfor (c=1:C,num_workers)
         y = get_y_superres(Nii_x(c),dat(c),dm,mat);
     else  
         % Denoised image
+        spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
         y = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam(c)^2 0  2 2]); 
     end
     put_nii(Nii_y(c),y);                
@@ -333,6 +331,7 @@ for it=1:nit
             lhs = ones(dm,'single')*tau(c)/rho;
             
             % Solve using full multi-grid
+            spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
             y = spm_field(lhs,rhs,[vx  0 lam(c)^2 0  2 2]);
         end                               
         lhs = [];
