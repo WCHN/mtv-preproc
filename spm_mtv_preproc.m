@@ -217,7 +217,7 @@ end
 
 % Manage parfor
 if num_workers == Inf, num_workers = nbr_parfor_workers; end
-manage_parpool(min(C,num_workers));
+if num_workers > 0,    manage_parpool(min(C,num_workers));  end
 
 parfor (c=1:C,num_workers)    
     spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
