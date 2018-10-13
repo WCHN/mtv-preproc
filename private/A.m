@@ -10,6 +10,7 @@ for n=1:dat.N
     tmp  = real(ifftn(Y.*dat.A(n).S));  
     
     X{n} = spm_diffeo('bsplins',tmp,y,[1 1 1 0 0 0]);
+    clear y tmp
     
     vx1  = sqrt(sum(dat.mat(1:3,1:3).^2));
     vx0  = sqrt(sum(dat.A(n).mat(1:3,1:3).^2));

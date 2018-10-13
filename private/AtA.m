@@ -18,8 +18,9 @@ for n=1:dat.N
     tmp = scl*tmp;
     
     tmp                 = spm_diffeo('push',tmp,y,dat.dm);          
-    tmp(~isfinite(tmp)) = 0;
-                                    
+    clear y
+    tmp(~isfinite(tmp)) = 0;    
+    
     tmp = real(ifftn(fftn(tmp).*dat.A(n).S));
     
     Y1  = Y1 + tau(n).*tmp;
