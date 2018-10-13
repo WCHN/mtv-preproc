@@ -5,12 +5,13 @@ F               = fftn(F);
 
 Y1 = single(0);
 for n=1:dat.N
-    T = dat.mat\dat.A(n).mat;
-    y = apply_affine(T,dat.A(n).dm);
+    T   = dat.mat\dat.A(n).mat;
+    y   = apply_affine(T,dat.A(n).dm);
         
     tmp = real(ifftn(F.*dat.A(n).S));    
     
-    tmp = samp0(tmp,y); 
+    tmp = spm_diffeo('bsplins',tmp,y,[1 1 1 0 0 0]);
+    
     vx1 = sqrt(sum(dat.mat(1:3,1:3).^2));
     vx0 = sqrt(sum(dat.A(n).mat(1:3,1:3).^2));
     scl = prod(vx1./vx0);
@@ -21,7 +22,7 @@ for n=1:dat.N
                                     
     tmp = real(ifftn(fftn(tmp).*dat.A(n).S));
     
-    Y1 = Y1 + tau(n).*tmp;
+    Y1  = Y1 + tau(n).*tmp;
 end
 
 Y1 = Y1 + lam*prior(Y);

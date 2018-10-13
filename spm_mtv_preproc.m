@@ -56,9 +56,6 @@ function Nii = spm_mtv_preproc(varargin)
 % First check that SPM is on the MATLAB path
 if ~(exist('spm','file') == 2), error('SPM is not on the MATLAB path!'); end
 
-% If necessary MEX-files are not compiled, compile them
-if ~(exist('samp0','file') == 3), compile_mex('samp0.c'); end
-
 %--------------------------------------------------------------------------
 % Parse options
 %--------------------------------------------------------------------------
