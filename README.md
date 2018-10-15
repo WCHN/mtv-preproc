@@ -1,19 +1,19 @@
-# Resolution recovery in routine clinical neuroimaging data (MRI and CT)
+# Resolution recovery in routine clinical neuroimaging data
 
-This code enables resolution recovery in clinial grade neuroimaging data. It can do either (1) super-resolution (MRI) or (2) denosing (MRI + CT):
+This code enables resolution recovery in clinial grade neuroimaging data. It can process both MRI (denoising or super-resolution) and CT (denoising) data.
 
-1. The code can reconstruct high-resolution, isotropic data (1 mm) from clinical MR scans (i.e. thick-sliced), of arbitrary orientation and MR contrast. For example, given a T1, a T2 and a FLAIR scan with large slice-thickness, three 1 mm isotropic scans can be recovered. 
+**Super-resolution**: The code can reconstruct high-resolution, isotropic data (1 mm) from clinical MR scans (i.e. thick-sliced), of arbitrary orientation and MR contrast. For example, given a T1, a T2 and a FLAIR scan with large slice-thickness, three 1 mm isotropic scans can be recovered. 
 
-2. The code can remove noise from MR and CT scans.
+**Denoising**: The code can remove noise from MR and CT scans.
 
-The method the code is based on is described in detail in the following paper:
+The code is based on the method described in this paper:
 
      Brudfors M, Balbastre Y, Nachev P, Ashburner J.
      MRI Super-Resolution Using Multi-channel Total Variation.
      In Annual Conference on Medical Image Understanding and Analysis
      2018 Jul 9 (pp. 217-228). Springer, Cham.
      
-The most up-to-date PDF version of this paper is available from https://arxiv.org/abs/1810.03422.
+The most up-to-date PDF version of the paper is available from https://arxiv.org/abs/1810.03422.
 
 ## Requirements
 
