@@ -111,7 +111,8 @@ if strcmpi(method,'superres') && strcmpi(modality,'CT')
 end
 
 % Make some directories
-if  exist(dir_tmp,'dir'), rmdir(dir_tmp,'s'); end; mkdir(dir_tmp); 
+if  exist(dir_tmp,'dir'), rmdir(dir_tmp,'s'); end
+if  do_readwrite || (strcmpi(method,'superres') && coreg), mkdir(dir_tmp); end
 if ~exist(dir_out,'dir'), mkdir(dir_out);  end
   
 %--------------------------------------------------------------------------
@@ -471,7 +472,7 @@ if speak >= 3
     spm_check_registration(char(fnames))
 end
 
-if do_clean && do_readwrite
+if do_clean && (do_readwrite || (strcmpi(method,'superres') && coreg))
     % Clean-up
     rmdir(dir_tmp,'s');
 end
