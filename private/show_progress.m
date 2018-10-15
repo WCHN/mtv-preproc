@@ -1,4 +1,4 @@
-function show_progress(method,ll,nii_x,nii_y,dm,nr,nc)
+function show_progress(method,modality,ll,nii_x,nii_y,dm,nr,nc)
 % Show log-likelihood, and input and solved image
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -54,7 +54,12 @@ else
         end
     end
     
-    imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]'); axis off image; colormap(gray);
+    if strcmpi(modality,'MRI')
+        imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]');
+    elseif strcmpi(modality,'CT')
+        imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]',[0 100]);
+    end
+    axis off image; colormap(gray);
 end
 title('Input and solved')
 

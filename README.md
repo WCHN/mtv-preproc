@@ -1,8 +1,12 @@
-# Super-resolution and denoising of routine clinical magnetic resonance scans
+# Resolution recovery in routine clinical neuroimaging data (MRI and CT)
 
-This code enables reconstructing high-resolution, isotropic data from clinical magnetic resonance (MR) scans, of arbitrary orientation and MR contrast. For example, given a T1, a T2 and a FLAIR scan with large slice-thickness, three 1 mm isotropic scans can be recovered. Furthermore, the method can also be used to denoise noisy MR scans.
+This code enables resolution recovery in clinial grade neuroimaging data. It can do either (1) super-resolution (MRI) or (2) denosing (MRI + CT):
 
-The method is described in detail in the following paper:
+1. The code can reconstruct high-resolution, isotropic data (1 mm) from clinical MR scans (i.e. thick-sliced), of arbitrary orientation and MR contrast. For example, given a T1, a T2 and a FLAIR scan with large slice-thickness, three 1 mm isotropic scans can be recovered. 
+
+2. The code can remove noise from MR and CT scans.
+
+The method the code is based on is described in detail in the following paper:
 
      Brudfors M, Balbastre Y, Nachev P, Ashburner J.
      MRI Super-Resolution Using Multi-channel Total Variation.
@@ -37,6 +41,17 @@ Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
 % Denoise the MRIs
 spm_mtv_preproc('InputImages',Nii);
+~~~~
+
+## Example 3: Denoise a CT image
+
+~~~~
+% Read a CT NIfTI
+dir_data = '/pth/to/nii_data';
+Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
+
+% Denoise the CT
+spm_mtv_preproc('InputImages',Nii,'Modality','CT');
 ~~~~
 
 The denoised images will written to the 'out' folder, prefixed 'den_'.

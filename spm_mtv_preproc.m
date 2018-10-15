@@ -32,6 +32,9 @@ function Nii = spm_mtv_preproc(varargin)
 % CoRegister           - For super-resolution, co-register input images [true] 
 % CleanFOV             - Clean-up the field-of-view, after super-resolution 
 %                        has finished [true] 
+% Modality               - Either MRI (denoise and super-resolution) or CT 
+%                          (denoise) ['MRI']
+% LambdaCT               - Regularisation used for CT denoising [1]
 % ReadWrite              - Keep variables in workspace (requires more RAM,
 %                          but faster), or read/write from disk (requires 
 %                          less RAM, but slower) [true] 
@@ -80,6 +83,8 @@ p.addParameter('IterMaxCG', 4, @isnumeric);
 p.addParameter('ToleranceCG', 1e-3, @isnumeric);
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('CleanFOV', true, @islogical);
+p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
+p.addParameter('LambdaCT', 0.04, @isnumeric);
 p.addParameter('ReadWrite', true, @islogical);
 p.parse(varargin{:});
 Nii_x        = p.Results.InputImages;
@@ -97,7 +102,13 @@ nit_cg       = p.Results.IterMaxCG;
 tol_cg       = p.Results.ToleranceCG; 
 coreg        = p.Results.CoRegister; 
 do_clean_fov = p.Results.CleanFOV; 
+modality     = p.Results.Modality; 
+lam_ct       = p.Results.LambdaCT; 
 do_readwrite = p.Results.ReadWrite; 
+
+if strcmpi(method,'superres') && strcmpi(modality,'CT')
+    error('Super-resolution not yet supported for CT data!');
+end
 
 % Make some directories
 if  exist(dir_tmp,'dir'), rmdir(dir_tmp,'s'); end; mkdir(dir_tmp); 
@@ -141,10 +152,12 @@ end
 %--------------------------------------------------------------------------
 
 if speak >= 2
-    figname          = '(SPM) Rice mixture fits';
-    f                = findobj('Type', 'Figure', 'Name', figname);
-    if isempty(f), f = figure('Name', figname, 'NumberTitle', 'off'); end
-    set(0, 'CurrentFigure', f);  
+    if strcmpi(modality,'MRI')
+        figname          = '(SPM) Rice mixture fits';
+        f                = findobj('Type', 'Figure', 'Name', figname);
+        if isempty(f), f = figure('Name', figname, 'NumberTitle', 'off'); end
+        set(0, 'CurrentFigure', f);  
+    end
     
     nr = floor(sqrt(C));
     nc = ceil(C/nr);  
@@ -155,18 +168,25 @@ tau = zeros(1,C);
 mu  = zeros(1,C);
 lam = zeros(1,C);
 for c=1:C           
-    if speak >= 2, subplot(nr,nc,c); end
+    if speak >= 2 && strcmpi(modality,'MRI'), subplot(nr,nc,c); end
     
-    % Estimate image noise and mean brain intensity
-    [sd(c),mu_brain] = spm_noise_estimate_mod(Nii_x(c),speak >= 2);
+    if strcmpi(modality,'MRI')
+        % Estimate image noise and mean brain intensity
+        [sd(c),mu_brain] = spm_noise_estimate_mod(Nii_x(c),speak >= 2);
+        
+        mu(c)  = mu_brain;              % Mean brain intensity
+        lam(c) = scl_lam/double(mu(c)); % This scaling is currently a bit arbitrary, and should be based on empiricism
+    elseif strcmpi(modality,'CT')
+        sd(c)  = noise_estimate_ct(Nii_x(c));
+        mu(c)  = 0;
+        lam(c) = lam_ct;
+    end
     
-    tau(c) = 1/(sd(c).^2);          % Noise precision
-    mu(c)  = mu_brain;              % Mean brain intensity
-    lam(c) = scl_lam/double(mu(c)); % This scaling is currently a bit arbitrary, and should be based on empiricism
+    tau(c) = 1/(sd(c).^2); % Noise precision
 end
 
-% Estimate rho
-rho = sqrt(mean(tau))/mean(lam); % This value of rho seems to lead to reasonably good convergence
+% Estimate rho (this value seems to lead to reasonably good convergence)
+rho = sqrt(mean(tau))/mean(lam);
 
 if speak  >= 1
     % Print estimates
@@ -338,10 +358,7 @@ for it=1:nit
             % Solve using conjugate gradient
             [y,it_cg,d_cg,t_cg] = cg_im_solver(lhs,rhs,get_nii(Nii_y(c)),nit_cg,tol_cg);
             
-            if speak >= 1, fprintf('%2d | %2d %10.1f %10.1f\n', c, it_cg, d_cg, t_cg); end
-            
-            % Ensure non-negative
-            y(y < 0) = 0;
+            if speak >= 1, fprintf('%2d | %2d %10.1f %10.1f\n', c, it_cg, d_cg, t_cg); end                        
         else            
             % Denoising
             rhs = rhs + x*(tau(c)/rho);
@@ -353,6 +370,11 @@ for it=1:nit
         lhs = [];
         rhs = [];
 
+        if strcmpi(modality,'MRI')
+            % Ensure non-negative
+            y(y < 0) = 0;
+        end 
+        
         % Compute likelihood term of posterior
         ll1(c) = get_ll1(method,y,x,tau(c),dat(c));
         x      = [];
@@ -388,7 +410,7 @@ for it=1:nit
     
     % Some (potential) verbose               
     if speak >= 1, fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); end
-    if speak >= 2, show_progress(method,ll,Nii_x,Nii_y,dm,nr,nc); end
+    if speak >= 2, show_progress(method,modality,ll,Nii_x,Nii_y,dm,nr,nc); end
     
     if gain < tol && it > 10
         % Finished        
