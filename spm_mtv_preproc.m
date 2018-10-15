@@ -255,10 +255,13 @@ else
 end
 
 % Manage parfor
+num_workers                        = min(C,num_workers);
+if C == 1,             num_workers = 0; end
 if num_workers == Inf, num_workers = nbr_parfor_workers; end
-if num_workers > 0,    manage_parpool(min(C,num_workers));  end
+if num_workers > 1,    manage_parpool(num_workers);  end
 
-parfor (c=1:C,num_workers)    
+parfor (c=1:C,num_workers)  
+
     spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
     
     % Noisy image
