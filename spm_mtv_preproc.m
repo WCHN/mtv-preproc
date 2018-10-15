@@ -413,10 +413,10 @@ for it=1:nit
     if speak >= 1, fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); end
     if speak >= 2, show_progress(method,modality,ll,Nii_x,Nii_y,dm,nr,nc); end
     
-    if gain < tol && it > 10
-        % Finished        
-        break;
-    end
+%     if gain < tol && it > 10
+%         % Finished        
+%         break;
+%     end
 end
 
 if speak >= 1, toc; end
