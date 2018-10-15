@@ -67,7 +67,7 @@ if ~(exist('spm','file') == 2), error('SPM is not on the MATLAB path!'); end
 %--------------------------------------------------------------------------
 
 p              = inputParser;
-p.FunctionName = 'MTVprocess3D';
+p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 30, @isnumeric);
 p.addParameter('Tolerance', 1e-3, @isnumeric);
