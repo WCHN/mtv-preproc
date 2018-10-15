@@ -1,9 +1,9 @@
-function put_nii(nii,img)
-% Write to NIfTI
+function nii = put_nii(nii,img)
+% Write data
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
-dm = nii.dat.dim;
+dm = size(img);
 if numel(dm) == 4
     nii.dat(:,:,:,:) = img;
 elseif numel(dm) == 3

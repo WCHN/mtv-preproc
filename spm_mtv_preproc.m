@@ -32,6 +32,9 @@ function Nii = spm_mtv_preproc(varargin)
 % CoRegister           - For super-resolution, co-register input images [true] 
 % CleanFOV             - Clean-up the field-of-view, after super-resolution 
 %                        has finished [true] 
+% ReadWrite              - Keep variables in workspace (requires more RAM,
+%                          but faster), or read/write from disk (requires 
+%                          less RAM, but slower) [true] 
 %
 % OUTPUT
 % ------
@@ -77,6 +80,7 @@ p.addParameter('IterMaxCG', 4, @isnumeric);
 p.addParameter('ToleranceCG', 1e-3, @isnumeric);
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('CleanFOV', true, @islogical);
+p.addParameter('ReadWrite', true, @islogical);
 p.parse(varargin{:});
 Nii_x        = p.Results.InputImages;
 nit          = p.Results.IterMax;
@@ -93,6 +97,7 @@ nit_cg       = p.Results.IterMaxCG;
 tol_cg       = p.Results.ToleranceCG; 
 coreg        = p.Results.CoRegister; 
 do_clean_fov = p.Results.CleanFOV; 
+do_readwrite = p.Results.ReadWrite; 
 
 % Make some directories
 if  exist(dir_tmp,'dir'), rmdir(dir_tmp,'s'); end; mkdir(dir_tmp); 
@@ -173,24 +178,38 @@ if speak  >= 1
 end
 
 %--------------------------------------------------------------------------
-% Initialise NIfTIs
+% Initialise temporary variables
 %--------------------------------------------------------------------------
 
-Nii_y = nifti;
-Nii_u = nifti;
-Nii_w = nifti;
+if do_readwrite
+    % Read/write temporary variables from disk (stored as NIfTIs)
+    Nii_y = nifti;
+    Nii_u = nifti;
+    Nii_w = nifti;
+else
+    % Keep temporary variables in memory
+    Nii_y = struct;
+    Nii_u = struct;
+    Nii_w = struct;
+end
 for c=1:C
-    fname_y = fullfile(dir_tmp,['y' num2str(c) '.nii']);
-    fname_u = fullfile(dir_tmp,['u' num2str(c) '.nii']); 
-    fname_w = fullfile(dir_tmp,['w' num2str(c) '.nii']);
-    
-    create_nii(fname_y,zeros(dm,    'single'),mat,[spm_type('float32') spm_platform('bigend')],'y');
-    create_nii(fname_u,zeros([dm 3],'single'),mat,[spm_type('float32') spm_platform('bigend')],'u');
-    create_nii(fname_w,zeros([dm 3],'single'),mat,[spm_type('float32') spm_platform('bigend')],'w');
-    
-    Nii_y(c) = nifti(fname_y);
-    Nii_u(c) = nifti(fname_u);
-    Nii_w(c) = nifti(fname_w);
+    if do_readwrite
+        fname_y = fullfile(dir_tmp,['y' num2str(c) '.nii']);
+        fname_u = fullfile(dir_tmp,['u' num2str(c) '.nii']); 
+        fname_w = fullfile(dir_tmp,['w' num2str(c) '.nii']);
+
+        create_nii(fname_y,zeros(dm,    'single'),mat,[spm_type('float32') spm_platform('bigend')],'y');
+        create_nii(fname_u,zeros([dm 3],'single'),mat,[spm_type('float32') spm_platform('bigend')],'u');
+        create_nii(fname_w,zeros([dm 3],'single'),mat,[spm_type('float32') spm_platform('bigend')],'w');
+
+        Nii_y(c) = nifti(fname_y);
+        Nii_u(c) = nifti(fname_u);
+        Nii_w(c) = nifti(fname_w);
+    else
+        Nii_y(c).dat = zeros(dm,    'single');
+        Nii_u(c).dat = zeros([dm 3],'single');
+        Nii_w(c).dat = zeros([dm 3],'single');
+    end
 end
 
 %--------------------------------------------------------------------------
@@ -233,16 +252,16 @@ parfor (c=1:C,num_workers)
         % Denoised image        
         y = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam(c)^2 0  2 2]); 
     end
-    put_nii(Nii_y(c),y);                
+    Nii_y(c) = put_nii(Nii_y(c),y);                
     y = [];
     
     % Proximal variables
     u = zeros([dm 3],'single');
-    put_nii(Nii_u(c),u);
+    Nii_u(c) = put_nii(Nii_u(c),u);
     u = [];
     
     w = zeros([dm 3],'single');    
-    put_nii(Nii_w(c),w);
+    Nii_w(c) = put_nii(Nii_w(c),w);
     w = [];
 end
 
@@ -276,7 +295,7 @@ for it=1:nit
         G = [];
         w = [];
         
-        put_nii(Nii_u(c),u);
+        Nii_u(c) = put_nii(Nii_u(c),u);
         
         unorm = unorm + sum(u.^2,4);
         u     = [];
@@ -345,7 +364,7 @@ for it=1:nit
         
         G = lam(c)*imgrad(y,vx);
         
-        put_nii(Nii_y(c),y);
+        Nii_y(c) = put_nii(Nii_y(c),y);
         y = [];
         
         w = w - rho*(u - G);        
@@ -354,10 +373,10 @@ for it=1:nit
         ll2 = ll2 + sum(G.^2,4);      
         G   = [];                
         
-        put_nii(Nii_u(c),u);
+        Nii_u(c) = put_nii(Nii_u(c),u);
         u = [];
         
-        put_nii(Nii_w(c),w);
+        Nii_w(c) = put_nii(Nii_w(c),w);
         w = [];
     end        
     clear scale
@@ -384,7 +403,7 @@ if strcmpi(method,'superres') && do_clean_fov
     for c=1:C    
         y = get_nii(Nii_y(c));         
         y = clean_fov(y,dat(c));
-        put_nii(Nii_y(c),y);  
+        Nii_y(c) = put_nii(Nii_y(c),y);  
     end
 end
 
@@ -426,7 +445,7 @@ if speak >= 3
     spm_check_registration(char(fnames))
 end
 
-if do_clean
+if do_clean && do_readwrite
     % Clean-up
     rmdir(dir_tmp,'s');
 end
