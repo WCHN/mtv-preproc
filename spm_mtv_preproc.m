@@ -115,6 +115,8 @@ if  exist(dir_tmp,'dir'), rmdir(dir_tmp,'s'); end
 if  do_readwrite || (strcmpi(method,'superres') && coreg), mkdir(dir_tmp); end
 if ~exist(dir_out,'dir'), mkdir(dir_out);  end
   
+if numel(vx_sr) == 1, vx_sr = vx_sr*ones(1,3); end
+
 %--------------------------------------------------------------------------
 % Get image data
 %--------------------------------------------------------------------------
