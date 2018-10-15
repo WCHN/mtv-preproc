@@ -1,4 +1,8 @@
 function X = A(Y,dat)
+% Forward model (x=Ay)
+% _______________________________________________________________________
+%  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
+
 Y(~isfinite(Y)) = 0;
 Y               = fftn(Y);    
 

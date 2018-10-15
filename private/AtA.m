@@ -1,4 +1,8 @@
 function Y1 = AtA(Y,prior,tau,lam,dat)  
+% A'A
+% _______________________________________________________________________
+%  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
+
 F               = Y;        
 F(~isfinite(F)) = 0;
 F               = fftn(F);    

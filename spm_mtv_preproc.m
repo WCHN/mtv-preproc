@@ -8,30 +8,30 @@ function Nii = spm_mtv_preproc(varargin)
 % KEYWORD
 % -------
 %
-% InputImages          - Either image filenames in a cell array, or images 
+% InputImages            - Either image filenames in a cell array, or images 
 %                        in a nifti object. If empty, uses spm_select ['']
-% IterMax              - Maximum number of iteration [30]
-% Tolerance            - Convergence threshold [1e-3]
-% Regularisation_scale - Scaling of regularisation, increase this value for 
+% IterMax                - Maximum number of iteration [30]
+% Tolerance              - Convergence threshold [1e-3]
+% RegularisationScaleMRI - Scaling of regularisation, increase this value for 
 %                        stronger denoising [15]
-% WorkersParfor        - Maximum number of parfor workers [Inf]
-% TemporaryDirectory   - Directory for temporary files ['./tmp']
-% OutputDirectory      - Directory for denoised images ['./out']
-% Method               - Does either denoising ('denoise') or 
-%                        super-resolution ('superres') ['denoise']
-% Verbose              - Verbosity level:  0  = quiet
+% WorkersParfor          - Maximum number of parfor workers [Inf]
+% TemporaryDirectory     - Directory for temporary files ['./tmp']
+% OutputDirectory        - Directory for denoised images ['./out']
+% Method                 - Does either denoising ('denoise') or 
+%                          super-resolution ('superres') ['denoise']
+% Verbose                - Verbosity level:  0  = quiet
 %                                         [1] = write  (log likelihood, parameter estimates)
 %                                          2  = draw   (log likelihood, rice fit, noisy+cleaned)
 %                                          3  = result (show noisy and denoised image(s) in spm_check_registration)
-% CleanUp              - Delete temporary files [true] 
-% VoxelSize            - Voxel size of super-resolved image [1 1 1]
-% IterMaxCG            - Maximum number of iterations for conjugate gradient 
-%                        solver used for super-resolution [20]
-% ToleranceCG          - Convergence threshold for conjugate gradient 
-%                        solver used for super-resolution [1e-3]
-% CoRegister           - For super-resolution, co-register input images [true] 
-% CleanFOV             - Clean-up the field-of-view, after super-resolution 
-%                        has finished [true] 
+% CleanUp                - Delete temporary files [true] 
+% VoxelSize              - Voxel size of super-resolved image [1 1 1]
+% IterMaxCG              - Maximum number of iterations for conjugate gradient 
+%                          solver used for super-resolution [20]
+% ToleranceCG            - Convergence threshold for conjugate gradient 
+%                          solver used for super-resolution [1e-3]
+% CoRegister             - For super-resolution, co-register input images [true] 
+% CleanFOV               - Clean-up the field-of-view, after super-resolution 
+%                          has finished [true] 
 % Modality               - Either MRI (denoise and super-resolution) or CT 
 %                          (denoise) ['MRI']
 % LambdaCT               - Regularisation used for CT denoising [1]
@@ -71,7 +71,7 @@ p.FunctionName = 'MTVprocess3D';
 p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 30, @isnumeric);
 p.addParameter('Tolerance', 1e-3, @isnumeric);
-p.addParameter('Regularisation_scale', 10, @isnumeric);
+p.addParameter('RegularisationScaleMRI', 10, @isnumeric);
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
 p.addParameter('OutputDirectory', 'out', @ischar);
@@ -90,7 +90,7 @@ p.parse(varargin{:});
 Nii_x        = p.Results.InputImages;
 nit          = p.Results.IterMax;
 tol          = p.Results.Tolerance;
-scl_lam      = p.Results.Regularisation_scale;
+scl_lam      = p.Results.RegularisationScaleMRI;
 num_workers  = p.Results.WorkersParfor;
 dir_tmp      = p.Results.TemporaryDirectory;
 dir_out      = p.Results.OutputDirectory;
@@ -305,7 +305,7 @@ for it=1:nit
 
     unorm = 0;    
     parfor (c=1:C,num_workers) % Loop over channels
-        
+    
         y = get_nii(Nii_y(c));        
         G = lam(c)*imgrad(y,vx);
         y = [];
@@ -327,6 +327,7 @@ for it=1:nit
     ll1 = zeros(1,C);
     ll2 = 0;
     parfor (c=1:C,num_workers) % Loop over channels
+    
         spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
                 
         u = get_nii(Nii_u(c));   
