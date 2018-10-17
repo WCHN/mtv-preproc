@@ -111,9 +111,9 @@ if strcmpi(method,'superres') && strcmpi(modality,'CT')
 end
 
 % Make some directories
-if  exist(dir_tmp,'dir'), rmdir(dir_tmp,'s'); end
-if  do_readwrite || (strcmpi(method,'superres') && coreg), mkdir(dir_tmp); end
-if ~exist(dir_out,'dir'), mkdir(dir_out);  end
+if  exist(dir_tmp,'dir'),  rmdir(dir_tmp,'s'); end
+if  do_readwrite || coreg, mkdir(dir_tmp); end
+if ~exist(dir_out,'dir'),  mkdir(dir_out);  end
   
 if numel(vx_sr) == 1, vx_sr = vx_sr*ones(1,3); end
 
@@ -200,8 +200,13 @@ if speak  >= 1
     fprintf('\n');
 end
 
+if coreg
+    % Co-register input images
+    Nii_x = coreg_ims(Nii_x,dir_tmp);
+end
+
 %--------------------------------------------------------------------------
-% Initialise temporary variables
+% Allocate temporary variables
 %--------------------------------------------------------------------------
 
 if do_readwrite
@@ -239,12 +244,7 @@ end
 % Initialise variables
 %--------------------------------------------------------------------------
 
-if strcmpi(method,'superres')    
-    if coreg
-        % Co-register input images
-        Nii_x = coreg_ims(Nii_x,dir_tmp);
-    end
-    
+if strcmpi(method,'superres')            
     % Initialise dat struct with projection matrices, etc.
     dat = init_dat(Nii_x,mat,dm);  
     
@@ -474,8 +474,8 @@ if speak >= 3
     spm_check_registration(char(fnames))
 end
 
-if do_clean && (do_readwrite || (strcmpi(method,'superres') && coreg))
-    % Clean-up
+if do_clean && (do_readwrite || coreg)
+    % Clean-up temporary files
     rmdir(dir_tmp,'s');
 end
 %==========================================================================
