@@ -17,12 +17,16 @@ V0  = ones([1 1 K]);
 f = Nii.dat(:);
 
 % Only keep voxels with values close to air (-1000)
-f(f>=-980) = [];
-f(f<-1020) = [];
+f(~isfinite(f)) = [];
+f(f>=-980)      = [];
+f(f<-1020)      = [];
 
 % Histogram bin voxels
-bins  = min(f):max(f);
-[x,c] = spm_imbasics('hist',f(:),bins');
+x = min(f):max(f);
+c = hist(f(:),x);
+
+x = x';
+c = c';
 
 % Fit GMM
 [~,MU,A] = spm_gmm(x,K,c,'BinWidth',1,'GaussPrior',{MU0,b0,V0,n0}, ...
