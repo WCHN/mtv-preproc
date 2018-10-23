@@ -9,7 +9,7 @@ function Nii = spm_mtv_preproc(varargin)
 % -------
 %
 % InputImages            - Either image filenames in a cell array, or images 
-%                        in a nifti object. If empty, uses spm_select ['']
+%                          in a nifti object. If empty, uses spm_select ['']
 % IterMax                - Maximum number of iteration [30]
 % Tolerance              - Convergence threshold [1e-3]
 % RegularisationScaleMRI - Scaling of regularisation, increase this value for 
@@ -85,7 +85,7 @@ p.addParameter('CoRegister', true, @islogical);
 p.addParameter('CleanFOV', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
 p.addParameter('LambdaCT', 0.04, @isnumeric);
-p.addParameter('ReadWrite', true, @islogical);
+p.addParameter('ReadWrite', false, @islogical);
 p.parse(varargin{:});
 Nii_x        = p.Results.InputImages;
 nit          = p.Results.IterMax;
