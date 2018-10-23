@@ -27,7 +27,7 @@ dir_data = '/pth/to/nii_data';
 Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
 % Super-resolve the MRIs
-spm_mtv_preproc('InputImages',Nii,'Method','superres';
+spm_mtv_preproc('InputImages',Nii,'Method','superres');
 ~~~~
 
 The super-resolved images will written to the 'out' folder, prefixed 'sr_'.
