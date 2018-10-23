@@ -109,11 +109,6 @@ do_readwrite = p.Results.ReadWrite;
 if strcmpi(method,'superres') && strcmpi(modality,'CT')
     error('Super-resolution not yet supported for CT data!');
 end
-
-% Make some directories
-if  exist(dir_tmp,'dir'),  rmdir(dir_tmp,'s'); end
-if  do_readwrite || coreg, mkdir(dir_tmp); end
-if ~exist(dir_out,'dir'),  mkdir(dir_out);  end
   
 if numel(vx_sr) == 1, vx_sr = vx_sr*ones(1,3); end
 
@@ -128,6 +123,11 @@ else
 end
 Nii_x0 = Nii_x;        % So that Verbose = 3 works for superres
 C      = numel(Nii_x); % Number of channels
+
+% Make some directories
+if  exist(dir_tmp,'dir') == 7,  rmdir(dir_tmp,'s'); end
+if  do_readwrite || (coreg && C > 1), mkdir(dir_tmp); end
+if ~(exist(dir_out,'dir') == 7),  mkdir(dir_out);  end
 
 % Sanity check input
 for c=1:C    
@@ -474,7 +474,7 @@ if speak >= 3
     spm_check_registration(char(fnames))
 end
 
-if do_clean && (do_readwrite || coreg)
+if do_clean && (do_readwrite || (coreg && C > 1))
     % Clean-up temporary files
     rmdir(dir_tmp,'s');
 end
