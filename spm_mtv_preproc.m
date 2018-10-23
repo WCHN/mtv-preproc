@@ -13,16 +13,16 @@ function Nii = spm_mtv_preproc(varargin)
 % IterMax                - Maximum number of iteration [30]
 % Tolerance              - Convergence threshold [1e-3]
 % RegularisationScaleMRI - Scaling of regularisation, increase this value for 
-%                        stronger denoising [15]
+%                          stronger denoising [15]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
 % TemporaryDirectory     - Directory for temporary files ['./tmp']
 % OutputDirectory        - Directory for denoised images ['./out']
 % Method                 - Does either denoising ('denoise') or 
 %                          super-resolution ('superres') ['denoise']
 % Verbose                - Verbosity level:  0  = quiet
-%                                         [1] = write  (log likelihood, parameter estimates)
-%                                          2  = draw   (log likelihood, rice fit, noisy+cleaned)
-%                                          3  = result (show noisy and denoised image(s) in spm_check_registration)
+%                                           [1] = write  (log likelihood, parameter estimates)
+%                                            2  = draw   (log likelihood, rice fit, noisy+cleaned)
+%                                            3  = result (show noisy and denoised image(s) in spm_check_registration)
 % CleanUp                - Delete temporary files [true] 
 % VoxelSize              - Voxel size of super-resolved image [1 1 1]
 % IterMaxCG              - Maximum number of iterations for conjugate gradient 
@@ -37,7 +37,7 @@ function Nii = spm_mtv_preproc(varargin)
 % LambdaCT               - Regularisation used for CT denoising [1]
 % ReadWrite              - Keep variables in workspace (requires more RAM,
 %                          but faster), or read/write from disk (requires 
-%                          less RAM, but slower) [true] 
+%                          less RAM, but slower) [false] 
 %
 % OUTPUT
 % ------
