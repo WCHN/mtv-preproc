@@ -18,8 +18,9 @@ f = Nii.dat(:);
 
 % Only keep voxels with values close to air (-1000)
 f(~isfinite(f)) = [];
-f(f>=-980)      = [];
-f(f<-1020)      = [];
+f(f == min(f))  = [];
+f(f >= -980)    = [];
+f(f <- 1020)    = [];
 
 % Histogram bin voxels
 x = min(f):max(f);
