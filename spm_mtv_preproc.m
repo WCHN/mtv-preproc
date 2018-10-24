@@ -30,8 +30,6 @@ function Nii = spm_mtv_preproc(varargin)
 % ToleranceCG            - Convergence threshold for conjugate gradient 
 %                          solver used for super-resolution [1e-3]
 % CoRegister             - For super-resolution, co-register input images [true] 
-% CleanFOV               - Clean-up the field-of-view, after super-resolution 
-%                          has finished [true] 
 % Modality               - Either MRI (denoise and super-resolution) or CT 
 %                          (denoise) ['MRI']
 % LambdaCT               - Regularisation used for CT denoising [1]
@@ -82,7 +80,6 @@ p.addParameter('VoxelSize', [1 1 1], @(in) (isnumeric(in) && (numel(in) == 1 || 
 p.addParameter('IterMaxCG', 4, @isnumeric);
 p.addParameter('ToleranceCG', 1e-3, @isnumeric);
 p.addParameter('CoRegister', true, @islogical);
-p.addParameter('CleanFOV', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
 p.addParameter('LambdaCT', 0.04, @isnumeric);
 p.addParameter('ReadWrite', false, @islogical);
@@ -101,7 +98,6 @@ vx_sr        = p.Results.VoxelSize;
 nit_cg       = p.Results.IterMaxCG; 
 tol_cg       = p.Results.ToleranceCG; 
 coreg        = p.Results.CoRegister; 
-do_clean_fov = p.Results.CleanFOV; 
 modality     = p.Results.Modality; 
 lam_ct       = p.Results.LambdaCT; 
 do_readwrite = p.Results.ReadWrite; 
@@ -142,20 +138,7 @@ end
 % Get voxel size, orientation matrix and image dimensions
 if strcmpi(method,'denoise')
     mat = Nii_x(1).mat;
-    vx  = sqrt(sum(mat(1:3,1:3).^2)); 
-    
-    % Save location of missing values so that they can be 're-applied' once
-    % the denoising has finished
-    msk = cell(1,C);
-    for c=1:C
-        x = get_nii(Nii_x(c));
-        if strcmpi(modality,'CT')
-            msk{c} = isfinite(x) & x ~= 0 & x ~= min(x);
-        else
-            msk{c} = isfinite(x) & x ~= 0;
-        end
-    end
-    clear x
+    vx  = sqrt(sum(mat(1:3,1:3).^2));     
 elseif strcmpi(method,'superres')
     % For super-resolution, calculate orientation matrix and dimensions 
     % from maximum bounding-box
@@ -276,6 +259,7 @@ if C == 1,             num_workers = 0; end
 if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
 
+msk = cell(1,C); % For saving locations of missing values so that they can be 're-applied' once the algorithm has finished
 parfor (c=1:C,num_workers)  
 
     spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
@@ -286,10 +270,15 @@ parfor (c=1:C,num_workers)
     % Initial guess for solution    
     if strcmpi(method,'superres')    
         % Super-resolved image (using bspline interpolation)
-        y = get_y_superres(Nii_x(c),dat(c),dm,mat);
+        [y,msk{c}] = get_y_superres(Nii_x(c),dat(c),dm,mat);
     else  
         % Denoised image        
         y = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam(c)^2 0  2 2]); 
+        if strcmpi(modality,'CT')
+            msk{c} = isfinite(x) & x ~= 0 & x ~= min(x);
+        else
+            msk{c} = isfinite(x) & x ~= 0;
+        end
     end
     Nii_y(c) = put_nii(Nii_y(c),y);                
     y = [];
@@ -435,15 +424,6 @@ end
 
 if speak >= 1, toc; end
 
-if strcmpi(method,'superres') && do_clean_fov
-    % Zero voxels outside the field of view
-    for c=1:C    
-        y = get_nii(Nii_y(c));         
-        y = clean_fov(y,dat(c));
-        Nii_y(c) = put_nii(Nii_y(c),y);  
-    end
-end
-
 %--------------------------------------------------------------------------
 % Write results
 %--------------------------------------------------------------------------
@@ -462,11 +442,8 @@ for c=1:C
     VO          = spm_create_vol(VO);
         
     Nii(c)            = nifti(VO.fname);
-    y                 = get_nii(Nii_y(c));  
-    if strcmpi(method,'denoise')
-        % 'Re-apply' missing values
-        y(~msk{c})    = 0; 
-    end
+    y                 = get_nii(Nii_y(c));         
+    y(~msk{c})        = 0; % 'Re-apply' missing values        
     Nii(c).dat(:,:,:) = y;    
 end
 
