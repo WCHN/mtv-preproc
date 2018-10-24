@@ -281,7 +281,7 @@ parfor (c=1:C,num_workers)
     spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
     
     % Noisy image
-    x = get_nii(Nii_x(c));    
+    x = get_nii(Nii_x(c));   
     
     % Initial guess for solution    
     if strcmpi(method,'superres')    
@@ -431,11 +431,6 @@ for it=1:nit
     % Some (potential) verbose               
     if speak >= 1, fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); end
     if speak >= 2, show_progress(method,modality,ll,Nii_x,Nii_y,dm,nr,nc); end
-    
-%     if gain < tol && it > 10
-%         % Finished        
-%         break;
-%     end
 end
 
 if speak >= 1, toc; end
