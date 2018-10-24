@@ -11,7 +11,6 @@ function Nii = spm_mtv_preproc(varargin)
 % InputImages            - Either image filenames in a cell array, or images 
 %                          in a nifti object. If empty, uses spm_select ['']
 % IterMax                - Maximum number of iteration [30]
-% Tolerance              - Convergence threshold [1e-3]
 % RegularisationScaleMRI - Scaling of regularisation, increase this value for 
 %                          stronger denoising [15]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
@@ -68,7 +67,6 @@ p              = inputParser;
 p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 30, @isnumeric);
-p.addParameter('Tolerance', 1e-3, @isnumeric);
 p.addParameter('RegularisationScaleMRI', 10, @isnumeric);
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
@@ -86,7 +84,6 @@ p.addParameter('ReadWrite', false, @islogical);
 p.parse(varargin{:});
 Nii_x        = p.Results.InputImages;
 nit          = p.Results.IterMax;
-tol          = p.Results.Tolerance;
 scl_lam      = p.Results.RegularisationScaleMRI;
 num_workers  = p.Results.WorkersParfor;
 dir_tmp      = p.Results.TemporaryDirectory;
@@ -273,24 +270,22 @@ parfor (c=1:C,num_workers)
         [y,msk{c}] = get_y_superres(Nii_x(c),dat(c),dm,mat);
     else  
         % Denoised image        
-        y = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam(c)^2 0  2 2]); 
+        y         = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam(c)^2 0  2 2]); 
+        
         if strcmpi(modality,'CT')
             msk{c} = isfinite(x) & x ~= 0 & x ~= min(x);
         else
             msk{c} = isfinite(x) & x ~= 0;
         end
     end
+    x = [];
+    
     Nii_y(c) = put_nii(Nii_y(c),y);                
-    y = [];
+    y        = [];
     
     % Proximal variables
-    u = zeros([dm 3],'single');
-    Nii_u(c) = put_nii(Nii_u(c),u);
-    u = [];
-    
-    w = zeros([dm 3],'single');    
-    Nii_w(c) = put_nii(Nii_w(c),w);
-    w = [];
+    Nii_u(c) = put_nii(Nii_u(c),zeros([dm 3],'single'));
+    Nii_w(c) = put_nii(Nii_w(c),zeros([dm 3],'single'));
 end
 
 %--------------------------------------------------------------------------
