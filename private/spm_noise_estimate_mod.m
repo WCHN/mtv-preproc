@@ -9,7 +9,6 @@ function [noise,mu_brain] = spm_noise_estimate_mod(Scans,speak)
 if ~isa(Scans,'nifti'), Scans = nifti(Scans); end
 
 noise     = zeros(numel(Scans),1);
-mu_brain  = zeros(numel(Scans),1);
 for i=1:numel(Scans)
     Nii = Scans(i);
     f   = Nii.dat(:,:,:);
@@ -22,11 +21,16 @@ for i=1:numel(Scans)
         f(f==max(f(:))) = 0;
         [h,x]  = hist(f(f~=0 & isfinite(f)),x);
     end
-    [mg,nu,sd,mu] = spm_rice_mixture_mod(h(:),x(:),2,speak);
+    [mg,nu,sd,mu] = spm_rice_mixture_mod(double(h(:)),double(x(:)),2,speak);
     
     noise(i)    = min(sd);
-    [~,ix]      = max(sd);
-    mu_brain(i) = mu(ix);
+    
+    x         = -nu.^2./(2*sd.^2);
+    msk       = x>-20;
+    Laguerre  = exp(x(msk)/2).*((1-x(msk)).*besseli(0,-x(msk)/2)-x(msk).*besseli(1,-x(msk)/2));
+    Ey( msk)  = sqrt(pi*sd(msk).^2/2).*Laguerre;
+    Ey(~msk)  = nu(~msk);
+    mu_brain  = max(Ey);
 end
 %==========================================================================
 
