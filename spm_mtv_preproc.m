@@ -142,7 +142,20 @@ end
 % Get voxel size, orientation matrix and image dimensions
 if strcmpi(method,'denoise')
     mat = Nii_x(1).mat;
-    vx  = sqrt(sum(mat(1:3,1:3).^2));    
+    vx  = sqrt(sum(mat(1:3,1:3).^2)); 
+    
+    % Save location of missing values so that they can be 're-applied' once
+    % the denoising has finished
+    msk = cell(1,C);
+    for c=1:C
+        x = get_nii(Nii_x(c));
+        if strcmpi(modality,'CT')
+            msk{c} = isfinite(x) & x ~= 0 & x ~= min(x);
+        else
+            msk{c} = isfinite(x) & x ~= 0;
+        end
+    end
+    clear x
 elseif strcmpi(method,'superres')
     % For super-resolution, calculate orientation matrix and dimensions 
     % from maximum bounding-box
@@ -454,7 +467,11 @@ for c=1:C
     VO          = spm_create_vol(VO);
         
     Nii(c)            = nifti(VO.fname);
-    y                 = get_nii(Nii_y(c)); 
+    y                 = get_nii(Nii_y(c));  
+    if strcmpi(method,'denoise')
+        % 'Re-apply' missing values
+        y(~msk{c})    = 0; 
+    end
     Nii(c).dat(:,:,:) = y;    
 end
 
