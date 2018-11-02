@@ -11,6 +11,7 @@ function Nii = spm_mtv_preproc(varargin)
 % InputImages            - Either image filenames in a cell array, or images 
 %                          in a nifti object. If empty, uses spm_select ['']
 % IterMax                - Maximum number of iteration [30]
+% Tolerance              - Convergence threshold [1e-4]
 % RegularisationScaleMRI - Scaling of regularisation, increase this value for 
 %                          stronger denoising [15]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
@@ -68,6 +69,7 @@ p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 30, @isnumeric);
 p.addParameter('RegularisationScaleMRI', 10, @isnumeric);
+p.addParameter('Tolerance', 1e-4, @isnumeric);
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
 p.addParameter('OutputDirectory', 'out', @ischar);
@@ -84,6 +86,7 @@ p.addParameter('ReadWrite', false, @islogical);
 p.parse(varargin{:});
 Nii_x        = p.Results.InputImages;
 nit          = p.Results.IterMax;
+tol          = p.Results.Tolerance;
 scl_lam      = p.Results.RegularisationScaleMRI;
 num_workers  = p.Results.WorkersParfor;
 dir_tmp      = p.Results.TemporaryDirectory;
@@ -411,10 +414,15 @@ for it=1:nit
     ll2  = -sum(sum(sum(sqrt(ll2))));    
     ll   = [ll, sum(ll1) + ll2];    
     gain = abs((ll(end - 1)*(1 + 10*eps) - ll(end))/ll(end));
-    
+        
     % Some (potential) verbose               
     if speak >= 1, fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); end
     if speak >= 2, show_progress(method,modality,ll,Nii_x,Nii_y,dm,nr,nc); end
+    
+    if gain < tol && it > 10
+        % Finished
+        break
+    end
 end
 
 if speak >= 1, toc; end
