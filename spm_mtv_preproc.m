@@ -13,7 +13,7 @@ function Nii = spm_mtv_preproc(varargin)
 % IterMax                - Maximum number of iteration [30]
 % Tolerance              - Convergence threshold [1e-4]
 % RegularisationScaleMRI - Scaling of regularisation, increase this value for 
-%                          stronger denoising [15]
+%                          stronger denoising [4]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
 % TemporaryDirectory     - Directory for temporary files ['./tmp']
 % OutputDirectory        - Directory for denoised images ['./out']
@@ -26,13 +26,13 @@ function Nii = spm_mtv_preproc(varargin)
 % CleanUp                - Delete temporary files [true] 
 % VoxelSize              - Voxel size of super-resolved image [1 1 1]
 % IterMaxCG              - Maximum number of iterations for conjugate gradient 
-%                          solver used for super-resolution [20]
+%                          solver used for super-resolution [5]
 % ToleranceCG            - Convergence threshold for conjugate gradient 
 %                          solver used for super-resolution [1e-3]
 % CoRegister             - For super-resolution, co-register input images [true] 
 % Modality               - Either MRI (denoise and super-resolution) or CT 
 %                          (denoise) ['MRI']
-% LambdaCT               - Regularisation used for CT denoising [1]
+% RegularisationCT               - Regularisation used for CT denoising [0.04]
 % ReadWrite              - Keep variables in workspace (requires more RAM,
 %                          but faster), or read/write from disk (requires 
 %                          less RAM, but slower) [false] 
@@ -68,8 +68,8 @@ p              = inputParser;
 p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 30, @isnumeric);
-p.addParameter('RegularisationScaleMRI', 10, @isnumeric);
 p.addParameter('Tolerance', 1e-4, @isnumeric);
+p.addParameter('RegularisationScaleMRI', 4, @isnumeric);
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
 p.addParameter('OutputDirectory', 'out', @ischar);
@@ -77,11 +77,11 @@ p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') 
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
 p.addParameter('VoxelSize', [1 1 1], @(in) (isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0));
-p.addParameter('IterMaxCG', 4, @isnumeric);
-p.addParameter('ToleranceCG', 1e-3, @isnumeric);
+p.addParameter('IterMaxCG', 5, @isnumeric);
+p.addParameter('ToleranceCG', 1e-4, @isnumeric);
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
-p.addParameter('LambdaCT', 0.04, @isnumeric);
+p.addParameter('RegularisationCT', 0.04, @isnumeric);
 p.addParameter('ReadWrite', false, @islogical);
 p.parse(varargin{:});
 Nii_x        = p.Results.InputImages;
