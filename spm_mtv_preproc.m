@@ -184,8 +184,16 @@ for c=1:C
     tau(c) = 1/(sd(c).^2); % Noise precision
 end
 
+% Scale regularisation with voxel size (only for super-resolution)
+lam = prod(vx_sr)*lam;
+
 % Estimate rho (this value seems to lead to reasonably good convergence)
 rho = sqrt(mean(tau))/mean(lam);
+
+% For decreasing regularisation with iteration number
+lam0      = lam;
+def       = spm_shoot_defaults;
+sched_lam = def.sched;
 
 if speak  >= 1
     % Print estimates
@@ -195,6 +203,8 @@ if speak  >= 1
     end
     fprintf('\n');
 end
+
+lam = sched_lam(1)*lam0;
 
 if coreg
     % Co-register input images
@@ -303,6 +313,9 @@ end
 ll = -Inf;
 for it=1:nit
         
+    % Decrease regularisation with iteration number
+    lam = sched_lam(min(it,numel(sched_lam)))*lam0;
+    
     %------------------------------------------------------------------
     % Proximal operator for u
     % Here we solve for the MTV term of the objective function using the
