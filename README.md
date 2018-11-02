@@ -15,9 +15,9 @@ The code is based on the method described in this paper:
      
 The most up-to-date PDF version of the paper is available from https://arxiv.org/abs/1810.03422.
 
-## Requirements
+## Dependencies
 
-The code requires that the SPM software is on the MATLAB path. SPM is available from https://www.fil.ion.ucl.ac.uk/spm/software/spm12/.
+This project has strong dependencies on SPM12 and its `Shoot` toolbox. Both of them should be added to Matlab's path. The most recent version of SPM can be downloaded from [www.fil.ion.ucl.ac.uk/spm](http://www.fil.ion.ucl.ac.uk/spm/). If you get error messages when running the code, it is probably because your SPM version is too old.
 
 ## Example 1: Super-resolve a set MRIs of one subject
 
