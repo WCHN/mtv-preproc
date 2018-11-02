@@ -14,7 +14,8 @@ for n=1:dat.N
         
     tmp = real(ifftn(F.*dat.A(n).S));    
     
-    tmp = spm_diffeo('bsplins',tmp,y,[1 1 1 0 0 0]);
+    tmp                 = spm_diffeo('pull',tmp,y);
+    tmp(~isfinite(tmp)) = 0; 
     
     vx1 = sqrt(sum(dat.mat(1:3,1:3).^2));
     vx0 = sqrt(sum(dat.A(n).mat(1:3,1:3).^2));
