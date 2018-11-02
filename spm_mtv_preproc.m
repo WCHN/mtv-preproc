@@ -99,7 +99,7 @@ nit_cg       = p.Results.IterMaxCG;
 tol_cg       = p.Results.ToleranceCG; 
 coreg        = p.Results.CoRegister; 
 modality     = p.Results.Modality; 
-lam_ct       = p.Results.LambdaCT; 
+lam_ct       = p.Results.RegularisationCT; 
 do_readwrite = p.Results.ReadWrite; 
 
 if strcmpi(method,'superres') && strcmpi(modality,'CT')
