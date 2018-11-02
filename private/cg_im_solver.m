@@ -19,7 +19,7 @@ P     = R;                         % Initial conjugate directions P
 beta  = 0;                         % Initial search direction for new P
 
 if verbose
-    fprintf('%g %g\n', normRHS, sqrt(normR));
+    fprintf('0 %g %g\n', tol*normRHS, sqrt(normR));
 end
 
 % Run algorithm
@@ -46,7 +46,7 @@ while sqrt(normR) > tol*normRHS
     %----------------------------------------------------------------------    
     normR = sum(R(:).*R(:));       
     if verbose
-        fprintf('%g\n', sqrt(normR));
+        fprintf('%i %g %g\n', j, tol*normRHS, sqrt(normR));
     end
     
     RtRp = normR;    
