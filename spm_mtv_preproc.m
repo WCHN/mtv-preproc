@@ -43,6 +43,23 @@ function Nii = spm_mtv_preproc(varargin)
 % Nio - nifti object containing denoised images
 % 
 %__________________________________________________________________________
+%
+% Example 1: Super-resolve a set MRIs of one subject
+%
+% Read IXI MRIs
+% >> dir_data = './data';
+% >> files_in = spm_select('FPList',dir_data,'^ds_.*\.nii$');
+% >> Nii      = nifti(files_in);
+%
+% Super-resolve the MRIs
+% >> spm_mtv_preproc('InputImages',Nii,'Method','superres','Verbose',2);
+%
+% Compare super-resolved with known ground-truth
+% >> files_sr  = spm_select('FPList','./out', '^sr_.*\.nii$');
+% >> files_ref = spm_select('FPList',dir_data,'^IXI.*\.nii$');
+% >> spm_check_registration(char({files_sr,files_ref}));
+%
+%__________________________________________________________________________
 % The general principles are described in the following paper:
 %
 %     Brudfors M, Balbastre Y, Nachev P, Ashburner J.

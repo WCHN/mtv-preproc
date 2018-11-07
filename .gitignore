@@ -80,9 +80,8 @@
 ## SPM ignore
 *.ps
 
-## Nii ignore
-*.[nN][iI][iI]
-*.ipynb_checkpoints
-
 ## Mac ignore
 .DS_Store
+
+## Other ignore
+*.ipynb_checkpoints
