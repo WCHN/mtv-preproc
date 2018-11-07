@@ -36,6 +36,10 @@ function Nii = spm_mtv_preproc(varargin)
 % ReadWrite              - Keep variables in workspace (requires more RAM,
 %                          but faster), or read/write from disk (requires 
 %                          less RAM, but slower) [false] 
+% SuperResWithFMG        - Use either spm_field (true) or conjugate
+%                          gradient (false) for super-resolution [false]
+% NumLineSearchFMG       - Number of line-searches for spm_field when doing 
+%                          super-resolution [12]
 %
 % OUTPUT
 % ------
@@ -100,6 +104,8 @@ p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
 p.addParameter('RegularisationCT', 0.04, @isnumeric);
 p.addParameter('ReadWrite', false, @islogical);
+p.addParameter('NumLineSearchFMG', 12, @isnumeric);
+p.addParameter('SuperResWithFMG', false, @islogical);
 p.parse(varargin{:});
 Nii_x        = p.Results.InputImages;
 nit          = p.Results.IterMax;
@@ -118,6 +124,8 @@ coreg        = p.Results.CoRegister;
 modality     = p.Results.Modality; 
 lam_ct       = p.Results.RegularisationCT; 
 do_readwrite = p.Results.ReadWrite; 
+nlinesearch  = p.Results.NumLineSearchFMG; 
+superes_fmg  = p.Results.SuperResWithFMG; 
 
 if strcmpi(method,'superres') && strcmpi(modality,'CT')
     error('Super-resolution not yet supported for CT data!');
@@ -267,17 +275,29 @@ end
 % Initialise variables
 %--------------------------------------------------------------------------
 
-if strcmpi(method,'superres')            
+infnrm = zeros(1,C);
+dat    = zeros(1,C);
+L      = [];
+if strcmpi(method,'superres')   
+    %---------------------------
+    % Super-resolution
+    %---------------------------
+            
     % Initialise dat struct with projection matrices, etc.
-    dat = init_dat(Nii_x,mat,dm);  
-    
-    % Define Laplace prior (in Fourier space)
-    L = laplace_prior(dm,vx);
-else 
-    % For denoising these variables need to be defined, otherwise parfor
-    % will complain :(
-    dat = zeros(1,C);
-    L   = [];
+    dat = init_dat(Nii_x,mat,dm);
+            
+    if superes_fmg
+        % Compute infinity norm
+        infnrm = zeros(1,C);
+        for c=1:C        
+            tmp       = At(A(ones(dat(c).dm,'single'),dat(c)),dat(c));
+            infnrm(c) = max(tmp(:)); % If A is all positive, max(A'*A*ones(N,1)) gives the infinity norm
+        end        
+        clear tmp
+    else
+        % Define Laplace prior (in Fourier space)
+        L = laplace_prior(dm,vx);
+    end       
 end
 
 % Manage parfor
@@ -298,6 +318,22 @@ parfor (c=1:C,num_workers)
     if strcmpi(method,'superres')    
         % Super-resolved image (using bspline interpolation)
         [y,msk{c}] = get_y_superres(Nii_x(c),dat(c),dm,mat);
+        if superes_fmg
+            % Gradient
+            g       = A(y,dat(c));
+            for n=1:dat(c).N
+               g{n} = g{n} - x;
+            end
+            g       = At(g,dat(c),tau(c));
+
+            % Hessian
+            H = infnrm(c)*ones(dm,'single')*tau(c);
+
+            % New y
+            y = spm_field(H,g,[vx 0 lam(c)^2 0 2 2]);  
+            H = [];
+            g = [];
+        end
     else  
         % Denoised image        
         y         = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam(c)^2 0  2 2]); 
@@ -328,6 +364,7 @@ if speak >= 1
 end
 
 ll = -Inf;
+armijo = ones(1,C);
 for it=1:nit
         
     % Decrease regularisation with iteration number
@@ -378,42 +415,124 @@ for it=1:nit
         u = bsxfun(@times,u,scale);
             
         %------------------------------------------------------------------
-        % Proximal operator for y
-        % Here we want to solve the linear system: lhs\rhs
+        % Proximal operator for y        
         %------------------------------------------------------------------
-                  
+           
         rhs = u - w/rho; 
         rhs = lam(c)*imdiv(rhs(:,:,:,1),rhs(:,:,:,2),rhs(:,:,:,3),vx);
-               
-        x = get_nii(Nii_x(c));    
         
-        if strcmpi(method,'superres')  
+        x = get_nii(Nii_x(c)); % Get observed image
+        
+        if strcmpi(method,'superres')              
+            %---------------------------
             % Super-resolution
-            rhs = rhs + At({x},tau(c),dat(c))*(1/rho);            
-            lhs = @(y) AtA(y,@(y) L(y),tau(c)/rho,lam(c)^2,dat(c));
-            
-            % Solve using conjugate gradient
-            [y,it_cg,d_cg,t_cg] = cg_im_solver(lhs,rhs,get_nii(Nii_y(c)),nit_cg,tol_cg);
-            
-            if speak >= 1, fprintf('%2d | %2d %10.1f %10.1f\n', c, it_cg, d_cg, t_cg); end                        
+            %---------------------------
+                                  
+            if superes_fmg
+                %---------------------------
+                % FMG
+                % Here we want to solve for y using Gauss-Newton (GN)
+                % optimisation
+                %---------------------------      
+                                        
+                y = get_nii(Nii_y(c)); % Get solution
+                         
+                if armijo(c) < eps('single')
+                    % At optimum
+                    continue;
+                end
+                            
+                for gnit=1:1 % Iterate Gauss-Newton
+                    
+                    % Gradient         
+                    Ayx       = A(y,dat(c));
+                    for n=1:dat(c).N
+                       Ayx{n} = Ayx{n} - x;
+                    end                
+                    rhs       = rhs + At(Ayx,dat(c),tau(c))*(1/rho); 
+                    Ayx       = [];
+    %                 rhs = rhs + rho*spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
+
+                    % Hessian
+                    lhs = infnrm(c)*ones(dm,'single')*tau(c)/rho;
+
+                    % Compute GN step
+                    Update = spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
+                    lhs    = [];
+                    rhs    = [];
+
+                    % Update with line-search
+                    oy   = y;
+                    olly = get_ll(method,y,x,tau(c),dat(c),lam(c),u,w,rho,vx);
+                    
+                    figure(667)
+                    E = [];
+                    for linesearch=1:nlinesearch % Iterate line-search
+                        
+                        % Compute new y
+                        y = oy - armijo(c)*Update;
+
+                        % Compute new objective
+                        nlly = get_ll(method,y,x,tau(c),dat(c),lam(c),u,w,rho,vx);    
+                        E    = [E; sum(nlly)];
+                        plot(E); drawnow;
+                        fprintf('%2d | %2d | nlly=%10.1f olly=%10.1f | %1.7f\n', c, linesearch, sum(nlly), sum(olly), armijo(c));
+
+                        if sum(nlly) > sum(olly)
+                            break
+                        else
+                            armijo(c) = 0.5*armijo(c);
+                            if linesearch == nlinesearch
+                                y     = oy;
+                            end
+                        end                               
+                    end
+                    oy     = [];
+                    Update = [];
+                end
+            else
+                %---------------------------
+                % CG
+                % Here we want to solve the linear system: lhs\rhs
+                %---------------------------    
+                
+                % RHS
+                rhs = rhs + At({x},dat(c),tau(c))*(1/rho); 
+                     
+                % LHS
+                lhs = @(y) AtA(y,@(y) L(y),tau(c)/rho,lam(c)^2,dat(c));
+                
+                % Compute new y
+                [y,it_cg,d_cg,t_cg] = cg_im_solver(lhs,rhs,get_nii(Nii_y(c)),nit_cg,tol_cg);
+
+                if speak >= 1 
+                    fprintf('%2d | %2d %10.1f %10.1f\n', c, it_cg, d_cg, t_cg); 
+                end                        
+            end
         else            
+            %---------------------------
             % Denoising
+            %---------------------------
+            
+            % RHS
             rhs = rhs + x*(tau(c)/rho);
+            
+            % LHS
             lhs = ones(dm,'single')*tau(c)/rho;
             
-            % Solve using full multi-grid            
-            y = spm_field(lhs,rhs,[vx  0 lam(c)^2 0  2 2]);
+            % Compute new y
+            y = spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
         end                               
         lhs = [];
         rhs = [];
 
         if strcmpi(modality,'MRI')
-            % Ensure non-negative
+            % Ensure non-negativity
             y(y < 0) = 0;
         end 
         
         % Compute likelihood term of posterior
-        ll1(c) = get_ll1(method,y,x,tau(c),dat(c));
+        ll1(c) = get_ll(method,y,x,tau(c),dat(c));
         x      = [];
         
         %------------------------------------------------------------------
