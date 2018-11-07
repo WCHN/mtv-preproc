@@ -9,11 +9,7 @@ if isempty(f), f = figure('Name', figname, 'NumberTitle', 'off'); end
 set(0, 'CurrentFigure', f);  
 
 subplot(121)
-if numel(ll) >= 3
-    plot(ll(3:end),'r-','LineWidth',2); grid on
-else
-    plot(ll,'r-','LineWidth',2); grid on
-end
+plot(ll,'r-','LineWidth',2); grid on
 title('log-likelihood')
 
 C = numel(nii_x);

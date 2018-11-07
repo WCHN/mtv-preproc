@@ -13,7 +13,7 @@ function Nii = spm_mtv_preproc(varargin)
 % IterMax                - Maximum number of iteration [30]
 % Tolerance              - Convergence threshold [1e-4]
 % RegularisationScaleMRI - Scaling of regularisation, increase this value for 
-%                          stronger denoising [4]
+%                          stronger denoising [5]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
 % TemporaryDirectory     - Directory for temporary files ['./tmp']
 % OutputDirectory        - Directory for denoised images ['./out']
@@ -32,7 +32,7 @@ function Nii = spm_mtv_preproc(varargin)
 % CoRegister             - For super-resolution, co-register input images [true] 
 % Modality               - Either MRI (denoise and super-resolution) or CT 
 %                          (denoise) ['MRI']
-% RegularisationCT               - Regularisation used for CT denoising [0.04]
+% RegularisationCT       - Regularisation used for CT denoising [0.03]
 % ReadWrite              - Keep variables in workspace (requires more RAM,
 %                          but faster), or read/write from disk (requires 
 %                          less RAM, but slower) [false] 
@@ -44,7 +44,7 @@ function Nii = spm_mtv_preproc(varargin)
 % OUTPUT
 % ------
 % 
-% Nio - nifti object containing denoised images
+% Nii - nifti object containing denoised/super-resolved images
 % 
 %__________________________________________________________________________
 %
@@ -75,6 +75,7 @@ function Nii = spm_mtv_preproc(varargin)
 % processing. The code should be memory efficient, still, running parfor
 % can lead to the use of more RAM than what is available. To decrease the
 % number of parfor workers, use the WorkersParfor option described below.
+%
 %__________________________________________________________________________
 % Copyright (C) 2018 Wellcome Centre for Human Neuroimaging
 
@@ -90,7 +91,7 @@ p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 30, @isnumeric);
 p.addParameter('Tolerance', 1e-4, @isnumeric);
-p.addParameter('RegularisationScaleMRI', 4, @isnumeric);
+p.addParameter('RegularisationScaleMRI', 5, @isnumeric);
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
 p.addParameter('OutputDirectory', 'out', @ischar);
@@ -102,7 +103,7 @@ p.addParameter('IterMaxCG', 5, @isnumeric);
 p.addParameter('ToleranceCG', 1e-4, @isnumeric);
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
-p.addParameter('RegularisationCT', 0.04, @isnumeric);
+p.addParameter('RegularisationCT', 0.03, @isnumeric);
 p.addParameter('ReadWrite', false, @islogical);
 p.addParameter('NumLineSearchFMG', 12, @isnumeric);
 p.addParameter('SuperResWithFMG', false, @islogical);
@@ -162,9 +163,17 @@ end
 
 % Get voxel size, orientation matrix and image dimensions
 if strcmpi(method,'denoise')
+    %---------------------------
+    % Super-resolution
+    %---------------------------
+    
     mat = Nii_x(1).mat;
-    vx  = sqrt(sum(mat(1:3,1:3).^2));     
+    vx  = sqrt(sum(mat(1:3,1:3).^2));   
 elseif strcmpi(method,'superres')
+    %---------------------------
+    % Denoising
+    %---------------------------
+            
     % For super-resolution, calculate orientation matrix and dimensions 
     % from maximum bounding-box
     vx       = vx_sr;
@@ -219,6 +228,7 @@ rho = sqrt(mean(tau))/mean(lam);
 lam0      = lam;
 def       = spm_shoot_defaults;
 sched_lam = def.sched;
+sched_lam = sched_lam(end - min(numel(sched_lam) - 1,nit):end);
 
 if speak  >= 1
     % Print estimates
@@ -307,17 +317,22 @@ if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
 
 msk = cell(1,C); % For saving locations of missing values so that they can be 're-applied' once the algorithm has finished
+% for c=1:C
 parfor (c=1:C,num_workers)  
 
     spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
-    
-    % Noisy image
-    x = get_nii(Nii_x(c));   
-    
-    % Initial guess for solution    
+            
+    % Observed image
+    x = get_nii(Nii_x(c));  
+        
+    % Initial guesses for solution    
     if strcmpi(method,'superres')    
-        % Super-resolved image (using bspline interpolation)
-        [y,msk{c}] = get_y_superres(Nii_x(c),dat(c),dm,mat);
+        %---------------------------
+        % Super-resolution
+        %---------------------------
+        
+        [y,msk{c}] = get_y_superres(Nii_x(c),dat(c),dm,mat); % 4th order b-splines
+               
         if superes_fmg
             % Gradient
             g       = A(y,dat(c));
@@ -335,17 +350,25 @@ parfor (c=1:C,num_workers)
             g = [];
         end
     else  
-        % Denoised image        
-        y         = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx  0 lam(c)^2 0  2 2]); 
+        %---------------------------
+        % Denoising
+        %---------------------------        
+    
+        y = spm_field(tau(c)*ones(dm,'single'),tau(c)*x,[vx 0 lam(c)^2 0 2 2]); 
         
         if strcmpi(modality,'CT')
             msk{c} = isfinite(x) & x ~= 0 & x ~= min(x);
         else
             msk{c} = isfinite(x) & x ~= 0;
         end
-    end
+    end        
     x = [];
     
+    if strcmpi(modality,'MRI')
+        % Ensure non-negativity
+        y(y < 0) = 0;
+    end 
+        
     Nii_y(c) = put_nii(Nii_y(c),y);                
     y        = [];
     
@@ -363,8 +386,8 @@ if speak >= 1
     tic; 
 end
 
-ll = -Inf;
 armijo = ones(1,C);
+ll     = -Inf;
 for it=1:nit
         
     % Decrease regularisation with iteration number
@@ -372,11 +395,12 @@ for it=1:nit
     
     %------------------------------------------------------------------
     % Proximal operator for u
-    % Here we solve for the MTV term of the objective function using the
+    % Here we solve for the MTV term of the objective function using
     % vectorial soft thresholding 
     %------------------------------------------------------------------
 
     unorm = 0;    
+%     for c=1:C
     parfor (c=1:C,num_workers) % Loop over channels
     
         y = get_nii(Nii_y(c));        
@@ -392,13 +416,15 @@ for it=1:nit
         
         unorm = unorm + sum(u.^2,4);
         u     = [];
-    end
+    end % End loop over channels
+    
     unorm = sqrt(unorm);
     scale = max(unorm - 1/rho,0)./(unorm + eps);
     clear unorm
         
     ll1 = zeros(1,C);
     ll2 = 0;
+%     for c=1:C
     parfor (c=1:C,num_workers) % Loop over channels
     
         spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
@@ -543,9 +569,9 @@ for it=1:nit
         G = lam(c)*imgrad(y,vx);
         
         Nii_y(c) = put_nii(Nii_y(c),y);
-        y = [];
+        y        = [];
         
-        w = w - rho*(u - G);        
+        w = w + rho*(G - u);        
     
         % Compute prior term of posterior
         ll2 = ll2 + sum(G.^2,4);      
@@ -556,7 +582,7 @@ for it=1:nit
         
         Nii_w(c) = put_nii(Nii_w(c),w);
         w = [];
-    end        
+    end % End loop over channels     
     clear scale
     
     % Compute log-posterior (objective value)
@@ -568,7 +594,7 @@ for it=1:nit
     if speak >= 1, fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); end
     if speak >= 2, show_progress(method,modality,ll,Nii_x,Nii_y,dm,nr,nc); end
     
-    if gain < tol && it > 10
+    if gain < tol && it > numel(sched_lam)
         % Finished
         break
     end
@@ -594,7 +620,7 @@ for c=1:C
     VO          = spm_create_vol(VO);
         
     Nii(c)            = nifti(VO.fname);
-    y                 = get_nii(Nii_y(c));         
+    y                 = get_nii(Nii_y(c));  
     if strcmpi(method,'superres')
         % Rescale intensities
         vx0 = sqrt(sum(Nii_x(c).mat(1:3,1:3).^2)); 
