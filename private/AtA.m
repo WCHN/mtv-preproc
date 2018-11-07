@@ -17,11 +17,6 @@ for n=1:dat.N
     tmp                 = spm_diffeo('pull',tmp,y);
     tmp(~isfinite(tmp)) = 0; 
     
-    vx1 = sqrt(sum(dat.mat(1:3,1:3).^2));
-    vx0 = sqrt(sum(dat.A(n).mat(1:3,1:3).^2));
-    scl = prod(vx1./vx0);
-    tmp = scl*tmp;
-    
     tmp                 = spm_diffeo('push',tmp,y,dat.dm);          
     clear y
     tmp(~isfinite(tmp)) = 0;    

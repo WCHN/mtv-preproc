@@ -17,9 +17,6 @@ for n=1:dat.N
     X{n}(~isfinite(X{n})) = 0; 
     clear y tmp
     
-    vx1  = sqrt(sum(dat.mat(1:3,1:3).^2));
-    vx0  = sqrt(sum(dat.A(n).mat(1:3,1:3).^2));
-    scl  = prod(vx1./vx0);
-    X{n} = scl*X{n};
+    X{n} = X{n};
 end
 %==========================================================================  
