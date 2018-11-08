@@ -52,8 +52,7 @@ function Nii = spm_mtv_preproc(varargin)
 %
 % Read IXI MRIs
 % >> dir_data = './data';
-% >> files_in = spm_select('FPList',dir_data,'^ds_.*\.nii$');
-% >> Nii      = nifti(files_in);
+% >> Nii      = nifti(spm_select('FPList',dir_data,'^ds_.*\.nii$'));
 %
 % Super-resolve the MRIs
 % >> spm_mtv_preproc('InputImages',Nii,'Method','superres','Verbose',2);

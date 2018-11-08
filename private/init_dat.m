@@ -35,33 +35,53 @@ end
 %==========================================================================
 
 %==========================================================================
-function f = blur_fun(d,M,n)
-if nargin<1, d = [64 64]; end
-if nargin<2, M = eye(numel(d)); end
-if nargin<3, n = ones(1,numel(d)); end
+function f = blur_fun(dm,mat,vx)
+if nargin<1, dm = [64 64]; end
+if nargin<2, mat = eye(numel(dm)); end
+if nargin<3, vx = ones(1,numel(dm)); end
 
-if any(size(M)~=numel(d)) || numel(n)~=numel(d), error('Incompatible dimensions.'); end
+if any(size(mat)~=numel(dm)) || numel(vx)~=numel(dm), error('Incompatible dimensions.'); end
 
-r    = cell(1,numel(d));
-X    = cell(1,numel(d));
-for i=1:numel(d), r{i} = single([0:ceil(d(i)/2-1) -floor(d(i)/2):-1]'*pi/d(i)); end
-[X{:}] = ndgrid(r{:});
+% Grid in frequency space
+r        = cell(1,numel(dm));
+for i=1:numel(dm) 
+    r{i} = single([0:ceil(dm(i)/2-1) -floor(dm(i)/2):-1]'*pi/dm(i)); 
+end
+X        = cell(1,numel(dm));
+[X{:}]   = ndgrid(r{:});
+clear r
 
-Y  = cell(size(X));
-for i=1:numel(d)
-    Y{i} = single(0);
-    for j=1:numel(d), Y{i} = Y{i} + M(i,j)*X{j}; end
+% Transform
+Y            = cell(size(X));
+for i=1:numel(dm)
+    Y{i}     = single(0);
+    for j=1:numel(dm) 
+        Y{i} = Y{i} + mat(i,j)*X{j}; 
+    end
 end
 clear X
 
-f  = single(0);
-for i=1:numel(d), f = f + Y{i}.^2; end
+% Window function
+if 1
+    f     = single(0);
+    for i=1:numel(dm) 
+        f = f + Y{i}.^2; 
+    end    
+    f     = ((cos(min(f,pi^2/4)*4/pi) + 1)/2);
+else
+    w_func     = @gausswin;
+    wr         = window(w_func,dm(2));
+    wc         = window(w_func,dm(1));
+    wz         = window(w_func,dm(3));
+    [wr,wc,wz] = meshgrid(wr,wc,wz);
+    f          = wr.*wc.*wz;
+    f          = fftn(f);
+end
 
-f  = ((cos(min(f,pi^2/4)*4/pi)+1)/2);  % Some sort of window function
-
-for i=1:numel(d)
-    tmp = sin((n(i))*Y{i})./(Y{i}.*cos(Y{i}/pi^(1/2)));
-    tmp(~isfinite(tmp)) = n(i);
-    f = f.*tmp;
+% Incorporate voxel size
+for i=1:numel(dm)
+    tmp                 = sin((vx(i))*Y{i})./(Y{i}.*cos(Y{i}/pi^(1/2)));
+    tmp(~isfinite(tmp)) = vx(i);
+    f                   = f.*tmp;
 end
 %==========================================================================
