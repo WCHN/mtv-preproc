@@ -333,22 +333,22 @@ parfor (c=1:C,num_workers)
         
         [y,msk{c}] = get_y_superres(Nii_x(c),dat(c),dm,mat); % 4th order b-splines
                
-        if superes_fmg
-            % Gradient
-            g       = A(y,dat(c));
-            for n=1:dat(c).N
-               g{n} = g{n} - x;
-            end
-            g       = At(g,dat(c),tau(c));
-
-            % Hessian
-            H = infnrm(c)*ones(dm,'single')*tau(c);
-
-            % New y
-            y = spm_field(H,g,[vx 0 lam(c)^2 0 2 2]);  
-            H = [];
-            g = [];
-        end
+%         if superes_fmg
+%             % Gradient
+%             g       = A(y,dat(c));
+%             for n=1:dat(c).N
+%                g{n} = g{n} - x;
+%             end
+%             g       = At(g,dat(c),tau(c))*(1/rho);
+% 
+%             % Hessian
+%             H = infnrm(c)*ones(dm,'single')*tau(c)/rho;
+% 
+%             % New y
+%             y = spm_field(H,g,[vx 0 lam(c)^2 0 2 2]);  
+%             H = [];
+%             g = [];
+%         end
     else  
         %---------------------------
         % Denoising
@@ -444,8 +444,10 @@ for it=1:nit
         % Proximal operator for y        
         %------------------------------------------------------------------
            
-        rhs = u - w/rho; 
-        rhs = lam(c)*imdiv(rhs(:,:,:,1),rhs(:,:,:,2),rhs(:,:,:,3),vx);
+        if ~superes_fmg
+            rhs = u - w/rho; 
+            rhs = lam(c)*imdiv(rhs(:,:,:,1),rhs(:,:,:,2),rhs(:,:,:,3),vx);
+        end
         
         x = get_nii(Nii_x(c)); % Get observed image
         
@@ -470,7 +472,9 @@ for it=1:nit
                             
                 for gnit=1:1 % Iterate Gauss-Newton
                     
-                    % Gradient         
+                    % Gradient      
+                    rhs       = w/rho - u; 
+                    rhs       = lam(c)*imdiv(rhs(:,:,:,1),rhs(:,:,:,2),rhs(:,:,:,3),vx);
                     Ayx       = A(y,dat(c));
                     for n=1:dat(c).N
                        Ayx{n} = Ayx{n} - x;
