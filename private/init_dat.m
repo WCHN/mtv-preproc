@@ -70,13 +70,15 @@ if 1
     f     = ((cos(min(f,pi^2/4)*4/pi) + 1)/2);
 else
     w_func     = @gausswin;
-    wr         = window(w_func,dm(2));
-    wc         = window(w_func,dm(1));
-    wz         = window(w_func,dm(3));
+    sd         = 50;
+    wr         = window(w_func,dm(2),sd);
+    wc         = window(w_func,dm(1),sd);
+    wz         = window(w_func,dm(3),sd);
     [wr,wc,wz] = meshgrid(wr,wc,wz);
     f          = wr.*wc.*wz;
-    f          = fftn(f);
+    f          = single(abs(fftn(f)));    
 end
+% figure(111); imshow3D(f)
 
 % Incorporate voxel size
 for i=1:numel(dm)
