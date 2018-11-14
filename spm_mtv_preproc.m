@@ -85,14 +85,13 @@ function Nii = spm_mtv_preproc(varargin)
 if ~(exist('spm','file') == 2), error('SPM is not on the MATLAB path!'); end
 
 %--------------------------------------------------------------------------
-% Parse options
+% Parse input
 %--------------------------------------------------------------------------
 
 p              = inputParser;
 p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
-p.addParameter('IterMax', 30, @isnumeric);
-p.addParameter('Tolerance', 1e-4, @isnumeric);
+p.addParameter('IterMax', 30, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0.1, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('RegularisationScaleMRI', 30, @(in) (isnumeric(in) && in > 0));
@@ -103,13 +102,13 @@ p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') 
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
 p.addParameter('VoxelSize', [1 1 1], @(in) (isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0));
-p.addParameter('ToleranceCG', 1e-4, @isnumeric);
 p.addParameter('IterMaxCG', 10, @(in) (isnumeric(in) && in > 0));
+p.addParameter('ToleranceCG', 1e-4, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
 p.addParameter('RegularisationCT', 0.02, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ReadWrite', false, @islogical);
-p.addParameter('NumLineSearchFMG', 12, @isnumeric);
+p.addParameter('NumLineSearchFMG', 12, @(in) (isnumeric(in) && in > 0));
 p.addParameter('SuperResWithFMG', false, @islogical);
 p.parse(varargin{:});
 Nii_x        = p.Results.InputImages;
@@ -208,14 +207,15 @@ lam = zeros(1,C);
 for c=1:C           
     if speak >= 2 && strcmpi(modality,'MRI'), subplot(nr,nc,c); end
     
-    if strcmpi(modality,'MRI')
-        % Estimate image noise and mean brain intensity
+    % Estimate image noise and mean brain intensity
+    if strcmpi(modality,'MRI')        
         [sd(c),mu_brain] = spm_noise_estimate_mod(Nii_x(c),speak >= 2);
         
         mu(c)  = mu_brain;              % Mean brain intensity
         lam(c) = scl_lam/double(mu(c)); % This scaling is currently a bit arbitrary, and should be based on empiricism
     elseif strcmpi(modality,'CT')
         sd(c)  = noise_estimate_ct(Nii_x(c));
+        
         mu(c)  = 0;
         lam(c) = lam_ct;
     end
@@ -223,17 +223,14 @@ for c=1:C
     tau(c) = 1/(sd(c).^2); % Noise precision
 end
 
-% Scale regularisation with voxel size (only for super-resolution)
-lam = prod(vx_sr)*lam;
-
-% Estimate rho (this value seems to lead to reasonably good convergence)
-rho = sqrt(mean(tau))/mean(lam);
-
 % For decreasing regularisation with iteration number
 lam0      = lam;
 def       = spm_shoot_defaults;
 sched_lam = def.sched;
 sched_lam = sched_lam(end - min(numel(sched_lam) - 1,nit):end);
+
+% lam = prod(vx_sr)*lam; % Scale regularisation with voxel size (only for super-resolution)
+lam = sched_lam(1)*lam;
 
 if rho == 0
     % Estimate rho (this value seems to lead to reasonably good convergence)
@@ -248,8 +245,6 @@ if speak  >= 1
     end
     fprintf('\n');
 end
-
-lam = sched_lam(1)*lam0;
 
 if coreg
     % Co-register input images
