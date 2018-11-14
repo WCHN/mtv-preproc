@@ -11,6 +11,8 @@ function Nii = spm_mtv_preproc(varargin)
 % InputImages            - Either image filenames in a cell array, or images 
 %                          in a nifti object. If empty, uses spm_select ['']
 % IterMax                - Maximum number of iteration [30]
+% ADMMStepSize           - The infamous ADMM step size, set to zero for an 
+%                          educated guess [0.1]
 % Tolerance              - Convergence threshold, set to zero to run until 
 %                          IterMax [0]
 % RegularisationScaleMRI - Scaling of regularisation, increase this value for 
@@ -92,6 +94,7 @@ p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 30, @isnumeric);
 p.addParameter('Tolerance', 1e-4, @isnumeric);
 p.addParameter('RegularisationScaleMRI', 5, @isnumeric);
+p.addParameter('ADMMStepSize', 0.1, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
@@ -128,6 +131,7 @@ lam_ct       = p.Results.RegularisationCT;
 do_readwrite = p.Results.ReadWrite; 
 nlinesearch  = p.Results.NumLineSearchFMG; 
 superes_fmg  = p.Results.SuperResWithFMG; 
+rho          = p.Results.ADMMStepSize; 
 
 if strcmpi(method,'superres') && strcmpi(modality,'CT')
     error('Super-resolution not yet supported for CT data!');
@@ -230,6 +234,11 @@ lam0      = lam;
 def       = spm_shoot_defaults;
 sched_lam = def.sched;
 sched_lam = sched_lam(end - min(numel(sched_lam) - 1,nit):end);
+
+if rho == 0
+    % Estimate rho (this value seems to lead to reasonably good convergence)
+    rho = sqrt(mean(tau))/mean(lam);
+end
 
 if speak  >= 1
     % Print estimates
