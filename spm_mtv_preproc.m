@@ -11,7 +11,8 @@ function Nii = spm_mtv_preproc(varargin)
 % InputImages            - Either image filenames in a cell array, or images 
 %                          in a nifti object. If empty, uses spm_select ['']
 % IterMax                - Maximum number of iteration [30]
-% Tolerance              - Convergence threshold [1e-4]
+% Tolerance              - Convergence threshold, set to zero to run until 
+%                          IterMax [0]
 % RegularisationScaleMRI - Scaling of regularisation, increase this value for 
 %                          stronger denoising [5]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
@@ -91,6 +92,7 @@ p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 30, @isnumeric);
 p.addParameter('Tolerance', 1e-4, @isnumeric);
 p.addParameter('RegularisationScaleMRI', 5, @isnumeric);
+p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
 p.addParameter('OutputDirectory', 'out', @ischar);
@@ -597,7 +599,7 @@ for it=1:nit
     if speak >= 1, fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); end
     if speak >= 2, show_progress(method,modality,ll,Nii_x,Nii_y,dm,nr,nc); end
     
-    if gain < tol && it > numel(sched_lam)
+    if tol > 0 && gain < tol && it > numel(sched_lam)
         % Finished
         break
     end
