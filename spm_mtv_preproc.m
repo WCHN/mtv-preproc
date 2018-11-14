@@ -16,7 +16,7 @@ function Nii = spm_mtv_preproc(varargin)
 % Tolerance              - Convergence threshold, set to zero to run until 
 %                          IterMax [0]
 % RegularisationScaleMRI - Scaling of regularisation, increase this value for 
-%                          stronger denoising [5]
+%                          stronger denoising [30]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
 % TemporaryDirectory     - Directory for temporary files ['./tmp']
 % OutputDirectory        - Directory for denoised images ['./out']
@@ -29,13 +29,13 @@ function Nii = spm_mtv_preproc(varargin)
 % CleanUp                - Delete temporary files [true] 
 % VoxelSize              - Voxel size of super-resolved image [1 1 1]
 % IterMaxCG              - Maximum number of iterations for conjugate gradient 
-%                          solver used for super-resolution [5]
+%                          solver used for super-resolution [10]
 % ToleranceCG            - Convergence threshold for conjugate gradient 
 %                          solver used for super-resolution [1e-3]
 % CoRegister             - For super-resolution, co-register input images [true] 
 % Modality               - Either MRI (denoise and super-resolution) or CT 
 %                          (denoise) ['MRI']
-% RegularisationCT       - Regularisation used for CT denoising [0.03]
+% RegularisationCT       - Regularisation used for CT denoising [0.02]
 % ReadWrite              - Keep variables in workspace (requires more RAM,
 %                          but faster), or read/write from disk (requires 
 %                          less RAM, but slower) [false] 
@@ -93,9 +93,9 @@ p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 30, @isnumeric);
 p.addParameter('Tolerance', 1e-4, @isnumeric);
-p.addParameter('RegularisationScaleMRI', 5, @isnumeric);
 p.addParameter('ADMMStepSize', 0.1, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
+p.addParameter('RegularisationScaleMRI', 30, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
 p.addParameter('OutputDirectory', 'out', @ischar);
@@ -103,11 +103,11 @@ p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') 
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
 p.addParameter('VoxelSize', [1 1 1], @(in) (isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0));
-p.addParameter('IterMaxCG', 5, @isnumeric);
 p.addParameter('ToleranceCG', 1e-4, @isnumeric);
+p.addParameter('IterMaxCG', 10, @(in) (isnumeric(in) && in > 0));
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
-p.addParameter('RegularisationCT', 0.03, @isnumeric);
+p.addParameter('RegularisationCT', 0.02, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ReadWrite', false, @islogical);
 p.addParameter('NumLineSearchFMG', 12, @isnumeric);
 p.addParameter('SuperResWithFMG', false, @islogical);
