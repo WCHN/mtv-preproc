@@ -1,7 +1,9 @@
 function Nii = spm_mtv_preproc(varargin)
-% Multi-channel total variation (MTV) denoising or super-resolution of MR images. 
-% Requires that the SPM software is on the MATLAB path. SPM is available from:
-% https://www.fil.ion.ucl.ac.uk/spm/software/spm12/
+% Multi-channel total variation (MTV) denoising or super-resolution of 
+% MR images. 
+%
+% Requires that the SPM software is on the MATLAB path.
+% SPM is available from: https://www.fil.ion.ucl.ac.uk/spm/software/spm12/
 %
 % FORMAT Nio = spm_mtv_preproc(...)
 %
@@ -12,21 +14,22 @@ function Nii = spm_mtv_preproc(varargin)
 %                          in a nifti object. If empty, uses spm_select ['']
 % IterMax                - Maximum number of iteration [30]
 % Tolerance              - Convergence threshold [1e-4]
-% RegularisationScaleMRI - Scaling of regularisation, increase this value for 
-%                          stronger denoising [5]
+% RegularisationScaleMRI - Scaling of regularisation, increase this value  
+%                          for stronger denoising [5]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
 % TemporaryDirectory     - Directory for temporary files ['./tmp']
 % OutputDirectory        - Directory for denoised images ['./out']
 % Method                 - Does either denoising ('denoise') or 
 %                          super-resolution ('superres') ['denoise']
-% Verbose                - Verbosity level:  0  = quiet
-%                                           [1] = write  (log likelihood, parameter estimates)
-%                                            2  = draw   (log likelihood, rice fit, noisy+cleaned)
-%                                            3  = result (show noisy and denoised image(s) in spm_check_registration)
+% Verbose                - Verbosity level: 
+%                          *  0  = quiet
+%                          * [1] = write  (log likelihood, parameter estimates)
+%                          *  2  = draw   (log likelihood, rice fit, noisy+cleaned)
+%                          *  3  = result (show noisy and denoised image(s) in spm_check_registration)
 % CleanUp                - Delete temporary files [true] 
 % VoxelSize              - Voxel size of super-resolved image [1 1 1]
-% IterMaxCG              - Maximum number of iterations for conjugate gradient 
-%                          solver used for super-resolution [5]
+% IterMaxCG              - Maximum number of iterations for conjugate  
+%                          gradient solver used for super-resolution [5]
 % ToleranceCG            - Convergence threshold for conjugate gradient 
 %                          solver used for super-resolution [1e-3]
 % CoRegister             - For super-resolution, co-register input images [true] 
