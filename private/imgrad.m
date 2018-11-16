@@ -24,18 +24,20 @@ vs     = padarray(vs(:)', [0 max(0,3-numel(dim))], 'replicate', 'post');
 % The results of diff is of length N-1, so we pad the result with a zero.
 D = zeros(dimout, 'like', X);
 for i=1:numel(dim)
-    for t=1:numel(type)
-        if dim(i)  > 1
-            dimpad       = dim;
-            dimpad(i)    = 1;
+    if dim(i)  > 1
+        dimpad    = dim;
+        dimpad(i) = 1;
+        diffX     = diff(X,1,i);
+        padX      = zeros(dimpad, 'like', X);
+        for t=1:numel(type)
             switch type(t)
                 case '+'
-                    D(t,i,:) = reshape(cat(i, diff(X,1,i), zeros(dimpad, 'like', X)), 1, 1, []);
+                    D(t,i,:) = reshape(cat(i, diffX, padX), 1, 1, []);
                 case '-'
-                    D(t,i,:) = reshape(cat(i, zeros(dimpad, 'like', X), diff(X,1,i)), 1, 1, []);
+                    D(t,i,:) = reshape(cat(i, padX, diffX), 1, 1, []);
             end
-            D(t,i,:) = D(t,i,:) ./ vs(i);
         end
+        D(:,i,:) = D(:,i,:) ./ vs(i);
     end
 end
 
