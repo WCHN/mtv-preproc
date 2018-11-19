@@ -84,8 +84,8 @@ function Nii = spm_mtv_preproc(varargin)
 %__________________________________________________________________________
 % Copyright (C) 2018 Wellcome Centre for Human Neuroimaging
 
-% First check that SPM is on the MATLAB path
-if ~(exist('spm','file') == 2), error('SPM is not on the MATLAB path!'); end
+% First check that all is okay with SPM
+spm_check_path('pull');
 
 %--------------------------------------------------------------------------
 % Parse input
