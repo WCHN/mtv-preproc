@@ -32,7 +32,7 @@ function Nii = spm_mtv_preproc(varargin)
 % CleanUp                - Delete temporary files [true] 
 % VoxelSize              - Voxel size of super-resolved image [1 1 1]
 % IterMaxCG              - Maximum number of iterations for conjugate gradient 
-%                          solver used for super-resolution [10]
+%                          solver used for super-resolution [12]
 % ToleranceCG            - Convergence threshold for conjugate gradient 
 %                          solver used for super-resolution [1e-3]
 % CoRegister             - For super-resolution, co-register input images [true] 
@@ -105,7 +105,7 @@ p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') 
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
 p.addParameter('VoxelSize', [1 1 1], @(in) (isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0));
-p.addParameter('IterMaxCG', 10, @(in) (isnumeric(in) && in > 0));
+p.addParameter('IterMaxCG', 12, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ToleranceCG', 1e-4, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
