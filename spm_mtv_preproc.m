@@ -234,7 +234,6 @@ sched_lam = sched_lam(end - min(numel(sched_lam) - 1,nit):end);
 
 % lam = prod(vx_sr)*lam; % Scale regularisation with voxel size (only for super-resolution)
 lam = sched_lam(1)*lam;
-% lam = lam0;
 
 if rho == 0
     % Estimate rho (this value seems to lead to reasonably good convergence)
@@ -326,8 +325,8 @@ if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
 
 msk = cell(1,C); % For saving locations of missing values so that they can be 're-applied' once the algorithm has finished
-for c=1:C
-% parfor (c=1:C,num_workers)  
+% for c=1:C
+parfor (c=1:C,num_workers)  
 
     spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
             
@@ -400,8 +399,7 @@ ll     = -Inf;
 for it=1:nit
         
     % Decrease regularisation with iteration number
-    lam = sched_lam(min(it,numel(sched_lam)))*lam0;
-    % lam = lam0;
+    lam = sched_lam(min(it,numel(sched_lam)))*lam0;    
     
     %------------------------------------------------------------------
     % Proximal operator for u
@@ -410,8 +408,8 @@ for it=1:nit
     %------------------------------------------------------------------
 
     unorm = 0;    
-    for c=1:C
-%     parfor (c=1:C,num_workers) % Loop over channels
+%     for c=1:C
+    parfor (c=1:C,num_workers) % Loop over channels
     
         y = get_nii(Nii_y(c));        
         G = lam(c)*imgrad(y,vx);
@@ -434,8 +432,8 @@ for it=1:nit
         
     ll1 = zeros(1,C);
     ll2 = 0;
-    for c=1:C
-%     parfor (c=1:C,num_workers) % Loop over channels
+%     for c=1:C
+    parfor (c=1:C,num_workers) % Loop over channels
     
         spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
                 
