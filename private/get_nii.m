@@ -6,8 +6,8 @@ function img = get_nii(nii,z)
 if nargin < 2, z = 0; end
 
 if z == 0
-    img = single(nii.dat(:,:,:,:));
+    img = single(nii.dat(:,:,:,:,:));
 else
-    img = single(nii.dat(:,:,z,:));
+    img = single(nii.dat(:,:,z,:,:));
 end
 %==========================================================================

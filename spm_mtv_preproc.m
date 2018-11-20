@@ -171,14 +171,14 @@ end
 % Get voxel size, orientation matrix and image dimensions
 if strcmpi(method,'denoise')
     %---------------------------
-    % Super-resolution
+    % Denoising
     %---------------------------
     
     mat = Nii_x(1).mat;
     vx  = sqrt(sum(mat(1:3,1:3).^2));   
 elseif strcmpi(method,'superres')
     %---------------------------
-    % Denoising
+    % Super-resolution
     %---------------------------
             
     % For super-resolution, calculate orientation matrix and dimensions 
@@ -234,6 +234,7 @@ sched_lam = sched_lam(end - min(numel(sched_lam) - 1,nit):end);
 
 % lam = prod(vx_sr)*lam; % Scale regularisation with voxel size (only for super-resolution)
 lam = sched_lam(1)*lam;
+% lam = lam0;
 
 if rho == 0
     % Estimate rho (this value seems to lead to reasonably good convergence)
@@ -276,16 +277,16 @@ for c=1:C
         fname_w = fullfile(dir_tmp,['w' num2str(c) '.nii']);
 
         create_nii(fname_y,zeros(dm,    'single'),mat,[spm_type('float32') spm_platform('bigend')],'y');
-        create_nii(fname_u,zeros([dm 3],'single'),mat,[spm_type('float32') spm_platform('bigend')],'u');
-        create_nii(fname_w,zeros([dm 3],'single'),mat,[spm_type('float32') spm_platform('bigend')],'w');
+        create_nii(fname_u,zeros([dm 3 2],'single'),mat,[spm_type('float32') spm_platform('bigend')],'u');
+        create_nii(fname_w,zeros([dm 3 2],'single'),mat,[spm_type('float32') spm_platform('bigend')],'w');
 
         Nii_y(c) = nifti(fname_y);
         Nii_u(c) = nifti(fname_u);
         Nii_w(c) = nifti(fname_w);
     else
         Nii_y(c).dat = zeros(dm,    'single');
-        Nii_u(c).dat = zeros([dm 3],'single');
-        Nii_w(c).dat = zeros([dm 3],'single');
+        Nii_u(c).dat = zeros([dm 3 2],'single');
+        Nii_w(c).dat = zeros([dm 3 2],'single');
     end
 end
 
@@ -325,8 +326,8 @@ if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
 
 msk = cell(1,C); % For saving locations of missing values so that they can be 're-applied' once the algorithm has finished
-% for c=1:C
-parfor (c=1:C,num_workers)  
+for c=1:C
+% parfor (c=1:C,num_workers)  
 
     spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
             
@@ -381,8 +382,8 @@ parfor (c=1:C,num_workers)
     y        = [];
     
     % Proximal variables
-    Nii_u(c) = put_nii(Nii_u(c),zeros([dm 3],'single'));
-    Nii_w(c) = put_nii(Nii_w(c),zeros([dm 3],'single'));
+    Nii_u(c) = put_nii(Nii_u(c),zeros([dm 3 2],'single'));
+    Nii_w(c) = put_nii(Nii_w(c),zeros([dm 3 2],'single'));
 end
 
 %--------------------------------------------------------------------------
@@ -400,6 +401,7 @@ for it=1:nit
         
     % Decrease regularisation with iteration number
     lam = sched_lam(min(it,numel(sched_lam)))*lam0;
+    % lam = lam0;
     
     %------------------------------------------------------------------
     % Proximal operator for u
@@ -408,8 +410,8 @@ for it=1:nit
     %------------------------------------------------------------------
 
     unorm = 0;    
-%     for c=1:C
-    parfor (c=1:C,num_workers) % Loop over channels
+    for c=1:C
+%     parfor (c=1:C,num_workers) % Loop over channels
     
         y = get_nii(Nii_y(c));        
         G = lam(c)*imgrad(y,vx);
@@ -422,7 +424,7 @@ for it=1:nit
         
         Nii_u(c) = put_nii(Nii_u(c),u);
         
-        unorm = unorm + sum(u.^2,4);
+        unorm = unorm + sum(sum(u.^2,4),5);
         u     = [];
     end % End loop over channels
     
@@ -432,8 +434,8 @@ for it=1:nit
         
     ll1 = zeros(1,C);
     ll2 = 0;
-%     for c=1:C
-    parfor (c=1:C,num_workers) % Loop over channels
+    for c=1:C
+%     parfor (c=1:C,num_workers) % Loop over channels
     
         spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
                 
@@ -454,7 +456,7 @@ for it=1:nit
            
         if ~superes_fmg
             rhs = u - w/rho; 
-            rhs = lam(c)*imdiv(rhs(:,:,:,1),rhs(:,:,:,2),rhs(:,:,:,3),vx);
+            rhs = lam(c)*imdiv(rhs,vx);
         end
         
         x = get_nii(Nii_x(c)); % Get observed image
@@ -482,7 +484,7 @@ for it=1:nit
                     
                     % Gradient      
                     rhs       = w/rho - u; 
-                    rhs       = lam(c)*imdiv(rhs(:,:,:,1),rhs(:,:,:,2),rhs(:,:,:,3),vx);
+                    rhs       = lam(c)*imdiv(rhs,vx);
                     Ayx       = A(y,dat(c));
                     for n=1:dat(c).N
                        Ayx{n} = Ayx{n} - x;
@@ -586,7 +588,7 @@ for it=1:nit
         w = w + rho*(G - u);        
     
         % Compute prior term of posterior
-        ll2 = ll2 + sum(G.^2,4);      
+        ll2 = ll2 + sum(sum(G.^2,4),5);
         G   = [];                
         
         Nii_u(c) = put_nii(Nii_u(c),u);
