@@ -38,7 +38,7 @@ function Nii = spm_mtv_preproc(varargin)
 % CoRegister             - For super-resolution, co-register input images [true] 
 % Modality               - Either MRI (denoise and super-resolution) or CT 
 %                          (denoise) ['MRI']
-% RegularisationCT       - Regularisation used for CT denoising [0.03]
+% RegularisationCT       - Regularisation used for CT denoising [0.04]
 % ReadWrite              - Keep variables in workspace (requires more RAM,
 %                          but faster), or read/write from disk (requires 
 %                          less RAM, but slower) [false] 
@@ -109,7 +109,7 @@ p.addParameter('IterMaxCG', 10, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ToleranceCG', 1e-4, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
-p.addParameter('RegularisationCT', 0.03, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegularisationCT', 0.04, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ReadWrite', false, @islogical);
 p.addParameter('NumLineSearchFMG', 12, @(in) (isnumeric(in) && in > 0));
 p.addParameter('SuperResWithFMG', false, @islogical);
