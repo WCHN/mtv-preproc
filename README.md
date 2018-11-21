@@ -2,7 +2,7 @@
 
 This code enables resolution recovery in clinial grade neuroimaging data. It can process both MRI (denoising or super-resolution) and CT (denoising) data.
 
-**Super-resolution**: The code can reconstruct high-resolution, isotropic data (1 mm) from clinical MR scans (i.e. thick-sliced), of arbitrary orientation and MR contrast. For example, given a T1, a T2 and a FLAIR scan with large slice-thickness, three 1 mm isotropic scans can be recovered. 
+**Super-resolution**: The code can reconstruct high-resolution, isotropic data from clinical MR scans (i.e. thick-sliced), of arbitrary orientation and MR contrast. For example, given a T1, a T2 and a FLAIR scan with large slice-thickness, three 1 mm isotropic scans can be recovered. 
 
 **Denoising**: The code can remove noise from MR and CT scans.
 
