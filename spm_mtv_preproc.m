@@ -339,24 +339,33 @@ parfor (c=1:C,num_workers)
         % Super-resolution
         %---------------------------
         
-        [y,msk{c}] = get_y_superres(Nii_x(c),dat(c),dm,mat); % 4th order b-splines
-               
-%         if superes_fmg
-%             % Gradient
-%             g       = A(y,dat(c));
-%             for n=1:dat(c).N
-%                g{n} = g{n} - x;
-%             end
-%             g       = At(g,dat(c),tau(c))*(1/rho);
-% 
-%             % Hessian
-%             H = infnrm(c)*ones(dm,'single')*tau(c)/rho;
-% 
-%             % New y
-%             y = spm_field(H,g,[vx 0 lam(c)^2 0 2 2]);  
-%             H = [];
-%             g = [];
-%         end
+        if superes_fmg
+            y = get_nii(Nii_y(c));  
+            for gnit=1:3 % Iterate Gauss-Newton
+
+                % Gradient      
+                Ayx = A(y,dat(c));
+                for n=1:dat(c).N
+                   Ayx{n} = Ayx{n} - x;
+                end                
+                rhs = At(Ayx,dat(c),tau(c))*(1/rho); 
+                Ayx = [];
+                rhs = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
+
+                % Hessian
+                lhs = infnrm(c)*ones(dm,'single')*tau(c)/rho;
+
+                % Compute GN step
+                y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
+                lhs = [];
+                rhs = [];
+
+            end
+            msk{c} = isfinite(y);
+        else
+            [y,msk{c}] = get_y_superres(Nii_x(c),dat(c),dm,mat); % 4th order b-splines
+        end
+
     else  
         %---------------------------
         % Denoising
@@ -489,44 +498,15 @@ for it=1:nit
                     end                
                     rhs       = rhs + At(Ayx,dat(c),tau(c))*(1/rho); 
                     Ayx       = [];
-    %                 rhs = rhs + rho*spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
+                    rhs       = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
 
                     % Hessian
                     lhs = infnrm(c)*ones(dm,'single')*tau(c)/rho;
 
                     % Compute GN step
-                    Update = spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
-                    lhs    = [];
-                    rhs    = [];
-
-                    % Update with line-search
-                    oy   = y;
-                    olly = get_ll(method,y,x,tau(c),dat(c),lam(c),u,w,rho,vx);
-                    
-                    figure(667)
-                    E = [];
-                    for linesearch=1:nlinesearch % Iterate line-search
-                        
-                        % Compute new y
-                        y = oy - armijo(c)*Update;
-
-                        % Compute new objective
-                        nlly = get_ll(method,y,x,tau(c),dat(c),lam(c),u,w,rho,vx);    
-                        E    = [E; sum(nlly)];
-                        plot(E); drawnow;
-                        fprintf('%2d | %2d | nlly=%10.1f olly=%10.1f | %1.7f\n', c, linesearch, sum(nlly), sum(olly), armijo(c));
-
-                        if sum(nlly) > sum(olly)
-                            break
-                        else
-                            armijo(c) = 0.5*armijo(c);
-                            if linesearch == nlinesearch
-                                y     = oy;
-                            end
-                        end                               
-                    end
-                    oy     = [];
-                    Update = [];
+                    y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
+                    lhs = [];
+                    rhs = [];
                 end
             else
                 %---------------------------
