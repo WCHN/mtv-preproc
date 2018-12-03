@@ -393,6 +393,7 @@ parfor (c=1:C,num_workers)
     Nii_u(c) = put_nii(Nii_u(c),zeros([dm 3 2],'single'));
     Nii_w(c) = put_nii(Nii_w(c),zeros([dm 3 2],'single'));
 end
+rhs = [];
 
 %--------------------------------------------------------------------------
 % Start solving
@@ -460,7 +461,7 @@ for it=1:nit
         %------------------------------------------------------------------
         % Proximal operator for y        
         %------------------------------------------------------------------
-           
+        rhs = [];
         if ~superes_fmg
             rhs = u - w/rho; 
             rhs = lam(c)*imdiv(rhs,vx);
