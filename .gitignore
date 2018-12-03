@@ -85,3 +85,6 @@
 
 ## Other ignore
 *.ipynb_checkpoints
+out/
+
+tmp/
