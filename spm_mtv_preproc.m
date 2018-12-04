@@ -18,7 +18,7 @@ function Nii = spm_mtv_preproc(varargin)
 % Tolerance              - Convergence threshold, set to zero to run until 
 %                          IterMax [0]
 % RegularisationScaleMRI - Scaling of regularisation, increase this value for 
-%                          stronger denoising [30]
+%                          stronger denoising [25]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
 % TemporaryDirectory     - Directory for temporary files ['./tmp']
 % OutputDirectory        - Directory for denoised images ['./out']
@@ -32,7 +32,7 @@ function Nii = spm_mtv_preproc(varargin)
 % CleanUp                - Delete temporary files [true] 
 % VoxelSize              - Voxel size of super-resolved image [1 1 1]
 % IterMaxCG              - Maximum number of iterations for conjugate gradient 
-%                          solver used for super-resolution [10]
+%                          solver used for super-resolution [12]
 % ToleranceCG            - Convergence threshold for conjugate gradient 
 %                          solver used for super-resolution [1e-3]
 % CoRegister             - For super-resolution, co-register input images [true] 
@@ -97,7 +97,7 @@ p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 30, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0.1, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('RegularisationScaleMRI', 30, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegularisationScaleMRI', 25, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
 p.addParameter('OutputDirectory', 'out', @ischar);
@@ -105,7 +105,7 @@ p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') 
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
 p.addParameter('VoxelSize', [1 1 1], @(in) (isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0));
-p.addParameter('IterMaxCG', 10, @(in) (isnumeric(in) && in > 0));
+p.addParameter('IterMaxCG', 12, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ToleranceCG', 1e-4, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
@@ -234,7 +234,6 @@ sched_lam = sched_lam(end - min(numel(sched_lam) - 1,nit):end);
 
 % lam = prod(vx_sr)*lam; % Scale regularisation with voxel size (only for super-resolution)
 lam = sched_lam(1)*lam;
-% lam = lam0;
 
 if rho == 0
     % Estimate rho (this value seems to lead to reasonably good convergence)
@@ -326,8 +325,8 @@ if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
 
 msk = cell(1,C); % For saving locations of missing values so that they can be 're-applied' once the algorithm has finished
-for c=1:C
-% parfor (c=1:C,num_workers)  
+% for c=1:C
+parfor (c=1:C,num_workers)  
 
     spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
             
@@ -340,24 +339,33 @@ for c=1:C
         % Super-resolution
         %---------------------------
         
-        [y,msk{c}] = get_y_superres(Nii_x(c),dat(c),dm,mat); % 4th order b-splines
-               
-%         if superes_fmg
-%             % Gradient
-%             g       = A(y,dat(c));
-%             for n=1:dat(c).N
-%                g{n} = g{n} - x;
-%             end
-%             g       = At(g,dat(c),tau(c))*(1/rho);
-% 
-%             % Hessian
-%             H = infnrm(c)*ones(dm,'single')*tau(c)/rho;
-% 
-%             % New y
-%             y = spm_field(H,g,[vx 0 lam(c)^2 0 2 2]);  
-%             H = [];
-%             g = [];
-%         end
+        if superes_fmg
+            y = get_nii(Nii_y(c));  
+            for gnit=1:3 % Iterate Gauss-Newton
+
+                % Gradient      
+                Ayx = A(y,dat(c));
+                for n=1:dat(c).N
+                   Ayx{n} = Ayx{n} - x;
+                end                
+                rhs = At(Ayx,dat(c),tau(c))*(1/rho); 
+                Ayx = [];
+                rhs = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
+
+                % Hessian
+                lhs = infnrm(c)*ones(dm,'single')*tau(c)/rho;
+
+                % Compute GN step
+                y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
+                lhs = [];
+                rhs = [];
+
+            end
+            msk{c} = isfinite(y);
+        else
+            [y,msk{c}] = get_y_superres(Nii_x(c),dat(c),dm,mat); % 4th order b-splines
+        end
+
     else  
         %---------------------------
         % Denoising
@@ -385,6 +393,7 @@ for c=1:C
     Nii_u(c) = put_nii(Nii_u(c),zeros([dm 3 2],'single'));
     Nii_w(c) = put_nii(Nii_w(c),zeros([dm 3 2],'single'));
 end
+rhs = [];
 
 %--------------------------------------------------------------------------
 % Start solving
@@ -400,8 +409,7 @@ ll     = -Inf;
 for it=1:nit
         
     % Decrease regularisation with iteration number
-    lam = sched_lam(min(it,numel(sched_lam)))*lam0;
-    % lam = lam0;
+    lam = sched_lam(min(it,numel(sched_lam)))*lam0;    
     
     %------------------------------------------------------------------
     % Proximal operator for u
@@ -410,8 +418,8 @@ for it=1:nit
     %------------------------------------------------------------------
 
     unorm = 0;    
-    for c=1:C
-%     parfor (c=1:C,num_workers) % Loop over channels
+%     for c=1:C
+    parfor (c=1:C,num_workers) % Loop over channels
     
         y = get_nii(Nii_y(c));        
         G = lam(c)*imgrad(y,vx);
@@ -434,8 +442,8 @@ for it=1:nit
         
     ll1 = zeros(1,C);
     ll2 = 0;
-    for c=1:C
-%     parfor (c=1:C,num_workers) % Loop over channels
+%     for c=1:C
+    parfor (c=1:C,num_workers) % Loop over channels
     
         spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
                 
@@ -453,7 +461,7 @@ for it=1:nit
         %------------------------------------------------------------------
         % Proximal operator for y        
         %------------------------------------------------------------------
-           
+        rhs = [];
         if ~superes_fmg
             rhs = u - w/rho; 
             rhs = lam(c)*imdiv(rhs,vx);
@@ -491,44 +499,15 @@ for it=1:nit
                     end                
                     rhs       = rhs + At(Ayx,dat(c),tau(c))*(1/rho); 
                     Ayx       = [];
-    %                 rhs = rhs + rho*spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
+                    rhs       = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
 
                     % Hessian
                     lhs = infnrm(c)*ones(dm,'single')*tau(c)/rho;
 
                     % Compute GN step
-                    Update = spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
-                    lhs    = [];
-                    rhs    = [];
-
-                    % Update with line-search
-                    oy   = y;
-                    olly = get_ll(method,y,x,tau(c),dat(c),lam(c),u,w,rho,vx);
-                    
-                    figure(667)
-                    E = [];
-                    for linesearch=1:nlinesearch % Iterate line-search
-                        
-                        % Compute new y
-                        y = oy - armijo(c)*Update;
-
-                        % Compute new objective
-                        nlly = get_ll(method,y,x,tau(c),dat(c),lam(c),u,w,rho,vx);    
-                        E    = [E; sum(nlly)];
-                        plot(E); drawnow;
-                        fprintf('%2d | %2d | nlly=%10.1f olly=%10.1f | %1.7f\n', c, linesearch, sum(nlly), sum(olly), armijo(c));
-
-                        if sum(nlly) > sum(olly)
-                            break
-                        else
-                            armijo(c) = 0.5*armijo(c);
-                            if linesearch == nlinesearch
-                                y     = oy;
-                            end
-                        end                               
-                    end
-                    oy     = [];
-                    Update = [];
+                    y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
+                    lhs = [];
+                    rhs = [];
                 end
             else
                 %---------------------------
