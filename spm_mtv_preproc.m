@@ -353,7 +353,7 @@ parfor (c=1:C,num_workers)
         
         if superes_fmg
             y = get_nii(Nii_y(c));  
-            for gnit=1:3 % Iterate Gauss-Newton
+            for gnit=1:1 % Iterate Gauss-Newton
 
                 % Gradient      
                 Ayx = A(y,dat(c));
