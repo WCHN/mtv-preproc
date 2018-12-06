@@ -43,7 +43,7 @@ function Nii = spm_mtv_preproc(varargin)
 %                          but faster), or read/write from disk (requires 
 %                          less RAM, but slower) [false] 
 % SuperResWithFMG        - Use either spm_field (true) or conjugate
-%                          gradient (false) for super-resolution [false]
+%                          gradient (false) for super-resolution [true]
 % ZeroMissingValues      - Set NaNs and zero values to zero after algorithm 
 %                          has finished [C=1:true, C>1:false]
 %
@@ -111,7 +111,7 @@ p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
 p.addParameter('RegularisationCT', 0.04, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ReadWrite', false, @islogical);
-p.addParameter('SuperResWithFMG', false, @islogical);
+p.addParameter('SuperResWithFMG', true, @islogical);
 p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
 p.parse(varargin{:});
 Nii_x        = p.Results.InputImages;
