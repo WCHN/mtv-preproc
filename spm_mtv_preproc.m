@@ -12,7 +12,7 @@ function Nii = spm_mtv_preproc(varargin)
 %
 % InputImages            - Either image filenames in a cell array, or images 
 %                          in a nifti object. If empty, uses spm_select ['']
-% IterMax                - Maximum number of iteration [30]
+% IterMax                - Maximum number of iteration [40]
 % ADMMStepSize           - The infamous ADMM step size, set to zero for an 
 %                          educated guess [0.1]
 % Tolerance              - Convergence threshold, set to zero to run until 
@@ -94,7 +94,7 @@ spm_check_path('pull');
 p              = inputParser;
 p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
-p.addParameter('IterMax', 30, @(in) (isnumeric(in) && in > 0));
+p.addParameter('IterMax', 40, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0.1, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('RegularisationScaleMRI', 25, @(in) (isnumeric(in) && in > 0));
