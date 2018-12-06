@@ -18,7 +18,7 @@ function Nii = spm_mtv_preproc(varargin)
 % Tolerance              - Convergence threshold, set to zero to run until 
 %                          IterMax [0]
 % RegularisationScaleMRI - Scaling of regularisation, increase this value for 
-%                          stronger denoising [25]
+%                          stronger denoising [20]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
 % TemporaryDirectory     - Directory for temporary files ['./tmp']
 % OutputDirectory        - Directory for denoised images ['./out']
@@ -97,7 +97,7 @@ p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 40, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0.1, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('RegularisationScaleMRI', 25, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegularisationScaleMRI', 20, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
 p.addParameter('OutputDirectory', 'out', @ischar);
