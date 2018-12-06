@@ -44,8 +44,6 @@ function Nii = spm_mtv_preproc(varargin)
 %                          less RAM, but slower) [false] 
 % SuperResWithFMG        - Use either spm_field (true) or conjugate
 %                          gradient (false) for super-resolution [false]
-% NumLineSearchFMG       - Number of line-searches for spm_field when doing 
-%                          super-resolution [12]
 % ZeroMissingValues      - Set NaNs and zero values to zero after algorithm 
 %                          has finished [C=1:true, C>1:false]
 %
@@ -113,7 +111,6 @@ p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
 p.addParameter('RegularisationCT', 0.04, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ReadWrite', false, @islogical);
-p.addParameter('NumLineSearchFMG', 12, @(in) (isnumeric(in) && in > 0));
 p.addParameter('SuperResWithFMG', false, @islogical);
 p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
 p.parse(varargin{:});
@@ -134,7 +131,6 @@ coreg        = p.Results.CoRegister;
 modality     = p.Results.Modality; 
 lam_ct       = p.Results.RegularisationCT; 
 do_readwrite = p.Results.ReadWrite; 
-nlinesearch  = p.Results.NumLineSearchFMG; 
 superes_fmg  = p.Results.SuperResWithFMG; 
 rho          = p.Results.ADMMStepSize; 
 zeroMissing  = p.Results.ZeroMissingValues; 
@@ -416,7 +412,11 @@ rhs = [];
 %--------------------------------------------------------------------------
 
 if speak >= 1
-    fprintf('Start %s, running (max) %d iterations\n', method, nit);
+    if tol == 0
+        fprintf('Start %s, running %d iterations\n', method, nit);
+    else
+        fprintf('Start %s, running (max) %d iterations\n', method, nit);
+    end
     tic; 
 end
 
