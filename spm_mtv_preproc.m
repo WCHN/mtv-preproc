@@ -56,7 +56,10 @@ function Nii = spm_mtv_preproc(varargin)
 %
 % Example 1: Super-resolve a set MRIs of one subject
 %
-% Read IXI MRIs
+% Generate thick-sliced from IXI references by running the script:
+% >> GenerateTestData % Down-sampling factor set by DownSampling parameter
+%
+% Read thick-sliced IXI MRIs
 % >> dir_data = './data';
 % >> Nii      = nifti(spm_select('FPList',dir_data,'^ds_.*\.nii$'));
 %
