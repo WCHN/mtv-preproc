@@ -35,5 +35,13 @@ for c=1:C
     % Save thick-sliced data
     [~,nam,ext] = fileparts(Nii_ref(c).dat.fname);
     nfname      = fullfile(dir_data,['ds_' nam ext]);
-    spm_misc('create_nii',nfname,img,mat,Nii_ref(c).dat.dtype,'downsampled');
+    
+    VO          = spm_vol(Nii_ref(c).dat.fname);
+    VO.fname    = nfname;
+    VO.dim(1:3) = dm(1:3);    
+    VO.mat      = mat;
+    VO          = spm_create_vol(VO);
+        
+    Nii            = nifti(VO.fname);
+    Nii.dat(:,:,:) = img;  
 end
