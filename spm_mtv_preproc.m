@@ -46,6 +46,8 @@ function Nii = spm_mtv_preproc(varargin)
 %                          gradient (false) for super-resolution [false]
 % NumLineSearchFMG       - Number of line-searches for spm_field when doing 
 %                          super-resolution [12]
+% ZeroMissingValues      - Set NaNs and zero values to zero after algorithm 
+%                          has finished [C=1:true, C>1:false]
 %
 % OUTPUT
 % ------
@@ -113,6 +115,7 @@ p.addParameter('RegularisationCT', 0.04, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ReadWrite', false, @islogical);
 p.addParameter('NumLineSearchFMG', 12, @(in) (isnumeric(in) && in > 0));
 p.addParameter('SuperResWithFMG', false, @islogical);
+p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
 p.parse(varargin{:});
 Nii_x        = p.Results.InputImages;
 nit          = p.Results.IterMax;
@@ -134,6 +137,7 @@ do_readwrite = p.Results.ReadWrite;
 nlinesearch  = p.Results.NumLineSearchFMG; 
 superes_fmg  = p.Results.SuperResWithFMG; 
 rho          = p.Results.ADMMStepSize; 
+zeroMissing  = p.Results.ZeroMissingValues; 
 
 if strcmpi(method,'superres') && strcmpi(modality,'CT')
     error('Super-resolution not yet supported for CT data!');
@@ -152,6 +156,17 @@ else
 end
 Nii_x0 = Nii_x;        % So that Verbose = 3 works for superres
 C      = numel(Nii_x); % Number of channels
+
+if isempty(zeroMissing)    
+    % Missing values (NaNs and zeros) will be...
+    if C == 1
+        % ...set to zero after algorithm finishes, if only ONE channel
+        zeroMissing = True;
+    else
+        % ...filled in by the algorithm, if MORE than one channel
+        zeroMissing = False;
+    end
+end
 
 % Make some directories
 if  exist(dir_tmp,'dir') == 7,  rmdir(dir_tmp,'s'); end
@@ -183,8 +198,9 @@ elseif strcmpi(method,'superres')
             
     % For super-resolution, calculate orientation matrix and dimensions 
     % from maximum bounding-box
-    vx       = vx_sr;
-    [mat,dm] = max_bb_orient(Nii_x,vx);
+    vx          = vx_sr;
+    [mat,dm]    = max_bb_orient(Nii_x,vx);
+    zeroMissing = false;
 end
 
 %--------------------------------------------------------------------------
@@ -612,15 +628,17 @@ for c=1:C
     VO.mat      = mat;
     VO          = spm_create_vol(VO);
         
-    Nii(c)            = nifti(VO.fname);
-    y                 = get_nii(Nii_y(c));  
+    Nii(c) = nifti(VO.fname);
+    y      = get_nii(Nii_y(c));  
     if strcmpi(method,'superres')
         % Rescale intensities
         vx0 = sqrt(sum(Nii_x(c).mat(1:3,1:3).^2)); 
         scl = prod(vx0./vx);
         y   = scl*y;
     end
-    y(~msk{c})        = 0; % 'Re-apply' missing values        
+    if zeroMissing
+        y(~msk{c}) = 0; % 'Re-apply' missing values        
+    end
     Nii(c).dat(:,:,:) = y;    
 end
 
