@@ -12,13 +12,13 @@ function Nii = spm_mtv_preproc(varargin)
 %
 % InputImages            - Either image filenames in a cell array, or images 
 %                          in a nifti object. If empty, uses spm_select ['']
-% IterMax                - Maximum number of iteration [30]
+% IterMax                - Maximum number of iteration [40]
 % ADMMStepSize           - The infamous ADMM step size, set to zero for an 
 %                          educated guess [0.1]
 % Tolerance              - Convergence threshold, set to zero to run until 
 %                          IterMax [0]
 % RegularisationScaleMRI - Scaling of regularisation, increase this value for 
-%                          stronger denoising [25]
+%                          stronger denoising [20]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
 % TemporaryDirectory     - Directory for temporary files ['./tmp']
 % OutputDirectory        - Directory for denoised images ['./out']
@@ -43,9 +43,9 @@ function Nii = spm_mtv_preproc(varargin)
 %                          but faster), or read/write from disk (requires 
 %                          less RAM, but slower) [false] 
 % SuperResWithFMG        - Use either spm_field (true) or conjugate
-%                          gradient (false) for super-resolution [false]
-% NumLineSearchFMG       - Number of line-searches for spm_field when doing 
-%                          super-resolution [12]
+%                          gradient (false) for super-resolution [true]
+% ZeroMissingValues      - Set NaNs and zero values to zero after algorithm 
+%                          has finished [C=1:true, C>1:false]
 %
 % OUTPUT
 % ------
@@ -56,7 +56,10 @@ function Nii = spm_mtv_preproc(varargin)
 %
 % Example 1: Super-resolve a set MRIs of one subject
 %
-% Read IXI MRIs
+% Generate thick-sliced from IXI references by running the script:
+% >> GenerateTestData % Down-sampling factor set by DownSampling parameter
+%
+% Read thick-sliced IXI MRIs
 % >> dir_data = './data';
 % >> Nii      = nifti(spm_select('FPList',dir_data,'^ds_.*\.nii$'));
 %
@@ -94,10 +97,10 @@ spm_check_path('pull');
 p              = inputParser;
 p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
-p.addParameter('IterMax', 30, @(in) (isnumeric(in) && in > 0));
+p.addParameter('IterMax', 40, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0.1, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('RegularisationScaleMRI', 25, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegularisationScaleMRI', 20, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
 p.addParameter('OutputDirectory', 'out', @ischar);
@@ -111,8 +114,8 @@ p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
 p.addParameter('RegularisationCT', 0.04, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ReadWrite', false, @islogical);
-p.addParameter('NumLineSearchFMG', 12, @(in) (isnumeric(in) && in > 0));
-p.addParameter('SuperResWithFMG', false, @islogical);
+p.addParameter('SuperResWithFMG', true, @islogical);
+p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
 p.parse(varargin{:});
 Nii_x        = p.Results.InputImages;
 nit          = p.Results.IterMax;
@@ -131,9 +134,9 @@ coreg        = p.Results.CoRegister;
 modality     = p.Results.Modality; 
 lam_ct       = p.Results.RegularisationCT; 
 do_readwrite = p.Results.ReadWrite; 
-nlinesearch  = p.Results.NumLineSearchFMG; 
 superes_fmg  = p.Results.SuperResWithFMG; 
 rho          = p.Results.ADMMStepSize; 
+zeroMissing  = p.Results.ZeroMissingValues; 
 
 if strcmpi(method,'superres') && strcmpi(modality,'CT')
     error('Super-resolution not yet supported for CT data!');
@@ -152,6 +155,17 @@ else
 end
 Nii_x0 = Nii_x;        % So that Verbose = 3 works for superres
 C      = numel(Nii_x); % Number of channels
+
+if isempty(zeroMissing)    
+    % Missing values (NaNs and zeros) will be...
+    if C == 1
+        % ...set to zero after algorithm finishes, if only ONE channel
+        zeroMissing = True;
+    else
+        % ...filled in by the algorithm, if MORE than one channel
+        zeroMissing = False;
+    end
+end
 
 % Make some directories
 if  exist(dir_tmp,'dir') == 7,  rmdir(dir_tmp,'s'); end
@@ -183,8 +197,9 @@ elseif strcmpi(method,'superres')
             
     % For super-resolution, calculate orientation matrix and dimensions 
     % from maximum bounding-box
-    vx       = vx_sr;
-    [mat,dm] = max_bb_orient(Nii_x,vx);
+    vx          = vx_sr;
+    [mat,dm]    = max_bb_orient(Nii_x,vx);
+    zeroMissing = false;
 end
 
 %--------------------------------------------------------------------------
@@ -341,7 +356,7 @@ parfor (c=1:C,num_workers)
         
         if superes_fmg
             y = get_nii(Nii_y(c));  
-            for gnit=1:3 % Iterate Gauss-Newton
+            for gnit=1:1 % Iterate Gauss-Newton
 
                 % Gradient      
                 Ayx = A(y,dat(c));
@@ -400,7 +415,11 @@ rhs = [];
 %--------------------------------------------------------------------------
 
 if speak >= 1
-    fprintf('Start %s, running (max) %d iterations\n', method, nit);
+    if tol == 0
+        fprintf('Start %s, running %d iterations\n', method, nit);
+    else
+        fprintf('Start %s, running (max) %d iterations\n', method, nit);
+    end
     tic; 
 end
 
@@ -612,15 +631,17 @@ for c=1:C
     VO.mat      = mat;
     VO          = spm_create_vol(VO);
         
-    Nii(c)            = nifti(VO.fname);
-    y                 = get_nii(Nii_y(c));  
+    Nii(c) = nifti(VO.fname);
+    y      = get_nii(Nii_y(c));  
     if strcmpi(method,'superres')
         % Rescale intensities
         vx0 = sqrt(sum(Nii_x(c).mat(1:3,1:3).^2)); 
         scl = prod(vx0./vx);
         y   = scl*y;
     end
-    y(~msk{c})        = 0; % 'Re-apply' missing values        
+    if zeroMissing
+        y(~msk{c}) = 0; % 'Re-apply' missing values        
+    end
     Nii(c).dat(:,:,:) = y;    
 end
 
