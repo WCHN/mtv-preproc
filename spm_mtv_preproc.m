@@ -160,10 +160,10 @@ if isempty(zeroMissing)
     % Missing values (NaNs and zeros) will be...
     if C == 1
         % ...set to zero after algorithm finishes, if only ONE channel
-        zeroMissing = True;
+        zeroMissing = true;
     else
         % ...filled in by the algorithm, if MORE than one channel
-        zeroMissing = False;
+        zeroMissing = false;
     end
 end
 
