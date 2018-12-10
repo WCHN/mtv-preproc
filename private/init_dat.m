@@ -31,7 +31,8 @@ for n=1:N % Loop over LR images of the same contrast
     M          = mat\mat_n;
 %     R          = (M(1:3,1:3)/diag(sqrt(sum(M(1:3,1:3).^2))))';
 %     dat.A(n).S = blur_fun(dm,R,sqrt(sum(M(1:3,1:3).^2)));
-    dat.A(n).S = blur_function(dm,M);
+%     dat.A(n).S = blur_function(dm,M);
+    dat.A(n).J = single(reshape(M(1:3,1:3), [1 1 1 3 3]));
 end
 %==========================================================================
 
