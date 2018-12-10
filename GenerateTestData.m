@@ -42,6 +42,7 @@ for c=1:C
     VO.mat      = mat;
     VO          = spm_create_vol(VO);
         
-    Nii            = nifti(VO.fname);
-    Nii.dat(:,:,:) = img;  
+    Nii               = nifti(VO.fname);
+    nii.dat.scl_slope = max(img(:))/1600;
+    Nii.dat(:,:,:)    = img;
 end
