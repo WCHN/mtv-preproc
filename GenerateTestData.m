@@ -1,4 +1,4 @@
-clear; clc;
+% clear; clc;
 
 % Down-sampling factor, will be applied in orthogonal directions
 DownSampling = 1/6;
