@@ -1,26 +1,7 @@
 #include <math.h>
 #include "mex.h"
 #include "shoot_boundary.h"
-
-//-------------------------------------------------------------------------
-// Helpers
-//-------------------------------------------------------------------------
-
-static float min(float a, float b)
-{
-    if (a <= b)
-        return a;
-    else
-        return b;
-}
-
-static float max(float a, float b)
-{
-    if (a >= b)
-        return a;
-    else
-        return b;
-}
+#include "fast.h" // fast approximations of exp/log/erf/...
 
 //-------------------------------------------------------------------------
 // Main function
@@ -42,112 +23,130 @@ static float max(float a, float b)
  * @param  F1   [float m1*n]        Pulled volume    (pull:out / push:in)
  * @param code  [uint]              (0=push|1=pull|2=pushc|3=pullc)
  * @param Jac   [float m1*3*3]      Jacobian of the deformation
- * //@param win   [uint 3]            Selection window (0=gauss|1=rect|2=sinc)
+ * @param mJ    [mwSize]            Number of Jacobians (1 or m1)
+ * @param func  [*() 3]             Selection window (&gauss/&rec/&sinc)
  */
 #define TINY 5e-2f
 static void jpushpull(mwSize dm0[], mwSize m1, mwSize n, 
                       float Psi[], float F0[], float S0[], float F1[], 
                       unsigned int code, float Jac[], mwSize mJ)
+                      /* (float (*func[])(float,float,float) */
 {
-    mwSize i,                   /* Index pulled voxels */
-           k,                   /* Index features */
-           m0;                  /* Number of reference voxels */
-    float  *px, *py, *pz;       /* Deformation components x/y/z */
-    float  *jxx, *jyy, *jzz,    /* Jacobian components (diag) */ 
-           *jxy, *jxz, *jyz,    /*                     (off-diag) */
-           *jyx, *jzx, *jzy;    /*                     (off-diag) */
-    float  NaN = mxGetNaN();
-
-    px  = Psi;                  /* Deformation in x */
-    py  = Psi+m1;               /*                y */
-    pz  = Psi+m1*2;             /*                z */
-    jxx = Jac;                  /* Jacobian in xx */
-    jyx = Jac+mJ;               /*             yx */
-    jzx = Jac+mJ*2;             /*             zx */
-    jxy = Jac+mJ*3;             /*             xy */
-    jyy = Jac+mJ*4;             /*             yy */
-    jzy = Jac+mJ*5;             /*             zy */
-    jxz = Jac+mJ*6;             /*             xz */
-    jyz = Jac+mJ*7;             /*             yz */
-    jzz = Jac+mJ*8;             /*             zz */
-    m0  = dm0[0]*dm0[1]*dm0[2]; /* Nb of reference voxels */
-
-    mwSize oy, oz; /* Offsets between refeence points/lines/slices */
-    oy = dm0[0];
-    oz = dm0[0]*dm0[1];
+    /* Pointers into input/output arrays */
+    mwSize  m0 = dm0[0]*dm0[1]*dm0[2],  /* Number of reference voxels */
+            oy = dm0[0],                /* Offsets between lines */
+            oz = dm0[0]*dm0[1];         /* Offsets between slices */
+    float  *px  = Psi;                  /* Deformation in x */
+    float  *py  = Psi+m1;               /*                y */
+    float  *pz  = Psi+m1*2;             /*                z */
+    float  *jxx = Jac;                  /* Jacobian in xx */
+    float  *jyx = Jac+mJ;               /*             yx */
+    float  *jzx = Jac+mJ*2;             /*             zx */
+    float  *jxy = Jac+mJ*3;             /*             xy */
+    float  *jyy = Jac+mJ*4;             /*             yy */
+    float  *jzy = Jac+mJ*5;             /*             zy */
+    float  *jxz = Jac+mJ*6;             /*             xz */
+    float  *jyz = Jac+mJ*7;             /*             yz */
+    float  *jzz = Jac+mJ*8;             /*             zz */
+    float  NaN  = mxGetNaN();
     
     
-    float  Jxx, Jyy, Jzz, Jxy, Jxz, Jyz, Jyx, Jzx, Jzy; /* Jacobian */
-    float  Cxx, Cyy, Czz, Cxy, Cxz, Cyz, Cyx, Czx, Czy; /* Covariance J*J'+I */
-    float  Txx, Tyy, Tzz, Txy, Txz, Tyz, Tyx, Tzx, Tzy; /* Inverse covariance */
-    float  idt;                                         /* Inverse of determinant */
-    float  limx, limy, limz;                            /* Bounding box in ref space */
-    float  sig    = 1./sqrt(8.*log(2.));                /* Gaussian sd so that FWHM = 1 px */
-    float  pinorm = 1./sqrt(8*M_PI*M_PI*M_PI);          /* Part of kernel normalisation */
-    float  norm;                                        /* Kernel normalisation */
+    /* Stuff needed inside the loop */
+    float  Txx, Tyy, Tzz,       /* Inverse covariance */
+           Txy, Txz, Tyz,
+           Tyx, Tzx, Tzy;
+    float  limx, limy, limz;    /* Bounding box in ref space */
+    float  norm;                /* Kernel normalisation */
+    
+    /* Constants (should probably be static outside of the function) */
+    const float  isig2  = 8.*log(2.);           /* Gaussian sd so that FWHM = 1 px */
+    const float  isig   = sqrt(isig2);
+    const float  sig    = 1./isig;
+    float  pinorm = 1./sqrt(8*M_PI*M_PI*M_PI);  /* Part of kernel normalisation */
+           pinorm = pinorm*pinorm*pinorm;       /* 3D so power 3 */
     
     int voxJ = (mJ != 1);
     if (!voxJ)
     /* Invert Jacobian if same for all voxels */
     {
         /* Jacobian at point i */
-        Jxx = *(jxx);
-        Jyy = *(jyy);
-        Jzz = *(jzz);
-        Jxy = *(jxy);
-        Jxz = *(jxz);
-        Jyz = *(jyz);
-        Jyx = *(jyx);
-        Jzx = *(jzx);
-        Jzy = *(jzy);
+        float  Jxx = *(jxx),
+               Jyy = *(jyy),
+               Jzz = *(jzz),
+               Jxy = *(jxy),
+               Jxz = *(jxz),
+               Jyz = *(jyz),
+               Jyx = *(jyx),
+               Jzx = *(jzx),
+               Jzy = *(jzy);
+        
+        /* Precompute some values */
+        float  JxxJyx = Jxx*Jyx,
+               JxxJzx = Jxx*Jzx,
+               JyyJxy = Jyy*Jxy,
+               JyyJzy = Jyy*Jzy,
+               JzzJxz = Jzz*Jxz,
+               JzzJyz = Jzz*Jyz,
+               JxzJyz = Jxz*Jyz,
+               JyxJzx = Jyx*Jzx,
+               JxyJzy = Jxy*Jzy;
         
         /* Covariance = J*J'+I */
-        Cxx = Jxx*Jxx + Jxy*Jxy + Jxz*Jxz + 1;
-        Cxy = Jxx*Jyx + Jxy*Jyy + Jxz*Jyz;
-        Cxz = Jxx*Jzx + Jxy*Jzy + Jxz*Jzz;
-        Cyx = Jyx*Jxx + Jyy*Jxy + Jyz*Jxz;
-        Cyy = Jyx*Jyx + Jyy*Jyy + Jyz*Jyz + 1;
-        Cyz = Jyx*Jzx + Jyy*Jzy + Jyz*Jzz;
-        Czx = Jzx*Jxx + Jzy*Jxy + Jzz*Jxz;
-        Czy = Jzx*Jyx + Jzy*Jyy + Jzz*Jyz;
-        Czz = Jzx*Jzx + Jzy*Jzy + Jzz*Jzz + 1;
+        float  Cxx = Jxx*Jxx + Jxy*Jxy + Jxz*Jxz + 1,
+               Cxy = JxxJyx  + JyyJxy  + JxzJyz,
+               Cxz = JxxJzx  + JxyJzy  + JzzJxz,
+               Cyx = JxxJyx  + JyyJxy  + JxzJyz,
+               Cyy = Jyx*Jyx + Jyy*Jyy + Jyz*Jyz + 1,
+               Cyz = JyxJzx  + JyyJzy  + JzzJyz,
+               Czx = JxxJzx  + JxyJzy  + JzzJxz,
+               Czy = JyxJzx  + JyyJzy  + JzzJyz,
+               Czz = Jzx*Jzx + Jzy*Jzy + Jzz*Jzz + 1;
         
         /* Invert covariance */
-        idt = 1.0/(Cxx*Cyy*Czz + 2*Cxy*Cxz*Cyz
-                   -Cxx*Cyz*Cyz-Cyy*Cxz*Cxz-Czz*Cxy*Cxy);
-        norm = sqrt(idt)*pinorm/(sig*sig);
-        Txx = idt*(Cyy*Czz-Cyz*Cyz)/(sig*sig);
-        Tyx = idt*(Cxz*Cyz-Cxy*Czz)/(sig*sig);
-        Tzx = idt*(Cxy*Cyz-Cxz*Cyy)/(sig*sig);
-        Txy = idt*(Cxz*Cyz-Cxy*Czz)/(sig*sig);
-        Tyy = idt*(Cxx*Czz-Cxz*Cxz)/(sig*sig);
-        Tzy = idt*(Cxy*Cxz-Cxx*Cyz)/(sig*sig);
-        Txz = idt*(Cxy*Cyz-Cxz*Cyy)/(sig*sig);
-        Tyz = idt*(Cxy*Cxz-Cxx*Cyz)/(sig*sig);
-        Tzz = idt*(Cxx*Cyy-Cxy*Cxy)/(sig*sig);
+        float idt = 1.0/(Cxx*Cyy*Czz + 2*Cxy*Cxz*Cyz
+                    -Cxx*Cyz*Cyz-Cyy*Cxz*Cxz-Czz*Cxy*Cxy);
+        float scl = idt*isig2;
+        Txx = scl*(Cyy*Czz-Cyz*Cyz);
+        Tyx = scl*(Cxz*Cyz-Cxy*Czz);
+        Tzx = scl*(Cxy*Cyz-Cxz*Cyy);
+        Txy = scl*(Cxz*Cyz-Cxy*Czz);
+        Tyy = scl*(Cxx*Czz-Cxz*Cxz);
+        Tzy = scl*(Cxy*Cxz-Cxx*Cyz);
+        Txz = scl*(Cxy*Cyz-Cxz*Cyy);
+        Tyz = scl*(Cxy*Cxz-Cxx*Cyz);
+        Tzz = scl*(Cxx*Cyy-Cxy*Cxy);
+        
+        /* Normalising constant = (2*pi*sig2)^(-3/2) * det(T)^(1/2) */
+        norm = sqrt(idt)*pinorm*isig2*isig;
         
         /* Bounding box of contributing points in ref space */
         limx = limy = limz = 0;
-        limx = max(limx, fabs(Jxx));
-        limx = max(limx, fabs(Jxy));
-        limx = max(limx, fabs(Jxz));
-        limy = max(limy, fabs(Jyx));
-        limy = max(limy, fabs(Jyy));
-        limy = max(limy, fabs(Jyz));
-        limz = max(limz, fabs(Jzx));
-        limz = max(limz, fabs(Jzy));
-        limz = max(limz, fabs(Jzz));
+        limx = fmaxf(limx, fabs(Jxx));
+        limx = fmaxf(limx, fabs(Jxy));
+        limx = fmaxf(limx, fabs(Jxz));
+        limy = fmaxf(limy, fabs(Jyx));
+        limy = fmaxf(limy, fabs(Jyy));
+        limy = fmaxf(limy, fabs(Jyz));
+        limz = fmaxf(limz, fabs(Jzx));
+        limz = fmaxf(limz, fabs(Jzy));
+        limz = fmaxf(limz, fabs(Jzz));
         limx += 1;
         limy += 1;
         limz += 1;
         limx *= 3*sig;
         limy *= 3*sig;
         limz *= 3*sig;
-        mexPrintf("Limits: %f %f %f\n", limx, limy, limz);
+//         mexPrintf("Limits: %f %f %f\n", limx, limy, limz);
     }
     
+    /* Precompute exponential */
+    float  pexp[1024];
+    float  scl = -0.5*9./1023.;
+    for(mwSize k=0; k<1024; ++k) pexp[k] = exp(scl*(float)k)*norm;
+    scl = 1023./9;
+    
     float *pf1 = F1;
-    for (i=0; i<m1; ++i, ++pf1)    /* loop over pulled voxels */
+    for (mwSize i=0; i<m1; ++i, ++pf1)    /* loop over pulled voxels */
     {
         float  x, y, z;     /* Coordinates in reference volume */
         x = *(px++)-1.0f;   /* Subtract 1 because of MATLAB indexing */
@@ -163,59 +162,7 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
             if (voxJ)
             /* Invert Jacobian if voxel-specific */
             {
-                /* Jacobian at point i */
-                Jxx = *(jxx++);
-                Jyy = *(jyy++);
-                Jzz = *(jzz++);
-                Jxy = *(jxy++);
-                Jxz = *(jxz++);
-                Jyz = *(jyz++);
-                Jyx = *(jyx++);
-                Jzx = *(jzx++);
-                Jzy = *(jzy++);
-                
-                /* Covariance = J*J'+I */
-                Cxx = Jxx*Jxx + Jxy*Jxy + Jxz*Jxz + 1;
-                Cxy = Jxx*Jyx + Jxy*Jyy + Jxz*Jyz;
-                Cxz = Jxx*Jzx + Jxy*Jzy + Jxz*Jzz;
-                Cyx = Jyx*Jxx + Jyy*Jxy + Jyz*Jxz;
-                Cyy = Jyx*Jyx + Jyy*Jyy + Jyz*Jyz + 1;
-                Cyz = Jyx*Jzx + Jyy*Jzy + Jyz*Jzz;
-                Czx = Jzx*Jxx + Jzy*Jxy + Jzz*Jxz;
-                Czy = Jzx*Jyx + Jzy*Jyy + Jzz*Jyz;
-                Czz = Jzx*Jzx + Jzy*Jzy + Jzz*Jzz + 1;
-
-                /* Invert covariance */
-                idt = 1.0/(Cxx*Cyy*Czz + 2*Cxy*Cxz*Cyz
-                           -Cxx*Cyz*Cyz-Cyy*Cxz*Cxz-Czz*Cxy*Cxy);
-                norm = sqrt(idt)*pinorm/(sig*sig);
-                Txx = idt*(Cyy*Czz-Cyz*Cyz)/(sig*sig);
-                Tyx = idt*(Cxz*Cyz-Cxy*Czz)/(sig*sig);
-                Tzx = idt*(Cxy*Cyz-Cxz*Cyy)/(sig*sig);
-                Txy = idt*(Cxz*Cyz-Cxy*Czz)/(sig*sig);
-                Tyy = idt*(Cxx*Czz-Cxz*Cxz)/(sig*sig);
-                Tzy = idt*(Cxy*Cxz-Cxx*Cyz)/(sig*sig);
-                Txz = idt*(Cxy*Cyz-Cxz*Cyy)/(sig*sig);
-                Tyz = idt*(Cxy*Cxz-Cxx*Cyz)/(sig*sig);
-                Tzz = idt*(Cxx*Cyy-Cxy*Cxy)/(sig*sig);
-
-                /* Bounding box of contributing points in ref space */
-                limx = limy = limz = 0;
-                limx = max(limx, fabs(Jxx));
-                limx = max(limx, fabs(Jxy));
-                limx = max(limx, fabs(Jxz));
-                limy = max(limy, fabs(Jyx));
-                limy = max(limy, fabs(Jyy));
-                limy = max(limy, fabs(Jyz));
-                limz = max(limz, fabs(Jzx));
-                limz = max(limz, fabs(Jzy));
-                limz = max(limz, fabs(Jzz));
-                limx += 1;
-                limy += 1;
-                limz += 1;
-                limx *= 3*sig;
-                limy *= 3*sig;
-                limz *= 3*sig;
+                mexErrMsgTxt("Not implemented yet");
             }
             
             /* Voxels inside the bounding box */
@@ -231,115 +178,104 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
             
             /* Create lookups of voxel locations - for coping with edges */
             mwSize  oox[128], ooy[128], ooz[128];
-            for(k=0; k<lx; ++k) oox[k] = bound(ixmin+k, dm0[0]);
-            for(k=0; k<ly; ++k) ooy[k] = bound(iymin+k, dm0[1])*oy;
-            for(k=0; k<lz; ++k) ooz[k] = bound(izmin+k, dm0[2])*oz;
+            for(mwSize k=0; k<lx; ++k) oox[k] = bound(ixmin+k, dm0[0]);
+            for(mwSize k=0; k<ly; ++k) ooy[k] = bound(iymin+k, dm0[1])*oy;
+            for(mwSize k=0; k<lz; ++k) ooz[k] = bound(izmin+k, dm0[2])*oz;
             float  ddx[128], ddy[128], ddz[128];
-            for(k=0; k<lx; ++k) ddx[k] = x-(float)(k+ixmin);
-            for(k=0; k<ly; ++k) ddy[k] = y-(float)(k+iymin);
-            for(k=0; k<lz; ++k) ddz[k] = z-(float)(k+izmin);
-            
-            mwSignedIndex  ix, iy, iz;          /* Reference voxel indices */
-            float   dx, dy, dz;                 /* Distance to pulled position */
-            float   Tdx, Tdy, Tdz;              /* Transformed distance */
-            float   Td2;                        /* Squared distance */
-            double  acc[n];                     /* Accumulator per feature */
-            float   *pf0x, *pf0y, *pf0z;        /* Pointer into ref volume */
-            float   *ps0x, *ps0y, *ps0z;        /* Pointer into count volume */
-            float   *pf1k;                      /* Pointer into subject volume */
-            double  *pacc;
-            float   w;
+            for(mwSize k=0; k<lx; ++k) ddx[k] = x-(float)(k+ixmin);
+            for(mwSize k=0; k<ly; ++k) ddy[k] = y-(float)(k+iymin);
+            for(mwSize k=0; k<lz; ++k) ddz[k] = z-(float)(k+izmin);
             
             if ((code&1)==1)
             /* Pull */
             {
-                /* Initialise accumulator */
-                pacc = acc;
-                for (k=0; k<n; ++k)
-                    *(pacc++) = 0.;
                             
                 /* Loop over contributing voxels in ref space */
-                for (iz=0; iz<lz;)
+                for (mwSize iz=0; iz<lz;)
                 {
-                    dz   = ddz[iz];
-                    pf0z = F0 + ooz[iz++];
-                    for (iy=0; iy<ly;)
+                    float dz    = ddz[iz];
+                    float *pf0z = F0 + ooz[iz++];
+                    for (mwSize iy=0; iy<ly;)
                     {
-                        dy   = ddy[iy];
-                        pf0y = pf0z + ooy[iy++];
-                        for (ix=0; ix<lx;)
+                        float dy    = ddy[iy];
+                        float *pf0y = pf0z + ooy[iy++];
+                        for (mwSize ix=0; ix<lx;)
                         {
-                            dx   = ddx[ix];
-                            pf0x = pf0y + oox[ix++];
+                            float dx    = ddx[ix];
+                            float *pf0x = pf0y + oox[ix++];
                             
-                            Tdx  = Txx * dx + Txy * dy + Txz * dz;
-                            Tdy  = Tyx * dx + Tyy * dy + Tyz * dz;
-                            Tdz  = Tzx * dx + Tzy * dy + Tzz * dz;
-                            Td2  = dx * Tdx + dy * Tdy + dz * Tdz;
+//                             float Tdx  = Txx * dx + Txy * dy + Txz * dz;
+//                             float Tdy  = Tyx * dx + Tyy * dy + Tyz * dz;
+//                             float Tdz  = Tzx * dx + Tzy * dy + Tzz * dz;
+//                             float Td2  = dx * Tdx + dy * Tdy + dz * Tdz;
+                            float Td2 = dx * (Txx * dx + Txy * dy + Txz * dz)
+                                      + dy * (Tyx * dx + Tyy * dy + Tyz * dz)
+                                      + dz * (Tzx * dx + Tzy * dy + Tzz * dz);
+                            
                             if (Td2 < 9.)
                             {
-                                w    = exp(-Td2)*norm;
+//                                 float w    = fasterexp(-0.5*Td2)*norm;
+                                float w = pexp[(mwSize)floor(Td2*scl)];
                             
-                                pacc = acc;
-                                for (k=0; k<n; ++k, pf0x += m0) {
-                                    if (pf0x-F0 <0 || pf0x-F0 >= m0*n)
-                                        mexErrMsgTxt("Out of bound! (pull acc)");
-                                    *(pacc++) += w * (*pf0x);
+                                float *pf1k = pf1;
+                                for (mwSize k=0; k<n; ++k, pf0x += m0, pf1k += m1)
+                                {
+//                                     if (pf0x-F0 <0 || pf0x-F0 >= m0*n)
+//                                         mexErrMsgTxt("Out of bound! (pull acc)");
+                                    (*pf1k) += w * (*pf0x);
                                 }
                             }
                         }
                     }
-                }
-
-                /* Fill output volume */
-                pf1k = pf1;
-                pacc = acc;
-                for (k=0; k<n; ++k, pf1k += m1) {
-                    if (pf1k-F1 <0 || pf1k-F1 >= m1*n)
-                        mexErrMsgTxt("Out of bound! (pull fill).");
-                    (*pf1k) = *(pacc++);
                 }
             }
             else
             /* Push */
             {
                 /* Loop over contributing voxels in ref space */
-                for (iz=0; iz<lz;)
+                for (mwSize iz=0; iz<lz;)
                 {
-                    dz   = z-(float)(iz+izmin);
-                    pf0z = F0 + ooz[iz];
-                    ps0z = S0 + ooz[iz++];
-                    for (iy=0; iy<ly;)
+                    float dz    = ddz[iz];
+                    float *pf0z = F0 + ooz[iz];
+                    float *ps0z = S0 + ooz[iz++];
+                    for (mwSize iy=0; iy<ly;)
                     {
-                        dy   = y-(float)(iy+iymin);
-                        pf0y = pf0z + ooy[iy];
-                        ps0y = ps0z + ooy[iy++];
-                        for (ix=0; ix<lx;)
+                        float dy    = ddy[iy];
+                        float *pf0y = pf0z + ooy[iy];
+                        float *ps0y = ps0z + ooy[iy++];
+                        for (mwSize ix=0; ix<lx;)
                         {
-                            dx   = x-(float)(ix+ixmin);
-                            pf0x = pf0y + oox[ix];
-                            ps0x = ps0y + oox[ix++];
+                            float dx    = ddx[ix];
+                            float *pf0x = pf0y + oox[ix];
+                            float *ps0x = ps0y + oox[ix++];
                             
-                            Tdx  = Txx * dx + Txy * dy + Txz * dz;
-                            Tdy  = Tyx * dx + Tyy * dy + Tyz * dz;
-                            Tdz  = Tzx * dx + Tzy * dy + Tzz * dz;
-                            Td2  = dx * Tdx + dy * Tdy + dz * Tdz;
+//                             float Tdx  = Txx * dx + Txy * dy + Txz * dz;
+//                             float Tdy  = Tyx * dx + Tyy * dy + Tyz * dz;
+//                             float Tdz  = Tzx * dx + Tzy * dy + Tzz * dz;
+//                             float Td2  = dx * Tdx + dy * Tdy + dz * Tdz;
+                            float Td2 = dx * (Txx * dx + Txy * dy + Txz * dz)
+                                      + dy * (Tyx * dx + Tyy * dy + Tyz * dz)
+                                      + dz * (Tzx * dx + Tzy * dy + Tzz * dz);
+                            
                             if (Td2 < 9.)
                             {
-                                w    = exp(-Td2)*norm;
+//                                 float w    = fasterexp(-0.5*Td2)*norm;
+                                float w = pexp[(mwSize)floor(Td2*scl)];
 
-                                pf1k = pf1;
-                                for (k=0; k<n; ++k, pf0x += m0, pf1k += m1) {
-                                    if (pf0x-F0 <0 || pf0x-F0 >= m0*n)
-                                        mexErrMsgTxt("Out of bound! (push F0).");
-                                    if (pf1k-F1 <0 || pf1k-F1 >= m1*n)
-                                        mexErrMsgTxt("Out of bound! (push F1).");
+                                float *pf1k = pf1;
+                                for (mwSize k=0; k<n; ++k, pf0x += m0, pf1k += m1)
+                                {
+//                                     if (pf0x-F0 <0 || pf0x-F0 >= m0*n)
+//                                         mexErrMsgTxt("Out of bound! (push F0).");
+//                                     if (pf1k-F1 <0 || pf1k-F1 >= m1*n)
+//                                         mexErrMsgTxt("Out of bound! (push F1).");
                                     (*pf0x) += w * (*pf1k);
                                 }
                                 /* Count image */
-                                if (S0!=0) {
-                                    if (ps0x-S0 <0 || ps0x-S0 >= m0)
-                                        mexErrMsgTxt("Out of bound! (push S0).");
+                                if (S0!=0)
+                                {
+//                                     if (ps0x-S0 <0 || ps0x-S0 >= m0)
+//                                         mexErrMsgTxt("Out of bound! (push S0).");
                                     (*ps0x) += w;
                                 }
                             }
@@ -352,10 +288,10 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
         /* If (pull/push AND out of bounds) */
         {
             float *pf1k = pf1;
-            for(k=0; k<n; ++k, pf1k += m1)
+            for(mwSize k=0; k<n; ++k, pf1k += m1)
             {
-                if (pf1k-F1 <0 || pf1k-F1 >= m1*n)
-                    mexErrMsgTxt("Out of bound! (NaN).");
+//                 if (pf1k-F1 <0 || pf1k-F1 >= m1*n)
+//                     mexErrMsgTxt("Out of bound! (NaN).");
                 (*pf1k) = NaN;
             }
         }
