@@ -8,56 +8,66 @@ f                = findobj('Type', 'Figure', 'Name', figname);
 if isempty(f), f = figure('Name', figname, 'NumberTitle', 'off'); end
 set(0, 'CurrentFigure', f);  
 
-subplot(121)
+if dm(3) > 1
+    nim  = 3;
+    dims = [1 2 3; 2 1 1; 3 3 2];
+else
+    nim  = 1;
+    dims = 3;
+end
+
+subplot(1,nim+1,1)
 plot(ll,'r-','LineWidth',2); grid on
 title('log-likelihood')
 
 C = numel(nii_x);
 
-subplot(122)
-if strcmpi(method,'superres') 
-    img_y = zeros([nr*dm(1) nc*dm(2)],'single');
-    cnt   = 0;
-    z     = ceil(dm(3)/2);
-    for c=1:nc
-        for r=1:nr        
-            rngr = ((r - 1)*dm(1) + 1):r*dm(1);
-            rngc = ((c - 1)*dm(2) + 1):c*dm(2);
+for d=1:nim
+    subplot(1,nim+1,1+d)
+    if strcmpi(method,'superres')
+        img_y = zeros([nr*dm(dims(2,d)) nc*dm(dims(3,d))],'single');
+        cnt   = 0;
+        z     = ceil(dm(dims(1,d))/2);
+        for c=1:nc
+            for r=1:nr        
+                rngr = ((r - 1)*dm(dims(2,d)) + 1):r*dm(dims(2,d));
+                rngc = ((c - 1)*dm(dims(3,d)) + 1):c*dm(dims(3,d));
 
-            img_y(rngr,rngc) = get_nii(nii_y(c),z);
+                img_y(rngr,rngc) = fliplr(reshape(get_nii(nii_y(c),z,dims(1,d)), [dm(dims(2,d)) dm(dims(3,d))]));
 
-            cnt = cnt + 1;
-            if cnt == C, break; end        
+                cnt = cnt + 1;
+                if cnt == C, break; end        
+            end
         end
-    end
-    
-    imagesc(img_y'); axis off image; colormap(gray);
-else    
-    img_x = zeros([nr*dm(1) nc*dm(2)],'single');
-    img_y = zeros([nr*dm(1) nc*dm(2)],'single');
-    cnt   = 0;
-    z     = ceil(dm(3)/2);
-    for c=1:nc
-        for r=1:nr        
-            rngr = ((r - 1)*dm(1) + 1):r*dm(1);
-            rngc = ((c - 1)*dm(2) + 1):c*dm(2);
 
-            img_x(rngr,rngc) = get_nii(nii_x(c),z);
-            img_y(rngr,rngc) = get_nii(nii_y(c),z);
+        imagesc(img_y'); axis off image; colormap(gray);
+    else    
+        img_x = zeros([nr*dm(dims(2,d)) nc*dm(dims(3,d))],'single');
+        img_y = zeros([nr*dm(dims(2,d)) nc*dm(dims(3,d))],'single');
+        cnt   = 0;
+        z     = ceil(dm(dims(1,d))/2);
+        for c=1:nc
+            for r=1:nr        
+                rngr = ((r - 1)*dm(dims(2,d)) + 1):r*dm(dims(2,d));
+                rngc = ((c - 1)*dm(dims(3,d)) + 1):c*dm(dims(3,d));
 
-            cnt = cnt + 1;
-            if cnt == C, break; end        
+                img_x(rngr,rngc) = fliplr(reshape(get_nii(nii_x(c),z,dims(1,d)), [dm(dims(2,d)) dm(dims(3,d))]));
+                img_y(rngr,rngc) = fliplr(reshape(get_nii(nii_y(c),z,dims(1,d)), [dm(dims(2,d)) dm(dims(3,d))]));
+
+                cnt = cnt + 1;
+                if cnt == C, break; end        
+            end
         end
+
+        if strcmpi(modality,'MRI')
+            imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]');
+        elseif strcmpi(modality,'CT')
+            imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]',[0 100]);
+        end
+        axis off image; colormap(gray);
     end
-    
-    if strcmpi(modality,'MRI')
-        imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]');
-    elseif strcmpi(modality,'CT')
-        imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]',[0 100]);
-    end
-    axis off image; colormap(gray);
+    title('Input and solved')
 end
-title('Input and solved')
-
+    
 drawnow;
 %==========================================================================
