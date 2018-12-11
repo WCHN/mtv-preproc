@@ -642,7 +642,9 @@ for c=1:C
     if zeroMissing
         y(~msk{c}) = 0; % 'Re-apply' missing values        
     end
-    Nii(c).dat(:,:,:) = y;    
+    Nii(c).dat.scl_slope = max(y(:))/1600;
+    create(Nii(c));
+    Nii(c).dat(:,:,:) = y;
 end
 
 %--------------------------------------------------------------------------
