@@ -1,4 +1,4 @@
-% clear; clc;
+function GenerateTestData
 
 % Down-sampling factor, will be applied in orthogonal directions
 DownSampling = 1/6;
@@ -10,7 +10,6 @@ C        = numel(Nii_ref);
 
 % Simulate thick-sliced data
 ds     = [DownSampling 1 1; 1 DownSampling 1; 1 1 DownSampling];
-Nii_in = nifti;
 for c=1:C
     img  = Nii_ref(c).dat(:,:,:);
     mat0 = Nii_ref(c).mat;
@@ -43,6 +42,7 @@ for c=1:C
     VO          = spm_create_vol(VO);
         
     Nii               = nifti(VO.fname);
-    nii.dat.scl_slope = max(img(:))/1600;
+    Nii.dat.scl_slope = max(img(:))/1600;
+    create(Nii);
     Nii.dat(:,:,:)    = img;
 end
