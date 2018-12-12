@@ -624,15 +624,12 @@ end
    
 Nii = nifti;
 for c=1:C
-    VO          = spm_vol(Nii_x(c).dat.fname);
-    [~,nam,ext] = fileparts(VO.fname);
-    VO.fname    = fullfile(dir_out,[prefix '_' nam ext]);
-    VO.dim(1:3) = dm(1:3);    
-    VO.mat      = mat;
-    VO          = spm_create_vol(VO);
-        
-    Nii(c) = nifti(VO.fname);
-    y      = get_nii(Nii_y(c));  
+    % Set output filename
+    [~,nam,ext] = fileparts(Nii_x(c).dat.fname);
+    nfname      = fullfile(dir_out,[prefix '_' nam ext]);
+    
+    % Get output image data
+    y = get_nii(Nii_y(c));  
     if strcmpi(method,'superres')
         % Rescale intensities
         vx0 = sqrt(sum(Nii_x(c).mat(1:3,1:3).^2)); 
@@ -642,9 +639,9 @@ for c=1:C
     if zeroMissing
         y(~msk{c}) = 0; % 'Re-apply' missing values        
     end
-    Nii(c).dat.scl_slope = max(y(:))/1600;
-    create(Nii(c));
-    Nii(c).dat(:,:,:) = y;
+    
+    % Write to NIfTI
+    create_nii(nfname,y,mat,[spm_type('float32') spm_platform('bigend')],'MTV recovered');
 end
 
 %--------------------------------------------------------------------------

@@ -35,14 +35,6 @@ for c=1:C
     [~,nam,ext] = fileparts(Nii_ref(c).dat.fname);
     nfname      = fullfile(dir_data,['ds_' nam ext]);
     
-    VO          = spm_vol(Nii_ref(c).dat.fname);
-    VO.fname    = nfname;
-    VO.dim(1:3) = dm(1:3);    
-    VO.mat      = mat;
-    VO          = spm_create_vol(VO);
-        
-    Nii               = nifti(VO.fname);
-    Nii.dat.scl_slope = max(img(:))/1600;
-    create(Nii);
-    Nii.dat(:,:,:)    = img;
+    % Write to NIfTI
+    create_nii(nfname,img,mat,[spm_type('float32') spm_platform('bigend')],'Simulated thick-sliced');
 end
