@@ -643,7 +643,7 @@ for c=1:C
     end
     
     % Write to NIfTI
-    create_nii(nfname,y,mat,[spm_type('float32') spm_platform('bigend')],'MTV recovered');
+    Nii(c) = create_nii(nfname,y,mat,[spm_type('float32') spm_platform('bigend')],'MTV recovered');
 end
 
 %--------------------------------------------------------------------------
