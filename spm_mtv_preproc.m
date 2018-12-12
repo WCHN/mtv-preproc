@@ -208,12 +208,14 @@ end
 
 if speak >= 2
     if strcmpi(modality,'MRI')
-        figname          = '(SPM) Rice mixture fits';
-        f                = findobj('Type', 'Figure', 'Name', figname);
-        if isempty(f), f = figure('Name', figname, 'NumberTitle', 'off'); end
-        set(0, 'CurrentFigure', f);  
+        figname = '(SPM) Rice mixture fits MRI';
+    elseif strcmpi(modality,'CT')        
+        figname = '(SPM) Gaussian mixture fits CT';
     end
-    
+    f                = findobj('Type', 'Figure', 'Name', figname);
+    if isempty(f), f = figure('Name', figname, 'NumberTitle', 'off'); end
+    set(0, 'CurrentFigure', f);  
+        
     nr = floor(sqrt(C));
     nc = ceil(C/nr);  
 end
@@ -232,7 +234,7 @@ for c=1:C
         mu(c)  = mu_brain;              % Mean brain intensity
         lam(c) = scl_lam/double(mu(c)); % This scaling is currently a bit arbitrary, and should be based on empiricism
     elseif strcmpi(modality,'CT')
-        sd(c)  = noise_estimate_ct(Nii_x(c));
+        sd(c)  = noise_estimate_ct(Nii_x(c),speak >= 2);
         
         mu(c)  = 0;
         lam(c) = lam_ct;
