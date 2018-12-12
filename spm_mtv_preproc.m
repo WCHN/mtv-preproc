@@ -481,7 +481,7 @@ for it=1:nit
         % Proximal operator for y        
         %------------------------------------------------------------------
         rhs = [];
-        if ~superes_fmg
+        if ~superes_fmg || strcmpi(method,'denoise')    
             rhs = u - w/rho; 
             rhs = lam(c)*imdiv(rhs,vx);
         end
