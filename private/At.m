@@ -10,11 +10,9 @@ for n=1:dat.N
     T = dat.mat\dat.A(n).mat;
     y = apply_affine(T,dat.A(n).dm);
     
-    tmp = spm_diffeo('push',X{n},y,dat.dm);     
+    tmp = pushpull('push',single(X{n}),single(y),single(dat.A(n).J),double(dat.dm));     
     clear y
     tmp(~isfinite(tmp)) = 0;
-       
-    tmp = real(ifftn(fftn(tmp).*dat.A(n).S));  
      
     Y = Y + tau(n).*tmp;           
 end

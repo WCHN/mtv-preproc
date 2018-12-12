@@ -29,8 +29,10 @@ for n=1:N % Loop over LR images of the same contrast
     dat.A(n).dm  = dm_n;
             
     M          = mat\mat_n;
-    R          = (M(1:3,1:3)/diag(sqrt(sum(M(1:3,1:3).^2))))';
-    dat.A(n).S = blur_fun(dm,R,sqrt(sum(M(1:3,1:3).^2)));
+%     R          = (M(1:3,1:3)/diag(sqrt(sum(M(1:3,1:3).^2))))';
+%     dat.A(n).S = blur_fun(dm,R,sqrt(sum(M(1:3,1:3).^2)));
+%     dat.A(n).S = blur_function(dm,M);
+    dat.A(n).J = single(reshape(M(1:3,1:3), [1 1 1 3 3]));
 end
 %==========================================================================
 
@@ -62,23 +64,11 @@ end
 clear X
 
 % Window function
-if 1
-    f     = single(0);
-    for i=1:numel(dm) 
-        f = f + Y{i}.^2; 
-    end    
-    f     = ((cos(min(f,pi^2/4)*4/pi) + 1)/2);
-else
-    w_func     = @gausswin;
-    sd         = 50;
-    wr         = window(w_func,dm(2),sd);
-    wc         = window(w_func,dm(1),sd);
-    wz         = window(w_func,dm(3),sd);
-    [wr,wc,wz] = meshgrid(wr,wc,wz);
-    f          = wr.*wc.*wz;
-    f          = single(abs(fftn(f)));    
-end
-% figure(111); imshow3D(f)
+f     = single(0);
+for i=1:numel(dm) 
+    f = f + Y{i}.^2; 
+end    
+f     = ((cos(min(f,pi^2/4)*4/pi) + 1)/2);
 
 % Incorporate voxel size
 for i=1:numel(dm)
