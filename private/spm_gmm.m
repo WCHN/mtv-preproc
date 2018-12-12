@@ -974,130 +974,131 @@ b = [];
 n = [];
 V = [];
 
-switch method{1}
-    
-    case 'kmeans'
-    % Use kmeans to produce a first clustering of the data
-        P = size(X,2);
-        N = size(X,1);
-        % Get labelling and centroids from K-means
-        [L,MU] = spm_kmeans(X, K, W, kmeans{:});
-        MU = MU';
-        % Convert to "responsibility"
-        Z = zeros(N,K);
-        for k=1:K
-            Z(:,k) = (L == k) + eps;
-        end
-        Z(all(isnan(X),2),:) = 1/K;
-        clear L
-        Z = bsxfun(@rdivide, Z, sum(Z,2));
-        % Compute proportion from labelling
-        PI = zeros(1,K);
-        for k=1:K
-            PI(k) = sum(Z(:,k)) + a0(k);
-        end
-        if sum(a0) > 0
-            logPI = psi(PI) - psi(sum(PI));
-            PI    = PI ./ sum(PI);
-        else
-            PI    = max(PI,eps);
-            PI    = PI ./ sum(PI);
-            logPI = log(PI);
-        end
-        if numel(method) == 1
-            % Compute precision from intra-class sample variance
-            % 1) SuffStat2 = sum_i { Wi * (Xi-MU)*(Xi-MU)' }
-            X2 = bsxfun(@minus,X,reshape(MU, [1 P K]));
-            A  = zeros(N,P,P,K);
-            for c1=1:P
-                A(:,c1,c1,:) = reshape(X2(:,c1,:).^2, [N 1 1 K]);
-                for c2=c1+1:P
-                    A(:,c1,c2,:) = reshape(X2(:,c1,:) .* X2(:,c2,:), [N 1 1 K]);
-                    A(:,c2,c1,:) = A(:,c1,c2,:);
-                end
-            end
-            clear X2
-            A = sum(bsxfun(@times, A, reshape(bsxfun(@times, Z, W), [N 1 1 K])), 1, 'omitnan');
-            A = reshape(A, [P P K]);
-            % 2) SuffStat0 = sum_i { Wi * Present*Present' }
-            X   = ~isnan(X);
-            SUM = zeros(N,P,P);
-            for c1=1:P
-                SUM(:,c1,c1) = X(:,c1,:).^2;
-                for c2=c1+1:P
-                    SUM(:,c1,c2) = X(:,c1) .* X(:,c2);
-                    SUM(:,c2,c1) = SUM(:,c1,c2);
-                end
-            end
-            SUM = sum(bsxfun(@times, SUM, reshape(bsxfun(@times, Z, W), [N 1 1 K])), 1, 'omitnan');
-            SUM = reshape(SUM, [P P K]);
-            % 3) Normalise and invert
-            A = A ./ SUM; clear SUM X
+if ischar(method{1})
+    switch method{1}
+
+        case 'kmeans'
+        % Use kmeans to produce a first clustering of the data
+            P = size(X,2);
+            N = size(X,1);
+            % Get labelling and centroids from K-means
+            [L,MU] = spm_kmeans(X, K, W, kmeans{:});
+            MU = MU';
+            % Convert to "responsibility"
+            Z = zeros(N,K);
             for k=1:K
-                A(:,:,k) = A(:,:,k) + A(:,:,k)'; % Ensure symmetric
-                A(:,:,k) = spm_matcomp('Inv', A(:,:,k));
+                Z(:,k) = (L == k) + eps;
             end
-        end
-        
-    case 'prior'
-    % Use prior expected value
-        if isempty(pr.MU) || isempty(pr.V) || isempty(pr.n)
-            error('To initialise from prior, a full prior must be provided')
-        end
-        MU = pr.MU;
-        b  = pr.b;
-        V  = pr.V;
-        n  = pr.n;
-        A  = bsxfun(@times, V, reshape(n, [1 1 K]));
-        
-    case 'sample'
-    % Sample uniform
-    % All centroids are selected at random from the observed values.
-    % They are all unique (to avoid starting with several identical
-    % centroids)
-        X   = X(~(any(W==0,2)|any(isnan(X),2)),:); % Remove all rows w/ NaNs or w/o obs
-        i   = randperm(size(X,1));
-        i   = i(1:K);
-        MU = X(i,:)';
-        
-    case 'uniform'
-    % Range uniform
-    % All centroids are selected at random from the continuous range of 
-    % observed values.
-    % They are all unique (to avoid starting with several identical
-    % centroids)
-        minval = min(X, [], 1, 'omitnan');
-        maxval = max(X, [], 1, 'omitnan');
-        MU = rand(K,size(X,2));
-        MU = bsxfun(@times, MU, maxval - minval) + minval;
-        MU = MU';
-        
-    case 'linspace'
-    % Range uniform
-    % All centroids are selected at random from the continuous range of 
-    % observed values.
-    % They are all unique (to avoid starting with several identical
-    % centroids)
-        minval = min(X, [], 1, 'omitnan');
-        maxval = max(X, [], 1, 'omitnan');
-        MU = rand(size(X,2),K);
-        for p=1:size(X,2)
-            ticks = linspace(minval(p), maxval(p), 2*K+1);
-            MU(p,:) = ticks(2:2:end-1);
-        end
-        
-    otherwise
-    % Provided
-        if ~iscell(method{1})
-            MU = method{1};
-        else
-            if numel(method{1}) >= 1
-                MU = method{1}{1};
-                if numel(method{1}) >= 2
-                    b = method{1}{2};
+            Z(all(isnan(X),2),:) = 1/K;
+            clear L
+            Z = bsxfun(@rdivide, Z, sum(Z,2));
+            % Compute proportion from labelling
+            PI = zeros(1,K);
+            for k=1:K
+                PI(k) = sum(Z(:,k)) + a0(k);
+            end
+            if sum(a0) > 0
+                logPI = psi(PI) - psi(sum(PI));
+                PI    = PI ./ sum(PI);
+            else
+                PI    = max(PI,eps);
+                PI    = PI ./ sum(PI);
+                logPI = log(PI);
+            end
+            if numel(method) == 1
+                % Compute precision from intra-class sample variance
+                % 1) SuffStat2 = sum_i { Wi * (Xi-MU)*(Xi-MU)' }
+                X2 = bsxfun(@minus,X,reshape(MU, [1 P K]));
+                A  = zeros(N,P,P,K);
+                for c1=1:P
+                    A(:,c1,c1,:) = reshape(X2(:,c1,:).^2, [N 1 1 K]);
+                    for c2=c1+1:P
+                        A(:,c1,c2,:) = reshape(X2(:,c1,:) .* X2(:,c2,:), [N 1 1 K]);
+                        A(:,c2,c1,:) = A(:,c1,c2,:);
+                    end
+                end
+                clear X2
+                A = sum(bsxfun(@times, A, reshape(bsxfun(@times, Z, W), [N 1 1 K])), 1, 'omitnan');
+                A = reshape(A, [P P K]);
+                % 2) SuffStat0 = sum_i { Wi * Present*Present' }
+                X   = ~isnan(X);
+                SUM = zeros(N,P,P);
+                for c1=1:P
+                    SUM(:,c1,c1) = X(:,c1,:).^2;
+                    for c2=c1+1:P
+                        SUM(:,c1,c2) = X(:,c1) .* X(:,c2);
+                        SUM(:,c2,c1) = SUM(:,c1,c2);
+                    end
+                end
+                SUM = sum(bsxfun(@times, SUM, reshape(bsxfun(@times, Z, W), [N 1 1 K])), 1, 'omitnan');
+                SUM = reshape(SUM, [P P K]);
+                % 3) Normalise and invert
+                A = A ./ SUM; clear SUM X
+                for k=1:K
+                    A(:,:,k) = A(:,:,k) + A(:,:,k)'; % Ensure symmetric
+                    A(:,:,k) = spm_matcomp('Inv', A(:,:,k));
                 end
             end
+
+        case 'prior'
+        % Use prior expected value
+            if isempty(pr.MU) || isempty(pr.V) || isempty(pr.n)
+                error('To initialise from prior, a full prior must be provided')
+            end
+            MU = pr.MU;
+            b  = pr.b;
+            V  = pr.V;
+            n  = pr.n;
+            A  = bsxfun(@times, V, reshape(n, [1 1 K]));
+
+        case 'sample'
+        % Sample uniform
+        % All centroids are selected at random from the observed values.
+        % They are all unique (to avoid starting with several identical
+        % centroids)
+            X   = X(~(any(W==0,2)|any(isnan(X),2)),:); % Remove all rows w/ NaNs or w/o obs
+            i   = randperm(size(X,1));
+            i   = i(1:K);
+            MU = X(i,:)';
+
+        case 'uniform'
+        % Range uniform
+        % All centroids are selected at random from the continuous range of 
+        % observed values.
+        % They are all unique (to avoid starting with several identical
+        % centroids)
+            minval = min(X, [], 1, 'omitnan');
+            maxval = max(X, [], 1, 'omitnan');
+            MU = rand(K,size(X,2));
+            MU = bsxfun(@times, MU, maxval - minval) + minval;
+            MU = MU';
+
+        case 'linspace'
+        % Range uniform
+        % All centroids are selected at random from the continuous range of 
+        % observed values.
+        % They are all unique (to avoid starting with several identical
+        % centroids)
+            minval = min(X, [], 1, 'omitnan');
+            maxval = max(X, [], 1, 'omitnan');
+            MU = rand(size(X,2),K);
+            for p=1:size(X,2)
+                ticks = linspace(minval(p), maxval(p), 2*K+1);
+                MU(p,:) = ticks(2:2:end-1);
+            end
+    end
+else
+   % Provided
+    if ~iscell(method{1})
+        MU = method{1};
+    else
+        if numel(method{1}) >= 1
+            MU = method{1}{1};
+            if numel(method{1}) >= 2
+                b = method{1}{2};
+            end
         end
+    end         
 end
 
 % Precision matrix
