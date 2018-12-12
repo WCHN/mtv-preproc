@@ -64,9 +64,14 @@ for d=1:nim
         elseif strcmpi(modality,'CT')
             imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]',[0 100]);
         end
-        axis off image; colormap(gray);
+        axis off image; colormap(gray);        
+    end    
+    
+    if strcmpi(method,'superres')
+        title(['Reconstruction (plane ' num2str(d) ')'])
+    else
+        title(['Denoised (plane ' num2str(d) ')'])
     end
-    title('Input and solved')
 end
     
 drawnow;
