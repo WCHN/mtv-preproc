@@ -57,6 +57,7 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
            Tyx, Tzx, Tzy;
     float  limx, limy, limz;    /* Bounding box in ref space */
     float  norm;                /* Kernel normalisation */
+    mwSize i, k, iz, iy, ix;    /* Loop iteration variables */
     
     /* Constants (should probably be static outside of the function) */
     const float  isig2  = 8.*log(2.);           /* Gaussian sd so that FWHM = 1 px */
@@ -141,12 +142,12 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
     
     /* Precompute exponential */
     float  pexp[1024];
-    float  scl = -0.5*9./1023.;
-    for(mwSize k=0; k<1024; ++k) pexp[k] = exp(scl*(float)k)*norm;
+    float  scl = -0.5*9./1023.;    
+    for(k=0; k<1024; ++k) pexp[k] = exp(scl*(float)k)*norm;
     scl = 1023./9;
     
     float *pf1 = F1;
-    for (mwSize i=0; i<m1; ++i, ++pf1)    /* loop over pulled voxels */
+    for (i=0; i<m1; ++i, ++pf1)    /* loop over pulled voxels */
     {
         float  x, y, z;     /* Coordinates in reference volume */
         x = *(px++)-1.0f;   /* Subtract 1 because of MATLAB indexing */
@@ -178,28 +179,28 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
             
             /* Create lookups of voxel locations - for coping with edges */
             mwSize  oox[128], ooy[128], ooz[128];
-            for(mwSize k=0; k<lx; ++k) oox[k] = bound(ixmin+k, dm0[0]);
-            for(mwSize k=0; k<ly; ++k) ooy[k] = bound(iymin+k, dm0[1])*oy;
-            for(mwSize k=0; k<lz; ++k) ooz[k] = bound(izmin+k, dm0[2])*oz;
+            for(k=0; k<lx; ++k) oox[k] = bound(ixmin+k, dm0[0]);
+            for(k=0; k<ly; ++k) ooy[k] = bound(iymin+k, dm0[1])*oy;
+            for(k=0; k<lz; ++k) ooz[k] = bound(izmin+k, dm0[2])*oz;
             float  ddx[128], ddy[128], ddz[128];
-            for(mwSize k=0; k<lx; ++k) ddx[k] = x-(float)(k+ixmin);
-            for(mwSize k=0; k<ly; ++k) ddy[k] = y-(float)(k+iymin);
-            for(mwSize k=0; k<lz; ++k) ddz[k] = z-(float)(k+izmin);
+            for(k=0; k<lx; ++k) ddx[k] = x-(float)(k+ixmin);
+            for(k=0; k<ly; ++k) ddy[k] = y-(float)(k+iymin);
+            for(k=0; k<lz; ++k) ddz[k] = z-(float)(k+izmin);
             
             if ((code&1)==1)
             /* Pull */
             {
                             
                 /* Loop over contributing voxels in ref space */
-                for (mwSize iz=0; iz<lz;)
+                for (iz=0; iz<lz;)
                 {
                     float dz    = ddz[iz];
                     float *pf0z = F0 + ooz[iz++];
-                    for (mwSize iy=0; iy<ly;)
+                    for (iy=0; iy<ly;)
                     {
                         float dy    = ddy[iy];
                         float *pf0y = pf0z + ooy[iy++];
-                        for (mwSize ix=0; ix<lx;)
+                        for (ix=0; ix<lx;)
                         {
                             float dx    = ddx[ix];
                             float *pf0x = pf0y + oox[ix++];
@@ -218,7 +219,7 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
                                 float w = pexp[(mwSize)floor(Td2*scl)];
                             
                                 float *pf1k = pf1;
-                                for (mwSize k=0; k<n; ++k, pf0x += m0, pf1k += m1)
+                                for (k=0; k<n; ++k, pf0x += m0, pf1k += m1)
                                 {
 //                                     if (pf0x-F0 <0 || pf0x-F0 >= m0*n)
 //                                         mexErrMsgTxt("Out of bound! (pull acc)");
@@ -233,17 +234,17 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
             /* Push */
             {
                 /* Loop over contributing voxels in ref space */
-                for (mwSize iz=0; iz<lz;)
+                for (iz=0; iz<lz;)
                 {
                     float dz    = ddz[iz];
                     float *pf0z = F0 + ooz[iz];
                     float *ps0z = S0 + ooz[iz++];
-                    for (mwSize iy=0; iy<ly;)
+                    for (iy=0; iy<ly;)
                     {
                         float dy    = ddy[iy];
                         float *pf0y = pf0z + ooy[iy];
                         float *ps0y = ps0z + ooy[iy++];
-                        for (mwSize ix=0; ix<lx;)
+                        for (ix=0; ix<lx;)
                         {
                             float dx    = ddx[ix];
                             float *pf0x = pf0y + oox[ix];
@@ -263,7 +264,7 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
                                 float w = pexp[(mwSize)floor(Td2*scl)];
 
                                 float *pf1k = pf1;
-                                for (mwSize k=0; k<n; ++k, pf0x += m0, pf1k += m1)
+                                for (k=0; k<n; ++k, pf0x += m0, pf1k += m1)
                                 {
 //                                     if (pf0x-F0 <0 || pf0x-F0 >= m0*n)
 //                                         mexErrMsgTxt("Out of bound! (push F0).");
@@ -288,7 +289,7 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
         /* If (pull/push AND out of bounds) */
         {
             float *pf1k = pf1;
-            for(mwSize k=0; k<n; ++k, pf1k += m1)
+            for(k=0; k<n; ++k, pf1k += m1)
             {
 //                 if (pf1k-F1 <0 || pf1k-F1 >= m1*n)
 //                     mexErrMsgTxt("Out of bound! (NaN).");
