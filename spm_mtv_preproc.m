@@ -359,13 +359,18 @@ parfor (c=1:C,num_workers)
             for gnit=1:1 % Iterate Gauss-Newton
 
                 % Gradient      
-                Ayx = A(y,dat(c));
+                Ayx  = A(y,dat(c));                
                 for n=1:dat(c).N
-                   Ayx{n} = Ayx{n} - x;
-                end                
-                rhs = At(Ayx,dat(c),tau(c))*(1/rho); 
-                Ayx = [];
-                rhs = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
+                    % Here we discard missing data, for MRI these are
+                    % assumed to be zeros and NaNs.
+                    mskn         = x~=0 & isfinite(x);
+                    Ayx{n}       = Ayx{n} - x;
+                    Ayx{n}(~mskn) = 0;
+                end 
+                mskn = [];
+                rhs  = At(Ayx,dat(c),tau(c))*(1/rho); 
+                Ayx  = [];
+                rhs  = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
 
                 % Hessian
                 lhs = infnrm(c)*ones(dm,'single')*tau(c)/rho;
@@ -514,8 +519,13 @@ for it=1:nit
                     rhs       = lam(c)*imdiv(rhs,vx);
                     Ayx       = A(y,dat(c));
                     for n=1:dat(c).N
-                       Ayx{n} = Ayx{n} - x;
-                    end                
+                        % Here we discard missing data, for MRI these are
+                        % assumed to be zeros and NaNs.
+                        mskn          = x~=0 & isfinite(x);
+                        Ayx{n}        = Ayx{n} - x;
+                        Ayx{n}(~mskn) = 0;
+                    end                  
+                    mskn      = [];
                     rhs       = rhs + At(Ayx,dat(c),tau(c))*(1/rho); 
                     Ayx       = [];
                     rhs       = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
