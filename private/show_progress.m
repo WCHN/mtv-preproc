@@ -40,7 +40,7 @@ for d=1:nim
             end
         end
 
-        imagesc(img_y'); axis off image; colormap(gray);
+        imagesc(img_y');
     else    
         img_x = zeros([nr*dm(dims(2,d)) nc*dm(dims(3,d))],'single');
         img_y = zeros([nr*dm(dims(2,d)) nc*dm(dims(3,d))],'single');
@@ -63,9 +63,9 @@ for d=1:nim
             imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]');
         elseif strcmpi(modality,'CT')
             imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]',[0 100]);
-        end
-        axis off image; colormap(gray);        
+        end               
     end    
+    axis off image; colormap(gray); 
     
     if strcmpi(method,'superres')
         title(['Reconstruction (plane ' num2str(d) ')'])

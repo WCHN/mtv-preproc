@@ -1,11 +1,10 @@
 function Nii = spm_mtv_preproc(varargin)
-% Multi-channel total variation (MTV) denoising or super-resolution of 
-% MR images. 
+% Multi-channel total variation (MTV) preprocessing of MR and CT data. 
 %
 % Requires that the SPM software is on the MATLAB path.
 % SPM is available from: https://www.fil.ion.ucl.ac.uk/spm/software/spm12/
 %
-% FORMAT Nio = spm_mtv_preproc(...)
+% FORMAT Nii = spm_mtv_preproc(...)
 %
 % KEYWORD
 % -------
@@ -566,7 +565,7 @@ for it=1:nit
         rhs = [];
 
         if strcmpi(modality,'MRI')
-            % Ensure non-negativity
+            % Ensure non-negativity (ad-hoc)
             y(y < 0) = 0;
         end 
         
