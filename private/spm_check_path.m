@@ -17,7 +17,7 @@ end
 
 if ~isempty(varargin)
     
-    if any(strcmp(varargin,'Shoot'))
+    if any(strcmpi(varargin,'Shoot'))
         % Check that the Shoot toolbox is on the MATLAB path
         
         try
@@ -29,7 +29,7 @@ if ~isempty(varargin)
         end
     end
 
-    if any(strcmp(varargin,'Longitudinal'))
+    if any(strcmpi(varargin,'Longitudinal'))
         % Check that the Longitudinal toolbox is on the MATLAB path
         
         try
@@ -41,7 +41,7 @@ if ~isempty(varargin)
         end
     end
     
-    if any(strcmp(varargin,'pull'))
+    if any(strcmpi(varargin,'pull'))
         % Check that spm_diffeo('pull') is available
         
         try
