@@ -16,8 +16,10 @@ function Nii = spm_mtv_preproc(varargin)
 %                          educated guess [0.1]
 % Tolerance              - Convergence threshold, set to zero to run until 
 %                          IterMax [0]
-% RegularisationScaleMRI - Scaling of regularisation, increase this value for 
-%                          stronger denoising [20]
+% RegScaleSuperResMRI    - Scaling of regularisation for MRI super-
+%                          resolution [0.006]
+% RegScaleDenoisingMRI    -Scaling of regularisation for MRI denoising, 
+%                          increase this value for stronger denoising [20]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
 % TemporaryDirectory     - Directory for temporary files ['./tmp']
 % OutputDirectory        - Directory for denoised images ['./out']
@@ -37,7 +39,8 @@ function Nii = spm_mtv_preproc(varargin)
 % CoRegister             - For super-resolution, co-register input images [true] 
 % Modality               - Either MRI (denoise and super-resolution) or CT 
 %                          (denoise) ['MRI']
-% RegularisationCT       - Regularisation used for CT denoising [0.04]
+% RegSuperresCT          - Regularisation used for CT denoising [0.001]
+% RegDenoisingCT         - Regularisation used for CT super-resolution [0.04]
 % ReadWrite              - Keep variables in workspace (requires more RAM,
 %                          but faster), or read/write from disk (requires 
 %                          less RAM, but slower) [false] 
@@ -99,7 +102,8 @@ p.addParameter('InputImages', '', @(in) (ischar(in) || isa(in,'nifti')));
 p.addParameter('IterMax', 40, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0.1, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('RegularisationScaleMRI', 20, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegScaleSuperResMRI', 0.006, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegScaleDenoisingMRI', 20, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
 p.addParameter('OutputDirectory', 'out', @ischar);
@@ -111,7 +115,8 @@ p.addParameter('IterMaxCG', 12, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ToleranceCG', 1e-4, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
-p.addParameter('RegularisationCT', 0.04, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegSuperresCT', 0.001, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegDenoisingCT', 0.04, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ReadWrite', false, @islogical);
 p.addParameter('SuperResWithFMG', true, @islogical);
 p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
@@ -119,7 +124,6 @@ p.parse(varargin{:});
 Nii_x        = p.Results.InputImages;
 nit          = p.Results.IterMax;
 tol          = p.Results.Tolerance;
-scl_lam      = p.Results.RegularisationScaleMRI;
 num_workers  = p.Results.WorkersParfor;
 dir_tmp      = p.Results.TemporaryDirectory;
 dir_out      = p.Results.OutputDirectory;
@@ -131,17 +135,22 @@ nit_cg       = p.Results.IterMaxCG;
 tol_cg       = p.Results.ToleranceCG; 
 coreg        = p.Results.CoRegister; 
 modality     = p.Results.Modality; 
-lam_ct       = p.Results.RegularisationCT; 
 do_readwrite = p.Results.ReadWrite; 
 superes_fmg  = p.Results.SuperResWithFMG; 
 rho          = p.Results.ADMMStepSize; 
 zeroMissing  = p.Results.ZeroMissingValues; 
 
-if strcmpi(method,'superres') && strcmpi(modality,'CT')
-    error('Super-resolution not yet supported for CT data!');
-end
-  
 if numel(vx_sr) == 1, vx_sr = vx_sr*ones(1,3); end
+
+% For super-resolution and denoising, default regularisation settings
+% differ
+if strcmpi(method,'superres')
+    scl_lam = p.Results.RegScaleSuperResMRI;
+    lam_ct  = p.Results.RegSuperresCT; 
+else
+    scl_lam = p.Results.RegScaleDenoisingMRI;
+    lam_ct  = p.Results.RegDenoisingCT; 
+end
 
 %--------------------------------------------------------------------------
 % Get image data
