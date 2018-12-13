@@ -197,9 +197,8 @@ elseif strcmpi(method,'superres')
             
     % For super-resolution, calculate orientation matrix and dimensions 
     % from maximum bounding-box
-    vx          = vx_sr;
-    [mat,dm]    = max_bb_orient(Nii_x,vx);
-    zeroMissing = false;
+    vx       = vx_sr;
+    [mat,dm] = max_bb_orient(Nii_x,vx);
 end
 
 %--------------------------------------------------------------------------
@@ -330,7 +329,7 @@ if strcmpi(method,'superres')
         end        
         clear tmp
     else
-        % Define Laplace prior (in Fourier space)
+        % Define Laplace prior
         L = laplace_prior(dm,vx);
     end       
 end
