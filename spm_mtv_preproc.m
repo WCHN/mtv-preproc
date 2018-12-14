@@ -649,12 +649,12 @@ for c=1:C
     
     % Get output image data
     y = get_nii(Nii_y(c));  
-    if strcmpi(method,'superres')
-        % Rescale intensities
-        vx0 = sqrt(sum(Nii_x(c).mat(1:3,1:3).^2)); 
-        scl = prod(vx0./vx);
-        y   = scl*y;
-    end
+%     if strcmpi(method,'superres')
+%         % Rescale intensities
+%         vx0 = sqrt(sum(Nii_x(c).mat(1:3,1:3).^2)); 
+%         scl = prod(vx0./vx);
+%         y   = scl*y;
+%     end
     if zeroMissing
         y(~msk{c}) = 0; % 'Re-apply' missing values        
     end
