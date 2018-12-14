@@ -254,7 +254,7 @@ end
 lam0      = lam;
 def       = spm_shoot_defaults;
 sched_lam = def.sched;
-sched_lam = sched_lam(end - min(numel(sched_lam) - 1,nit):end);
+sched_lam = sched_lam(1:min(numel(sched_lam),nit));
 
 % lam = prod(vx_sr)*lam; % Scale regularisation with voxel size (only for super-resolution)
 lam = sched_lam(1)*lam;
