@@ -4,6 +4,9 @@ function Nii = spm_mtv_preproc(varargin)
 % Requires that the SPM software is on the MATLAB path.
 % SPM is available from: https://www.fil.ion.ucl.ac.uk/spm/software/spm12/
 %
+% For super-resolution, remember to compile private/pushpull.c (see 
+% private/compile_pushpull)
+%
 % FORMAT Nii = spm_mtv_preproc(...)
 %
 % KEYWORD
@@ -90,7 +93,7 @@ function Nii = spm_mtv_preproc(varargin)
 % Copyright (C) 2018 Wellcome Centre for Human Neuroimaging
 
 % First check that all is okay with SPM
-spm_check_path('pull');
+spm_check_path;
 
 %--------------------------------------------------------------------------
 % Parse input
