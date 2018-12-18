@@ -1,4 +1,4 @@
-function [noise,mu_brain] = spm_noise_estimate_mod(Scans,speak)
+function [noise,mu_brain] = spm_noise_estimate_mod(Scans,speak,nr,nc,cnt_subplot)
 % Estimate avarage noise from a series of images
 % FORMAT noise = spm_noise_estimate(Scans)
 % Scans - nifti structures or filenames of images
@@ -8,7 +8,8 @@ function [noise,mu_brain] = spm_noise_estimate_mod(Scans,speak)
 
 if ~isa(Scans,'nifti'), Scans = nifti(Scans); end
 
-noise     = zeros(numel(Scans),1);
+noise    = zeros(numel(Scans),1);
+mu_brain = zeros(numel(Scans),1);
 for i=1:numel(Scans)
     Nii = Scans(i);
     f   = Nii.dat(:,:,:);
@@ -21,21 +22,21 @@ for i=1:numel(Scans)
         f(f==max(f(:))) = 0;
         [h,x]  = hist(f(f~=0 & isfinite(f)),x);
     end
-    [mg,nu,sd,mu] = spm_rice_mixture_mod(double(h(:)),double(x(:)),2,speak);
+    [mg,nu,sd,mu] = spm_rice_mixture_mod(double(h(:)),double(x(:)),2,speak,nr,nc,cnt_subplot + i);
     
     noise(i)    = min(sd);
     
-    x         = -nu.^2./(2*sd.^2);
-    msk       = x>-20;
-    Laguerre  = exp(x(msk)/2).*((1-x(msk)).*besseli(0,-x(msk)/2)-x(msk).*besseli(1,-x(msk)/2));
-    Ey( msk)  = sqrt(pi*sd(msk).^2/2).*Laguerre;
-    Ey(~msk)  = nu(~msk);
-    mu_brain  = max(Ey);
+    x           = -nu.^2./(2*sd.^2);
+    msk         = x>-20;
+    Laguerre    = exp(x(msk)/2).*((1-x(msk)).*besseli(0,-x(msk)/2)-x(msk).*besseli(1,-x(msk)/2));
+    Ey( msk)    = sqrt(pi*sd(msk).^2/2).*Laguerre;
+    Ey(~msk)    = nu(~msk);
+    mu_brain(i) = max(Ey);
 end
 %==========================================================================
 
 %==========================================================================
-function [mg,nu,sig,mu] = spm_rice_mixture_mod(h,x,K,speak)
+function [mg,nu,sig,mu] = spm_rice_mixture_mod(h,x,K,speak,nr,nc,cnt_subplot)
 % Fit a mixture of Ricians to a histogram
 % FORMAT [mg,nu,sig] = rice_mixture(h,x,K)
 % h    - histogram counts
@@ -107,6 +108,8 @@ for iter=1:10000
 end
 
 if speak
+    subplot(nr,nc,cnt_subplot);
+    
     md = mean(diff(x));
     plot(x(:),p,'--',x(:),h/sum(h)/md,'b.',x(:),sp,'r'); drawnow
 end

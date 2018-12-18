@@ -1,4 +1,4 @@
-function show_progress(method,modality,ll,nii_x,nii_y,dm,nr,nc)
+function show_progress(method,modality,ll,nii_x,nii_y,dm)
 % Show log-likelihood, and input and solved image
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -20,8 +20,10 @@ subplot(1,nim+1,1)
 plot(ll,'r-','LineWidth',2); grid on
 title('log-likelihood')
 
-C = numel(nii_x);
-
+C  = numel(nii_x);
+nr = floor(sqrt(C));
+nc = ceil(C/nr);  
+    
 for d=1:nim
     subplot(1,nim+1,1+d)
     if strcmpi(method,'superres')
@@ -51,7 +53,7 @@ for d=1:nim
                 rngr = ((r - 1)*dm(dims(2,d)) + 1):r*dm(dims(2,d));
                 rngc = ((c - 1)*dm(dims(3,d)) + 1):c*dm(dims(3,d));
 
-                img_x(rngr,rngc) = fliplr(reshape(get_nii(nii_x(c),z,dims(1,d)), [dm(dims(2,d)) dm(dims(3,d))]));
+                img_x(rngr,rngc) = fliplr(reshape(get_nii(nii_x{c},z,dims(1,d)), [dm(dims(2,d)) dm(dims(3,d))]));                 
                 img_y(rngr,rngc) = fliplr(reshape(get_nii(nii_y(c),z,dims(1,d)), [dm(dims(2,d)) dm(dims(3,d))]));
 
                 cnt = cnt + 1;

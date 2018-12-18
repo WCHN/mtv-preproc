@@ -1,27 +1,30 @@
 function dat = init_dat(Nii,mat,dm)
-% Initialise projection matrices for super-resolving MRIs
+% Initialise projection matrices for super-resolution
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
 C   = numel(Nii);
 dat = struct('mat',[],'dm',[],'N',[],'A',[]);
-for c=1:C        
-    dat(c) = init_A(Nii(c),mat,dm);         
+for c=1:C % Loop over channels
+    if iscell(Nii(c))
+        dat(c) = init_A(Nii{c},mat,dm);         
+    else
+        dat(c) = init_A(Nii(c),mat,dm);         
+    end
 end    
 %==========================================================================
 
 %==========================================================================
 function dat = init_A(Nii,mat,dm)
-% Initialise projection matrices for super-resolving MRIs
+% Initialise projection matrices (stored in dat struct)
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
-N = numel(Nii); % Number of LR images of the same contrast  
-
+N       = numel(Nii); % Number of LR images
 dat.mat = mat;
 dat.dm  = dm;   
 dat.N   = N;
-for n=1:N % Loop over LR images of the same contrast
+for n=1:N % Loop over LR images
     mat_n = Nii(n).mat;    
     dm_n  = Nii(n).dat.dim;
     
