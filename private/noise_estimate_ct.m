@@ -50,6 +50,7 @@ end
 sd     = sqrt(squeeze(V(:,:,ix)));
 
 if speak
+    % Plot histogram + GMM fit
     p = zeros([numel(x) K],'single');
     for k=1:K
         p(:,k) = PI(k)*mvnpdf(x(:),MU(:,k),V(:,:,k));

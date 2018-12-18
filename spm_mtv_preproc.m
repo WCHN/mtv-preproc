@@ -268,9 +268,7 @@ lam0      = lam;
 def       = spm_shoot_defaults;
 sched_lam = def.sched;
 sched_lam = sched_lam(1:min(numel(sched_lam),nit));
-
-% lam = prod(vx_sr)*lam; % Scale regularisation with voxel size (only for super-resolution)
-lam = sched_lam(1)*lam;
+lam       = sched_lam(1)*lam;
 
 if rho == 0
     % Estimate rho (this value seems to lead to reasonably good convergence)
@@ -297,8 +295,11 @@ if speak  >= 1
     fprintf('\n');
 end
 
+%--------------------------------------------------------------------------
+% Co-register input images
+%--------------------------------------------------------------------------
+
 if coreg
-    % Co-register input images
     Nii_x = coreg_ims(Nii_x,dir_tmp);
 end
 
@@ -379,7 +380,7 @@ parfor (c=1:C,num_workers)
     spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
             
     % Observed image
-    x = get_nii(Nii_x(c));  
+    x = get_nii(Nii_x(c));
         
     % Initial guesses for solution    
     if strcmpi(method,'superres')    
@@ -414,7 +415,7 @@ parfor (c=1:C,num_workers)
                 rhs = [];
 
             end
-            msk{c} = isfinite(y);
+            msk{c} = isfinite(y) & y ~= 0;
         else
             [y,msk{c}] = get_y_superres(Nii_x{c},dat(c),dm,mat); % 4th order b-splines
         end
@@ -461,8 +462,7 @@ if speak >= 1
     tic; 
 end
 
-armijo = ones(1,C);
-ll     = -Inf;
+ll = -Inf;
 for it=1:nit
         
     % Decrease regularisation with iteration number
@@ -539,18 +539,13 @@ for it=1:nit
                 %---------------------------      
                                         
                 y = get_nii(Nii_y(c)); % Get solution
-                         
-                if armijo(c) < eps('single')
-                    % At optimum
-                    continue;
-                end
-                            
+                                                     
                 for gnit=1:1 % Iterate Gauss-Newton
                     
                     % Gradient      
-                    rhs       = w/rho - u; 
-                    rhs       = lam(c)*imdiv(rhs,vx);
-                    Ayx       = A(y,dat(c));
+                    rhs = w/rho - u; 
+                    rhs = lam(c)*imdiv(rhs,vx);
+                    Ayx = A(y,dat(c));
                     for n=1:dat(c).N
                         % Here we discard missing data, for MRI these are
                         % assumed to be zeros and NaNs.
@@ -673,12 +668,7 @@ for c=1:C
     
     % Get output image data
     y = get_nii(Nii_y(c));  
-%     if strcmpi(method,'superres')
-%         % Rescale intensities
-%         vx0 = sqrt(sum(Nii_x(c).mat(1:3,1:3).^2)); 
-%         scl = prod(vx0./vx);
-%         y   = scl*y;
-%     end
+
     if zeroMissing
         y(~msk{c}) = 0; % 'Re-apply' missing values        
     end
