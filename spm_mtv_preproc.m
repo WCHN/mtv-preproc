@@ -17,7 +17,8 @@ function Nii = spm_mtv_preproc(varargin)
 %                          C are the number of image channels. Each array 
 %                          entry contains N_c images of the same channel. 
 %                          If empty, uses spm_select ['']
-% IterMax                - Maximum number of iteration [40]
+% IterMax                - Maximum number of iteration 
+%                          [method=superres:40, method=denoise:20]
 % ADMMStepSize           - The infamous ADMM step size, set to zero for an 
 %                          educated guess [0.1]
 % Tolerance              - Convergence threshold, set to zero to run until 
@@ -54,6 +55,9 @@ function Nii = spm_mtv_preproc(varargin)
 %                          gradient (false) for super-resolution [true]
 % ZeroMissingValues      - Set NaNs and zero values to zero after algorithm 
 %                          has finished [C=1:true, C>1:false]
+% DecreasingReg          - Regularisation decreases over iterations, based
+%                          on the scheduler in spm_shoot_defaults 
+%                          [method=superres:true, method=denoise:false]
 %
 % OUTPUT
 % ------
@@ -109,11 +113,11 @@ p              = inputParser;
 p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', {}, @(in) ( isa(in,'nifti') || isempty(in) || ...
                                         ((ischar(in{1}) || isa(in{1},'nifti')) || (ischar(in{1}{1}) || isa(in{1}{1},'nifti'))) ) );
-p.addParameter('IterMax', 40, @(in) (isnumeric(in) && in > 0));
+p.addParameter('IterMax', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('ADMMStepSize', 0.1, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('RegScaleSuperResMRI', 0.01, @(in) (isnumeric(in) && in > 0));
-p.addParameter('RegScaleDenoisingMRI', 20, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegScaleDenoisingMRI', 3.2, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
 p.addParameter('OutputDirectory', 'out', @ischar);
@@ -126,10 +130,11 @@ p.addParameter('ToleranceCG', 1e-4, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
 p.addParameter('RegSuperresCT', 0.001, @(in) (isnumeric(in) && in > 0));
-p.addParameter('RegDenoisingCT', 0.04, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegDenoisingCT', 0.06, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ReadWrite', false, @islogical);
 p.addParameter('SuperResWithFMG', true, @islogical);
 p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
+p.addParameter('DecreasingReg', [], @(in) (islogical(in) || isempty(in)));
 p.parse(varargin{:});
 InputImages  = p.Results.InputImages;
 nit          = p.Results.IterMax;
@@ -149,6 +154,7 @@ do_readwrite = p.Results.ReadWrite;
 superes_fmg  = p.Results.SuperResWithFMG; 
 rho          = p.Results.ADMMStepSize; 
 zeroMissing  = p.Results.ZeroMissingValues; 
+dec_reg      = p.Results.DecreasingReg; 
 
 %--------------------------------------------------------------------------
 % Preliminaries
@@ -175,21 +181,17 @@ if ~(exist(dir_out,'dir') == 7),  mkdir(dir_out);  end
 
 if numel(vx_sr) == 1, vx_sr = vx_sr*ones(1,3); end
 
-% For super-resolution and denoising, default regularisation settings
-% differ
-if strcmpi(method,'superres')
-    scl_lam = p.Results.RegScaleSuperResMRI;
-    lam_ct  = p.Results.RegSuperresCT; 
-else
-    scl_lam = p.Results.RegScaleDenoisingMRI;
-    lam_ct  = p.Results.RegDenoisingCT; 
-end
-
-% Get voxel size, orientation matrix and image dimensions
+% Set defaults, get voxel size, orientation matrix and image dimensions
 if strcmpi(method,'denoise')
     %---------------------------
     % Denoising
     %---------------------------
+    
+    if isempty(dec_reg), dec_reg = false; end
+    if nit == 0,         nit     = 20; end
+    
+    scl_lam = p.Results.RegScaleDenoisingMRI;
+    lam_ct  = p.Results.RegDenoisingCT; 
     
     mat = Nii_x{1}(1).mat;
     vx  = sqrt(sum(mat(1:3,1:3).^2));   
@@ -199,6 +201,12 @@ elseif strcmpi(method,'superres')
     % Super-resolution
     %---------------------------
             
+    if isempty(dec_reg), dec_reg = true; end
+    if nit == 0,         nit     = 40; end
+    
+    scl_lam = p.Results.RegScaleSuperResMRI;
+    lam_ct  = p.Results.RegSuperresCT;
+    
     % For super-resolution, calculate orientation matrix and dimensions 
     % from maximum bounding-box
     vx       = vx_sr;
@@ -268,7 +276,9 @@ lam0      = lam;
 def       = spm_shoot_defaults;
 sched_lam = def.sched;
 sched_lam = sched_lam(1:min(numel(sched_lam),nit));
-lam       = sched_lam(1)*lam;
+if dec_reg
+    lam   = sched_lam(1)*lam;
+end
 
 if rho == 0
     % Estimate rho (this value seems to lead to reasonably good convergence)
@@ -465,8 +475,10 @@ end
 ll = -Inf;
 for it=1:nit
         
-    % Decrease regularisation with iteration number
-    lam = sched_lam(min(it,numel(sched_lam)))*lam0;    
+    if dec_reg
+        % Decrease regularisation with iteration number
+        lam = sched_lam(min(it,numel(sched_lam)))*lam0;    
+    end
     
     %------------------------------------------------------------------
     % Proximal operator for u
