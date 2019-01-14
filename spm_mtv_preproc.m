@@ -238,17 +238,16 @@ if speak >= 2
     end
     f                = findobj('Type', 'Figure', 'Name', figname);
     if isempty(f), f = figure('Name', figname, 'NumberTitle', 'off'); end
-    set(0, 'CurrentFigure', f);  
-        
-    nr = floor(sqrt(N0));
-    nc = ceil(N0/nr);  
+    set(0, 'CurrentFigure', f);              
     
     if speak >= 3
         % So that Verbose = 3 works for superres (because Nii_x are copied, then copies are deleted)
         Nii_x0 = Nii_x; 
     end
 end
-
+nr = floor(sqrt(N0));
+nc = ceil(N0/nr);  
+    
 sd  = cell(1,C);
 tau = cell(1,C);
 mu  = zeros(1,C);
