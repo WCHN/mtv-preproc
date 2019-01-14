@@ -64,12 +64,4 @@ if speak
     hist(f(:),x')
     drawnow
 end
-
-if 0
-    figure;
-    dm  = Nii.dat.dim;
-    img = Nii.dat(:,:,ceil(dm(3)/2));   
-    imagesc(img',[0 100]); axis off xy image; colormap(gray)
-    title(['sd=' num2str(SD)]);
-end
 %==========================================================================
