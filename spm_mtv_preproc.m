@@ -26,7 +26,7 @@ function Nii = spm_mtv_preproc(varargin)
 % RegScaleSuperResMRI    - Scaling of regularisation for MRI super-
 %                          resolution [0.01]
 % RegScaleDenoisingMRI    -Scaling of regularisation for MRI denoising, 
-%                          increase this value for stronger denoising [20]
+%                          increase this value for stronger denoising [3.2]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
 % TemporaryDirectory     - Directory for temporary files ['./tmp']
 % OutputDirectory        - Directory for denoised images ['./out']
