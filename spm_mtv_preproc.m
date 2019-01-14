@@ -55,6 +55,9 @@ function Nii = spm_mtv_preproc(varargin)
 %                          gradient (false) for super-resolution [true]
 % ZeroMissingValues      - Set NaNs and zero values to zero after algorithm 
 %                          has finished [C=1:true, C>1:false]
+% Reference              - Cell array (1xC) with reference images, if given
+%                          computes PSNR and displays for each iteration of
+%                          the algoirthm [{}]
 % DecreasingReg          - Regularisation decreases over iterations, based
 %                          on the scheduler in spm_shoot_defaults 
 %                          [method=superres:true, method=denoise:false]
@@ -134,6 +137,7 @@ p.addParameter('RegDenoisingCT', 0.06, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ReadWrite', false, @islogical);
 p.addParameter('SuperResWithFMG', true, @islogical);
 p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
+p.addParameter('Reference', {}, @iscell);
 p.addParameter('DecreasingReg', [], @(in) (islogical(in) || isempty(in)));
 p.parse(varargin{:});
 InputImages  = p.Results.InputImages;
@@ -154,11 +158,16 @@ do_readwrite = p.Results.ReadWrite;
 superes_fmg  = p.Results.SuperResWithFMG; 
 rho          = p.Results.ADMMStepSize; 
 zeroMissing  = p.Results.ZeroMissingValues; 
+ref          = p.Results.Reference; 
 dec_reg      = p.Results.DecreasingReg; 
 
 %--------------------------------------------------------------------------
 % Preliminaries
 %--------------------------------------------------------------------------
+
+if ~isempty(ref) && strcmpi(method,'superres')
+    error('Super-resolution with reference image(s) not yet implemented!');
+end
 
 % Get image data
 [Nii_x,C,N0] = parse_input_data(InputImages,method);
@@ -653,8 +662,23 @@ for it=1:nit
     gain = abs((ll(end - 1)*(1 + 10*eps) - ll(end))/ll(end));
         
     % Some (potential) verbose               
-    if speak >= 1, fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); end
-    if speak >= 2, show_progress(method,modality,ll,Nii_x,Nii_y,dm); end
+    if speak >= 1 || ~isempty(ref)
+        if ~isempty(ref)
+            % Reference image(s) given, compute and output PSNR
+            psnrs = zeros(1,C);
+            for c=1:C
+                psnrs(c) = get_psnr(get_nii(Nii_y(c)),ref{c});
+            end
+            
+            fprintf('%2d | %10.1f %10.1f %10.1f %0.6f|%s\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain, sprintf(' %2.2f', psnrs)); 
+        else
+            fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); 
+        end
+        
+        if speak >= 2
+            show_progress(method,modality,ll,Nii_x,Nii_y,dm); 
+        end
+    end   
     
     if tol > 0 && gain < tol && it > numel(sched_lam)
         % Finished
