@@ -17,7 +17,7 @@ The most up-to-date PDF version of the paper is available from https://arxiv.org
 
 ## Dependencies
 
-This project has strong dependencies on SPM12 and its `Shoot` toolbox. Both of them should be added to Matlab's path. The most recent version of SPM can be downloaded from [www.fil.ion.ucl.ac.uk/spm](http://www.fil.ion.ucl.ac.uk/spm/). If you get error messages when running the code, it is probably because your SPM version is too old.
+This project has strong dependencies on SPM12 and its `Shoot` toolbox. Both of them should be added to Matlab's path. The most recent version of SPM can be downloaded from [www.fil.ion.ucl.ac.uk/spm](http://www.fil.ion.ucl.ac.uk/spm/). If you get error messages when running the code, it is probably because your SPM version is too old. Remember that for super-resolution you will need to compile *pushpull.c* in the *private* folder (see *compile_pushpull.m*).
 
 ## Example 1: Super-resolve a set MRIs of one subject
 
