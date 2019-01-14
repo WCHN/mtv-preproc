@@ -55,6 +55,8 @@ function Nii = spm_mtv_preproc(varargin)
 %                          gradient (false) for super-resolution [true]
 % ZeroMissingValues      - Set NaNs and zero values to zero after algorithm 
 %                          has finished [C=1:true, C>1:false]
+% IterGaussNewton        - Number of Gauss-Newton iterations for FMG 
+%                          super-resolution [1]
 % Reference              - Cell array (1xC) with reference images, if given
 %                          computes PSNR and displays for each iteration of
 %                          the algoirthm [{}]
@@ -137,6 +139,7 @@ p.addParameter('RegDenoisingCT', 0.06, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ReadWrite', false, @islogical);
 p.addParameter('SuperResWithFMG', true, @islogical);
 p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
+p.addParameter('IterGaussNewton', 1, @(in) (isnumeric(in) && in > 0));
 p.addParameter('Reference', {}, @iscell);
 p.addParameter('DecreasingReg', [], @(in) (islogical(in) || isempty(in)));
 p.parse(varargin{:});
@@ -158,6 +161,7 @@ do_readwrite = p.Results.ReadWrite;
 superes_fmg  = p.Results.SuperResWithFMG; 
 rho          = p.Results.ADMMStepSize; 
 zeroMissing  = p.Results.ZeroMissingValues; 
+nitgn        = p.Results.IterGaussNewton; 
 ref          = p.Results.Reference; 
 dec_reg      = p.Results.DecreasingReg; 
 
@@ -409,7 +413,7 @@ parfor (c=1:C,num_workers)
         
         if superes_fmg
             y = get_nii(Nii_y(c));  
-            for gnit=1:1 % Iterate Gauss-Newton
+            for gnit=1:nitgn % Iterate Gauss-Newton
 
                 % Gradient      
                 Ayx  = A(y,dat(c));                
@@ -561,7 +565,7 @@ for it=1:nit
                                         
                 y = get_nii(Nii_y(c)); % Get solution
                                                      
-                for gnit=1:1 % Iterate Gauss-Newton
+                for gnit=1:nitgn % Iterate Gauss-Newton
                     
                     % Gradient      
                     rhs = w/rho - u; 
