@@ -18,14 +18,13 @@ for n=1:N
     y1 = T(2,1)*x0 + T(2,2)*y0 + T(2,3)*z0 + T(2,4);
     z1 = T(3,1)*x0 + T(3,2)*y0 + T(3,3)*z0 + T(3,4);
 
-    coeff = spm_bsplinc(get_nii(Nii(n)),bs);
-    msk   = spm_bsplins(coeff,x1,y1,z1,[0 0 0  0 0 0]);
-    msk   = isfinite(msk) & msk ~= 0;
+    coeff = spm_bsplinc(get_nii(Nii(n)),bs);    
     img   = spm_bsplins(coeff,x1,y1,z1,bs);
     
     img(~isfinite(img) | img<0) = 0;
 
     y = y + single(img); 
 end
-y = y/N;
+y   = y/N;
+msk = isfinite(y) & y ~= 0;
 %==========================================================================

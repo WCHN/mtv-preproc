@@ -1,3 +1,5 @@
+function TestPushPull
+
 lat_ref = [172 221 168];
 vs_ref  = [1 1 1];
 lat_sub = [28 221 168];

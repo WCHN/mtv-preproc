@@ -7,11 +7,11 @@ if numel(varargin) == 0
     if strcmpi(method,'superres')    
         Ay = A(y,dat);
         ll = 0;
-        for n=1:numel(Ay)
-            ll = ll - (tau(n)/2)*sum(sum(sum((Ay{n} - x).^2)));
+        for n=1:dat.N
+            ll = ll - (tau(n)/2)*sum(sum(sum((Ay{n} - x{n}).^2)));
         end
     elseif strcmpi(method,'denoise')    
-        ll = -(tau/2)*sum(sum(sum((y - x).^2)));
+        ll = -(tau/2)*sum(sum(sum((y - x{1}).^2)));
     end
 else        
     % Parse input
@@ -26,7 +26,7 @@ else
     
     Ay  = A(y,dat);
     for n=1:numel(Ay)
-        ll(1) = ll(1) + (tau(n)/(2*rho))*sum(sum(sum((Ay{n} - x).^2)));
+        ll(1) = ll(1) + (tau(n)/(2*rho))*sum(sum(sum((Ay{n} - x{n}).^2)));
     end
     clear Ay x
     
