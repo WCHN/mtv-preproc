@@ -26,8 +26,8 @@ function Nii = spm_mtv_preproc(varargin)
 % RegScaleSuperResMRI    - Scaling of regularisation for MRI super-
 %                          resolution [0.01]
 % RegScaleDenoisingMRI    -Scaling of regularisation for MRI denoising [3.2]
-% RegSuperresCT          - Regularisation used for CT denoising [0.001]
-% RegDenoisingCT         - Regularisation used for CT super-resolution [0.04]
+% RegSuperresCT          - Regularisation used for CT super-resolution [0.001]
+% RegDenoisingCT         - Regularisation used for CT denoising [0.06]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
 % TemporaryDirectory     - Directory for temporary files ['./tmp']
 % OutputDirectory        - Directory for denoised images ['./out']
@@ -122,6 +122,8 @@ p.addParameter('ADMMStepSize', 0.1, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('RegScaleSuperResMRI', 0.01, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegScaleDenoisingMRI', 3.2, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegSuperresCT', 0.001, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegDenoisingCT', 0.06, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'tmp', @ischar);
 p.addParameter('OutputDirectory', 'out', @ischar);
@@ -133,8 +135,6 @@ p.addParameter('IterMaxCG', 12, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ToleranceCG', 1e-4, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
-p.addParameter('RegSuperresCT', 0.001, @(in) (isnumeric(in) && in > 0));
-p.addParameter('RegDenoisingCT', 0.06, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ReadWrite', false, @islogical);
 p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
 p.addParameter('IterGaussNewton', 1, @(in) (isnumeric(in) && in > 0));
