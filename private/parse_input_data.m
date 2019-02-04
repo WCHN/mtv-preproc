@@ -1,11 +1,10 @@
-function [Nii,C,N0] = parse_input_data(InputImages,method)
+function [Nii,C] = parse_input_data(InputImages,method)
 % Parse input data and return Nii cell array
 %
 % InputImages  - [1 x C cell array] or empty (let user select)
 % method       - String either 'superres' or 'denoise'
 % Nii          - [1 x C cell array] Output array with observed data
 % C            - Number of image channels
-% N0           - Total number of observed images
 %_______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
@@ -47,15 +46,6 @@ else
         else
             Nii = InputImages;
         end
-    end
-end
-
-% Count number of observations
-N0 = 0;
-for c=1:C
-    N = numel(Nii{c});
-    for n=1:N
-        N0 = N0 + 1;
     end
 end
 
