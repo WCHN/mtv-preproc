@@ -42,10 +42,6 @@ function Nii = spm_mtv_preproc(varargin)
 % VoxelSize              - Voxel size of super-resolved image. If empty, 
 %                          sets voxel size to smallest voxel size in input 
 %                          data [1]
-% IterMaxCG              - Maximum number of iterations for conjugate gradient 
-%                          solver used for super-resolution [12]
-% ToleranceCG            - Convergence threshold for conjugate gradient 
-%                          solver used for super-resolution [1e-3]
 % CoRegister             - For super-resolution, co-register input images [true] 
 % Modality               - Either MRI (denoise and super-resolution) or CT 
 %                          (denoise) ['MRI']
@@ -131,8 +127,6 @@ p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') 
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
 p.addParameter('VoxelSize', [], @(in) ((isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0)) || isempty(in));
-p.addParameter('IterMaxCG', 12, @(in) (isnumeric(in) && in > 0));
-p.addParameter('ToleranceCG', 1e-4, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
 p.addParameter('ReadWrite', false, @islogical);
@@ -151,8 +145,6 @@ method       = p.Results.Method;
 speak        = p.Results.Verbose; 
 do_clean     = p.Results.CleanUp; 
 vx_sr        = p.Results.VoxelSize; 
-nit_cg       = p.Results.IterMaxCG; 
-tol_cg       = p.Results.ToleranceCG; 
 coreg        = p.Results.CoRegister; 
 modality     = p.Results.Modality; 
 do_readwrite = p.Results.ReadWrite; 
