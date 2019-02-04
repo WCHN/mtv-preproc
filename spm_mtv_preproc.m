@@ -25,8 +25,9 @@ function Nii = spm_mtv_preproc(varargin)
 %                          IterMax [0]
 % RegScaleSuperResMRI    - Scaling of regularisation for MRI super-
 %                          resolution [0.01]
-% RegScaleDenoisingMRI    -Scaling of regularisation for MRI denoising, 
-%                          increase this value for stronger denoising [3.2]
+% RegScaleDenoisingMRI    -Scaling of regularisation for MRI denoising [3.2]
+% RegSuperresCT          - Regularisation used for CT denoising [0.001]
+% RegDenoisingCT         - Regularisation used for CT super-resolution [0.04]
 % WorkersParfor          - Maximum number of parfor workers [Inf]
 % TemporaryDirectory     - Directory for temporary files ['./tmp']
 % OutputDirectory        - Directory for denoised images ['./out']
@@ -48,8 +49,6 @@ function Nii = spm_mtv_preproc(varargin)
 % CoRegister             - For super-resolution, co-register input images [true] 
 % Modality               - Either MRI (denoise and super-resolution) or CT 
 %                          (denoise) ['MRI']
-% RegSuperresCT          - Regularisation used for CT denoising [0.001]
-% RegDenoisingCT         - Regularisation used for CT super-resolution [0.04]
 % ReadWrite              - Keep variables in workspace (requires more RAM,
 %                          but faster), or read/write from disk (requires 
 %                          less RAM, but slower) [false] 
