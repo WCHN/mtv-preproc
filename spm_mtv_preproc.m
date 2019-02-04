@@ -52,8 +52,6 @@ function Nii = spm_mtv_preproc(varargin)
 % ReadWrite              - Keep variables in workspace (requires more RAM,
 %                          but faster), or read/write from disk (requires 
 %                          less RAM, but slower) [false] 
-% SuperResWithFMG        - Use either spm_field (true) or conjugate
-%                          gradient (false) for super-resolution [true]
 % ZeroMissingValues      - Set NaNs and zero values to zero after algorithm 
 %                          has finished [C=1:true, C>1:false]
 % IterGaussNewton        - Number of Gauss-Newton iterations for FMG 
@@ -138,7 +136,6 @@ p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || str
 p.addParameter('RegSuperresCT', 0.001, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegDenoisingCT', 0.06, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ReadWrite', false, @islogical);
-p.addParameter('SuperResWithFMG', true, @islogical);
 p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
 p.addParameter('IterGaussNewton', 1, @(in) (isnumeric(in) && in > 0));
 p.addParameter('Reference', {}, @iscell);
@@ -159,7 +156,6 @@ tol_cg       = p.Results.ToleranceCG;
 coreg        = p.Results.CoRegister; 
 modality     = p.Results.Modality; 
 do_readwrite = p.Results.ReadWrite; 
-superes_fmg  = p.Results.SuperResWithFMG; 
 rho          = p.Results.ADMMStepSize; 
 zeroMissing  = p.Results.ZeroMissingValues; 
 nitgn        = p.Results.IterGaussNewton; 
@@ -387,18 +383,13 @@ if strcmpi(method,'superres')
     % Initialise dat struct with projection matrices, etc.
     dat = init_dat(Nii_x,mat,dm);
             
-    if superes_fmg
-        % Compute infinity norm
-        infnrm = zeros(1,C);
-        for c=1:C        
-            tmp       = At(A(ones(dat(c).dm,'single'),dat(c)),dat(c));
-            infnrm(c) = max(tmp(:)); % If A is all positive, max(A'*A*ones(N,1)) gives the infinity norm
-        end        
-        clear tmp
-    else
-        % Define Laplace prior
-        L = laplace_prior(dm,vx);
-    end       
+    % Compute infinity norm
+    infnrm = zeros(1,C);
+    for c=1:C        
+        tmp       = At(A(ones(dat(c).dm,'single'),dat(c)),dat(c));
+        infnrm(c) = max(tmp(:)); % If A is all positive, max(A'*A*ones(N,1)) gives the infinity norm
+    end        
+    clear tmp 
 end
 
 % Manage parfor
@@ -408,7 +399,7 @@ if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
 
 msk = cell(1,C); % For saving locations of missing values so that they can be 're-applied' once the algorithm has finished
-% for c=1:C
+% for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers)  
 
     spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
@@ -422,37 +413,33 @@ parfor (c=1:C,num_workers)
         % Super-resolution
         %---------------------------
         
-        if superes_fmg
-            y = get_nii(Nii_y(c));  
-            for gnit=1:nitgn % Iterate Gauss-Newton
+        y = get_nii(Nii_y(c));  
+        for gnit=1:nitgn % Iterate Gauss-Newton
 
-                % Gradient      
-                Ayx  = A(y,dat(c));                
-                for n=1:dat(c).N
-                    % Here we discard missing data, for MRI these are
-                    % assumed to be zeros and NaNs.
-                    mskn          = x{n} ~= 0 & isfinite(x{n});
-                    Ayx{n}        = Ayx{n} - x{n};
-                    Ayx{n}(~mskn) = 0;
-                end 
-                mskn = [];
-                rhs  = At(Ayx,dat(c),tau{c})*(1/rho); 
-                Ayx  = [];
-                rhs  = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
+            % Gradient      
+            Ayx  = A(y,dat(c));                
+            for n=1:dat(c).N
+                % Here we discard missing data, for MRI these are
+                % assumed to be zeros and NaNs.
+                mskn          = x{n} ~= 0 & isfinite(x{n});
+                Ayx{n}        = Ayx{n} - x{n};
+                Ayx{n}(~mskn) = 0;
+            end 
+            mskn = [];
+            rhs  = At(Ayx,dat(c),tau{c})*(1/rho); 
+            Ayx  = [];
+            rhs  = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
 
-                % Hessian
-                lhs = infnrm(c)*ones(dm,'single')*sum(tau{c})/rho;
+            % Hessian
+            lhs = infnrm(c)*ones(dm,'single')*sum(tau{c})/rho;
 
-                % Compute GN step
-                y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
-                lhs = [];
-                rhs = [];
+            % Compute GN step
+            y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
+            lhs = [];
+            rhs = [];
 
-            end
-            msk{c} = isfinite(y) & y ~= 0;
-        else
-            [y,msk{c}] = get_y_superres(Nii_x{c},dat(c),dm,mat); % 4th order b-splines
         end
+        msk{c} = isfinite(y) & y ~= 0;
 
     else  
         %---------------------------
@@ -511,7 +498,7 @@ for it=1:nit
     %------------------------------------------------------------------
 
     unorm = 0;    
-%     for c=1:C
+%     for c=1:C, fprintf('OBS! for c=1:C\n')
     parfor (c=1:C,num_workers) % Loop over channels
     
         y = get_nii(Nii_y(c));        
@@ -535,7 +522,7 @@ for it=1:nit
         
     ll1 = zeros(1,C);
     ll2 = 0;
-%     for c=1:C
+%     for c=1:C, fprintf('OBS! for c=1:C\n')
     parfor (c=1:C,num_workers) % Loop over channels
     
         spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
@@ -554,72 +541,43 @@ for it=1:nit
         %------------------------------------------------------------------
         % Proximal operator for y        
         %------------------------------------------------------------------
-        rhs = [];
-        if ~superes_fmg || strcmpi(method,'denoise')    
-            rhs = u - w/rho; 
-            rhs = lam(c)*imdiv(rhs,vx);
-        end
-        
+                
         x = get_nii(Nii_x(c)); % Get observed image
         
         if strcmpi(method,'superres')              
             %---------------------------
             % Super-resolution
-            %---------------------------
-                                  
-            if superes_fmg
-                %---------------------------
-                % FMG
-                % Here we want to solve for y using Gauss-Newton (GN)
-                % optimisation
-                %---------------------------      
-                                        
-                y = get_nii(Nii_y(c)); % Get solution
-                                                     
-                for gnit=1:nitgn % Iterate Gauss-Newton
-                    
-                    % Gradient      
-                    rhs = w/rho - u; 
-                    rhs = lam(c)*imdiv(rhs,vx);
-                    Ayx = A(y,dat(c));
-                    for n=1:dat(c).N
-                        % Here we discard missing data, for MRI these are
-                        % assumed to be zeros and NaNs.
-                        mskn          = x{n} ~= 0 & isfinite(x{n});
-                        Ayx{n}        = Ayx{n} - x{n};
-                        Ayx{n}(~mskn) = 0;
-                    end                  
-                    mskn = [];
-                    rhs  = rhs + At(Ayx,dat(c),tau{c})*(1/rho); 
-                    Ayx  = [];
-                    rhs  = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
+            % Here we want to solve for y using Gauss-Newton (GN)
+            % optimisation
+            %---------------------------      
 
-                    % Hessian
-                    lhs = infnrm(c)*ones(dm,'single')*sum(tau{c})/rho;
+            y = get_nii(Nii_y(c)); % Get solution
 
-                    % Compute GN step
-                    y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
-                    lhs = [];
-                    rhs = [];
-                end
-            else
-                %---------------------------
-                % CG
-                % Here we want to solve the linear system: lhs\rhs
-                %---------------------------    
-                
-                % RHS
-                rhs = rhs + At(x,dat(c),tau{c})*(1/rho); 
-                     
-                % LHS
-                lhs = @(y) AtA(y,@(y) L(y),tau{c}/rho,lam(c)^2,dat(c));
-                
-                % Compute new y
-                [y,it_cg,d_cg,t_cg] = cg_im_solver(lhs,rhs,get_nii(Nii_y(c)),nit_cg,tol_cg);
+            for gnit=1:nitgn % Iterate Gauss-Newton
 
-                if speak >= 1 
-                    fprintf('%2d | %2d %10.1f %10.1f\n', c, it_cg, d_cg, t_cg); 
-                end                        
+                % Gradient      
+                rhs = w/rho - u; 
+                rhs = lam(c)*imdiv(rhs,vx);
+                Ayx = A(y,dat(c));
+                for n=1:dat(c).N
+                    % Here we discard missing data, for MRI these are
+                    % assumed to be zeros and NaNs.
+                    mskn          = x{n} ~= 0 & isfinite(x{n});
+                    Ayx{n}        = Ayx{n} - x{n};
+                    Ayx{n}(~mskn) = 0;
+                end                  
+                mskn = [];
+                rhs  = rhs + At(Ayx,dat(c),tau{c})*(1/rho); 
+                Ayx  = [];
+                rhs  = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
+
+                % Hessian
+                lhs = infnrm(c)*ones(dm,'single')*sum(tau{c})/rho;
+
+                % Compute GN step
+                y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
+                lhs = [];
+                rhs = [];
             end
         else            
             %---------------------------
@@ -627,16 +585,18 @@ for it=1:nit
             %---------------------------
             
             % RHS
+            rhs = u - w/rho; 
+            rhs = lam(c)*imdiv(rhs,vx);
             rhs = rhs + x{1}*(tau{c}/rho);
             
             % LHS
             lhs = ones(dm,'single')*tau{c}/rho;
             
             % Compute new y
-            y = spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
-        end                               
-        lhs = [];
-        rhs = [];
+            y   = spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
+            lhs = [];
+            rhs = [];
+        end                                       
 
         if strcmpi(modality,'MRI')
             % Ensure non-negativity (ad-hoc)
