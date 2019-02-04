@@ -38,7 +38,9 @@ function Nii = spm_mtv_preproc(varargin)
 %                          *  2  = draw   (log likelihood, rice fit, noisy+cleaned)
 %                          *  3  = result (show noisy and denoised image(s) in spm_check_registration)
 % CleanUp                - Delete temporary files [true] 
-% VoxelSize              - Voxel size of super-resolved image [1 1 1]
+% VoxelSize              - Voxel size of super-resolved image. If empty, 
+%                          sets voxel size to smallest voxel size in input 
+%                          data [1]
 % IterMaxCG              - Maximum number of iterations for conjugate gradient 
 %                          solver used for super-resolution [12]
 % ToleranceCG            - Convergence threshold for conjugate gradient 
@@ -129,7 +131,7 @@ p.addParameter('OutputDirectory', 'out', @ischar);
 p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') || strcmpi(in,'superres'))));
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
-p.addParameter('VoxelSize', [1 1 1], @(in) (isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0));
+p.addParameter('VoxelSize', [], @(in) ((isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0)) || isempty(in));
 p.addParameter('IterMaxCG', 12, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ToleranceCG', 1e-4, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('CoRegister', true, @islogical);
@@ -187,12 +189,23 @@ if isempty(zeroMissing)
     end
 end
 
+% Super-resolution voxel-size related
+if isempty(vx_sr)
+    % Get voxel-size from input images
+    vx_sr = get_vx_sr(Nii_x);
+elseif numel(vx_sr) == 1
+    vx_sr = vx_sr*ones(1,3); 
+end
+if vx_sr(1) < 0.9
+    % Voxels are quite small, read-write aux. variables to not run in to
+    % memory issues..
+    do_readwrite = true;
+end
+
 % Make some directories
 if  exist(dir_tmp,'dir') == 7,  rmdir(dir_tmp,'s'); end
 if  do_readwrite || (coreg && (C > 1 || numel(Nii_x{1}) > 1)), mkdir(dir_tmp); end
 if ~(exist(dir_out,'dir') == 7),  mkdir(dir_out);  end
-
-if numel(vx_sr) == 1, vx_sr = vx_sr*ones(1,3); end
 
 % Set defaults, get voxel size, orientation matrix and image dimensions
 if strcmpi(method,'denoise')
