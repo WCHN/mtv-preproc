@@ -1,4 +1,4 @@
-function dat = init_dat(Nii,mat,dm)
+function dat = init_dat(Nii,mat,dm,window)
 % Initialise projection matrices for super-resolution
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -7,15 +7,15 @@ C   = numel(Nii);
 dat = struct('mat',[],'dm',[],'N',[],'A',[]);
 for c=1:C % Loop over channels
     if iscell(Nii(c))
-        dat(c) = init_A(Nii{c},mat,dm);         
+        dat(c) = init_A(Nii{c},mat,dm,window{c});         
     else
-        dat(c) = init_A(Nii(c),mat,dm);         
+        dat(c) = init_A(Nii(c),mat,dm,window{c});         
     end
 end    
 %==========================================================================
 
 %==========================================================================
-function dat = init_A(Nii,mat,dm)
+function dat = init_A(Nii,mat,dm,window)
 % Initialise projection matrices (stored in dat struct)
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -30,6 +30,7 @@ for n=1:N % Loop over LR images
     
     dat.A(n).mat = mat_n;    
     dat.A(n).dm  = dm_n;
+    dat.A(n).win = window{n};
             
     M          = mat\mat_n;
 %     R          = (M(1:3,1:3)/diag(sqrt(sum(M(1:3,1:3).^2))))';

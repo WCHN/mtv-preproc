@@ -12,10 +12,10 @@ for n=1:dat.N
         
     tmp = Y;
     
-    tmp                 = pushpull('pull',single(tmp),single(y),single(dat.A(n).J));
+    tmp                 = pushpull('pull',single(tmp),single(y),single(dat.A(n).J),double(dat.A(n).win));
     tmp(~isfinite(tmp)) = 0; 
     
-    tmp                 = pushpull('push',single(tmp),single(y),single(dat.A(n).J),double(dat.dm));          
+    tmp                 = pushpull('push',single(tmp),single(y),single(dat.A(n).J),double(dat.A(n).win),double(dat.dm));          
     clear y
     tmp(~isfinite(tmp)) = 0;    
     
