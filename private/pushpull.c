@@ -127,6 +127,7 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
            Jyx, Jzx, Jzy;
     float  Sx, Sy, Sz;          /* Scale */
     float  limx, limy, limz;    /* Bounding box in ref space */
+    float  klimx, klimy, klimz; /* Bounding box in kernel space */
     float  norm, normx, normy, normz; /* Kernel normalisation */
     mwSize i, k, iz, iy, ix;    /* Loop iteration variables */
     
@@ -193,12 +194,12 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
         Jzz /= Sz;
         
         /* Bounding box of contributing points in ref space */
-        float alimx = flim[0](Sx, default_sig),
-              alimy = flim[1](Sy, default_sig),
-              alimz = flim[2](Sz, default_sig);
-        limx = fmax(fmax(fabs(Jxx*alimx),fabs(Jxy*alimy)),fabs(Jxz*alimz));
-        limy = fmax(fmax(fabs(Jyx*alimx),fabs(Jyy*alimy)),fabs(Jyz*alimz));
-        limz = fmax(fmax(fabs(Jzx*alimx),fabs(Jzy*alimy)),fabs(Jzz*alimz));
+        klimx = flim[0](Sx, default_sig),
+        klimy = flim[1](Sy, default_sig),
+        klimz = flim[2](Sz, default_sig);
+        limx = fmax(fmax(fabs(Jxx*klimx),fabs(Jxy*klimy)),fabs(Jxz*klimz));
+        limy = fmax(fmax(fabs(Jyx*klimx),fabs(Jyy*klimy)),fabs(Jyz*klimz));
+        limz = fmax(fmax(fabs(Jzx*klimx),fabs(Jzy*klimy)),fabs(Jzz*klimz));
         mexPrintf("Limits: %f %f %f\n", limx, limy, limz);
         
         normx = fnorm[0](Sx, default_sig);
@@ -271,7 +272,7 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
                             float Tdy  = Jxy * dx + Jyy * dy + Jzy * dz;
                             float Tdz  = Jxz * dx + Jyz * dy + Jzz * dz;
                             
-                            if (fabs(Tdx)<limx && fabs(Tdy)<limy && fabs(Tdz)<limz) 
+                            if (fabs(Tdx)<klimx && fabs(Tdy)<klimy && fabs(Tdz)<klimz) 
                             {
                                 float w = norm * fwin[0](Tdx, Sx, default_sig) 
                                                * fwin[1](Tdy, Sy, default_sig) 
@@ -314,7 +315,7 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
                             float Tdy  = Jxy * dx + Jyy * dy + Jzy * dz;
                             float Tdz  = Jxz * dx + Jyz * dy + Jzz * dz;
                             
-                            if (fabs(Tdx)<limx && fabs(Tdy)<limy && fabs(Tdz)<limz) 
+                            if (fabs(Tdx)<klimx && fabs(Tdy)<klimy && fabs(Tdz)<klimz) 
                             {
                                 float w = norm * fwin[0](Tdx, Sx, default_sig) 
                                                * fwin[1](Tdy, Sy, default_sig) 
