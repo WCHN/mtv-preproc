@@ -8,6 +8,7 @@ function [Nii_y,msk] = estimate_initial_y(Nii_x,Nii_y,dat,tau,rho,lam,infnrm,vx,
 modality = p.Results.Modality;
 method   = p.Results.Method;
 nitgn    = p.Results.IterGaussNewton; 
+speak    = p.Results.Verbose; 
 
 C   = numel(Nii_x);
 msk = cell(1,C); % For saving locations of missing values so that they can be 're-applied' once the algorithm has finished
@@ -74,5 +75,10 @@ parfor (c=1:C,num_workers)
         
     Nii_y(c) = put_nii(Nii_y(c),y);                
     y        = [];
+end
+
+if speak >= 2
+    % Show initial estimate
+    show_progress(method,modality,0,Nii_x,Nii_y,dm); 
 end
 %==========================================================================

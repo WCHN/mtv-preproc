@@ -8,6 +8,7 @@ function [Nii_y,Nii_u,Nii_w,ll1,ll2]= estimate_y(Nii_x,Nii_y,Nii_u,Nii_w,dat,tau
 modality = p.Results.Modality;
 method   = p.Results.Method;
 nitgn    = p.Results.IterGaussNewton; 
+speak    = p.Results.Verbose; 
 C        = numel(Nii_x);
 
 %------------------------------------------------------------------
@@ -35,8 +36,8 @@ parfor (c=1:C,num_workers) % Loop over channels
     u     = [];
 end % End loop over channels
 
-unorm = sqrt(unorm);
-scale = max(unorm - 1/rho,0)./(unorm + eps);
+unorm     = sqrt(unorm);
+mtv_scale = max(unorm - 1/rho,0)./(unorm + eps);
 clear unorm
 
 ll1 = zeros(1,C);
@@ -55,7 +56,7 @@ parfor (c=1:C,num_workers) % Loop over channels
     % matrix, this is a key addition of using MTV
     %------------------------------------------------------------------
 
-    u = bsxfun(@times,u,scale);
+    u = bsxfun(@times,u,mtv_scale);
 
     %------------------------------------------------------------------
     % Proximal operator for y        
@@ -148,7 +149,11 @@ parfor (c=1:C,num_workers) % Loop over channels
     Nii_w(c) = put_nii(Nii_w(c),w);
     w = [];
 end % End loop over channels     
-clear scale
+
+if speak >= 2
+    % Show MTV scaling
+    show_mtv_scale(mtv_scale);
+end
 
 % Compute prior part of objective function
 ll2 = -sum(sum(sum(sqrt(ll2)))); 
