@@ -3,6 +3,8 @@ function GenerateTestData
 % Down-sampling factor, will be applied in orthogonal directions
 DownSampling = 1/6;
 DirLowRes    = 'LowResData';
+WindowLR     = 2;
+WindowHR     = 2;
 
 % Create output directory
 if  exist(DirLowRes,'dir') == 7,  rmdir(DirLowRes,'s'); end; mkdir(DirLowRes);
@@ -16,6 +18,10 @@ C        = numel(Nii_ref);
 DS = {[DownSampling 1 1; 1 DownSampling 1], ... 
       [1 DownSampling 1], ...
       [1 1 DownSampling; 1 DownSampling 1]};
+  
+window = {{[WindowLR WindowHR WindowHR], [WindowHR WindowLR WindowHR]}, ... 
+          {[WindowHR WindowLR WindowHR]}, ...
+          {[WindowHR WindowHR WindowLR], [WindowHR WindowLR WindowHR]}};
   
 % Sanity check  
 if numel(DS) ~= C
@@ -43,7 +49,7 @@ for c=1:numel(DS) % Loop over channels
         Nii{1}(n).dat.dim = dm;
     end
     
-    dat = init_dat(Nii,mat0,dm0);
+    dat = init_dat(Nii,mat0,dm0,window(c));
         
     % Apply projection matrix to simulate LR data
     img = A(img0,dat);

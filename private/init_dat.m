@@ -1,4 +1,4 @@
-function dat = init_dat(Nii,mat,dm)
+function dat = init_dat(Nii,mat,dm,window,gap)
 % Initialise projection matrices for super-resolution
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -7,15 +7,15 @@ C   = numel(Nii);
 dat = struct('mat',[],'dm',[],'N',[],'A',[]);
 for c=1:C % Loop over channels
     if iscell(Nii(c))
-        dat(c) = init_A(Nii{c},mat,dm);         
+        dat(c) = init_A(Nii{c},mat,dm,window{c},gap{c});         
     else
-        dat(c) = init_A(Nii(c),mat,dm);         
+        dat(c) = init_A(Nii(c),mat,dm,window{c},gap{c});         
     end
 end    
 %==========================================================================
 
 %==========================================================================
-function dat = init_A(Nii,mat,dm)
+function dat = init_A(Nii,mat,dm,window,gap)
 % Initialise projection matrices (stored in dat struct)
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -24,18 +24,26 @@ N       = numel(Nii); % Number of LR images
 dat.mat = mat;
 dat.dm  = dm;   
 dat.N   = N;
+vs      = sqrt(sum(mat(1:3,1:3).^2));
 for n=1:N % Loop over LR images
     mat_n = Nii(n).mat;    
     dm_n  = Nii(n).dat.dim;
     
     dat.A(n).mat = mat_n;    
     dat.A(n).dm  = dm_n;
+    dat.A(n).win = window{n};
             
     M          = mat\mat_n;
 %     R          = (M(1:3,1:3)/diag(sqrt(sum(M(1:3,1:3).^2))))';
 %     dat.A(n).S = blur_fun(dm,R,sqrt(sum(M(1:3,1:3).^2)));
 %     dat.A(n).S = blur_function(dm,M);
-    dat.A(n).J = single(reshape(M(1:3,1:3), [1 1 1 3 3]));
+
+    S = sqrt(sum(M(1:3,1:3).^2));
+    R = M(1:3,1:3)/diag(S);
+    S = S - gap{n}./vs;
+    M = R*diag(S);
+    
+    dat.A(n).J = single(reshape(M, [1 1 1 3 3]));
 end
 %==========================================================================
 

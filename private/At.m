@@ -10,7 +10,7 @@ for n=1:dat.N
     T = dat.mat\dat.A(n).mat;
     y = apply_affine(T,dat.A(n).dm);
     
-    tmp = pushpull('push',single(X{n}),single(y),single(dat.A(n).J),double(dat.dm));     
+    tmp = pushpull('push',single(X{n}),single(y),single(dat.A(n).J),double(dat.A(n).win),double(dat.dm));     
     clear y
     tmp(~isfinite(tmp)) = 0;
      

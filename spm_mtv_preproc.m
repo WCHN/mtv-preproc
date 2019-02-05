@@ -12,52 +12,64 @@ function Nii = spm_mtv_preproc(varargin)
 % KEYWORD
 % -------
 %
-% InputImages            - Cell array of either NIfTI filenames or nifti 
-%                          objects. The cell array is of size 1 x C, where 
-%                          C are the number of image channels. Each array 
-%                          entry contains N_c images of the same channel. 
-%                          If empty, uses spm_select ['']
-% IterMax                - Maximum number of iteration 
-%                          [method=superres:40, method=denoise:20]
-% ADMMStepSize           - The infamous ADMM step size, set to zero for an 
-%                          educated guess [0.1]
-% Tolerance              - Convergence threshold, set to zero to run until 
-%                          IterMax [0]
-% RegScaleSuperResMRI    - Scaling of regularisation for MRI super-
-%                          resolution [0.01]
-% RegScaleDenoisingMRI    -Scaling of regularisation for MRI denoising [3.2]
-% RegSuperresCT          - Regularisation used for CT super-resolution [0.001]
-% RegDenoisingCT         - Regularisation used for CT denoising [0.06]
-% WorkersParfor          - Maximum number of parfor workers [Inf]
-% TemporaryDirectory     - Directory for temporary files ['./tmp']
-% OutputDirectory        - Directory for denoised images ['./out']
-% Method                 - Does either denoising ('denoise') or 
-%                          super-resolution ('superres') ['denoise']
-% Verbose                - Verbosity level: 
-%                          *  0  = quiet
-%                          * [1] = write  (log likelihood, parameter estimates)
-%                          *  2  = draw   (log likelihood, rice fit, noisy+cleaned)
-%                          *  3  = result (show noisy and denoised image(s) in spm_check_registration)
-% CleanUp                - Delete temporary files [true] 
-% VoxelSize              - Voxel size of super-resolved image. If empty, 
-%                          sets voxel size to smallest voxel size in input 
-%                          data [1]
-% CoRegister             - For super-resolution, co-register input images [true] 
-% Modality               - Either MRI (denoise and super-resolution) or CT 
-%                          (denoise) ['MRI']
-% ReadWrite              - Keep variables in workspace (requires more RAM,
-%                          but faster), or read/write from disk (requires 
-%                          less RAM, but slower) [false] 
-% ZeroMissingValues      - Set NaNs and zero values to zero after algorithm 
-%                          has finished [C=1:true, C>1:false]
-% IterGaussNewton        - Number of Gauss-Newton iterations for FMG 
-%                          super-resolution [1]
-% Reference              - Struct with NIfTI reference images, if given
-%                          computes PSNR and displays it, for each iteration of
-%                          the algoirthm [{}]
-% DecreasingReg          - Regularisation decreases over iterations, based
-%                          on the scheduler in spm_shoot_defaults 
-%                          [method=superres:true, method=denoise:false]
+% InputImages          - Cell array of either NIfTI filenames or nifti 
+%                        objects. The cell array is of size 1 x C, where 
+%                        C are the number of image channels. Each array 
+%                        entry contains N_c images of the same channel. 
+%                        If empty, uses spm_select ['']
+% IterMax              - Maximum number of iteration 
+%                        [method=superres:40, method=denoise:20]
+% ADMMStepSize         - The infamous ADMM step size, set to zero for an 
+%                        educated guess [0.1]
+% Tolerance            - Convergence threshold, set to zero to run until 
+%                        IterMax [0]
+% RegScaleSuperResMRI  - Scaling of regularisation for MRI super-
+%                        resolution [0.01]
+% RegScaleDenoisingMRI - Scaling of regularisation for MRI denoising, 
+%                        increase this value for stronger denoising [3.2]
+% WorkersParfor        - Maximum number of parfor workers [Inf]
+% TemporaryDirectory   - Directory for temporary files ['./tmp']
+% OutputDirectory      - Directory for denoised images ['./out']
+% Method               - Does either denoising ('denoise') or 
+%                        super-resolution ('superres') ['denoise']
+% Verbose              - Verbosity level: 
+%                        *  0  = quiet
+%                        * [1] = write  (log likelihood, parameter estimates)
+%                        *  2  = draw   (log likelihood, rice fit, noisy+cleaned)
+%                        *  3  = result (show noisy and denoised image(s) in spm_check_registration)
+% CleanUp              - Delete temporary files [true] 
+% VoxelSize            - Voxel size of super-resolved image [1 1 1]
+% IterMaxCG            - Maximum number of iterations for conjugate gradient 
+%                        solver used for super-resolution [12]
+% ToleranceCG          - Convergence threshold for conjugate gradient 
+%                        solver used for super-resolution [1e-3]
+% CoRegister           - For super-resolution, co-register input images [true] 
+% Modality             - Either MRI (denoise and super-resolution) or CT 
+%                        (denoise) ['MRI']
+% RegSuperresCT        - Regularisation used for CT denoising [0.001]
+% RegDenoisingCT       - Regularisation used for CT super-resolution [0.04]
+% ReadWrite            - Keep variables in workspace (requires more RAM,
+%                        but faster), or read/write from disk (requires 
+%                        less RAM, but slower) [false] 
+% SuperResWithFMG      - Use either spm_field (true) or conjugate
+%                        gradient (false) for super-resolution [true]
+% ZeroMissingValues    - Set NaNs and zero values to zero after algorithm 
+%                        has finished [C=1:true, C>1:false]
+% IterGaussNewton      - Number of Gauss-Newton iterations for FMG 
+%                        super-resolution [1]
+% Reference            - Cell array (1xC) with reference images, if given
+%                        computes PSNR and displays for each iteration of
+%                        the algoirthm [{}]
+% DecreasingReg        - Regularisation decreases over iterations, based
+%                        on the scheduler in spm_shoot_defaults 
+%                        [method=superres:true, method=denoise:false]
+% SliceProfile         - Slice selection profile along directions x, y, z.
+%                        It should have the same shape as InputImages.
+%                        *  1  = Gaussian  (FWHM = low-resolution voxel)
+%                        * [2] = Rectangle (length = low-resolution voxel)
+% SliceGap             - Gap between slices in mm along directions x, y, z. 
+%                        A positive value means a gap, a negative value 
+%                        means an overlap. [0]
 %
 % OUTPUT
 % ------
@@ -134,6 +146,8 @@ p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
 p.addParameter('IterGaussNewton', 1, @(in) (isnumeric(in) && in > 0));
 p.addParameter('Reference', [], @(in)  isa(in,'nifti'));
 p.addParameter('DecreasingReg', [], @(in) (islogical(in) || isempty(in)));
+p.addParameter('SliceProfile', 2, @(in) (isnumeric(in) || iscell(in)));
+p.addParameter('SliceGap', 0, @(in) (isnumeric(in) || iscell(in)));
 p.parse(varargin{:});
 InputImages  = p.Results.InputImages;
 nit          = p.Results.IterMax;
@@ -151,6 +165,11 @@ do_readwrite = p.Results.ReadWrite;
 zeroMissing  = p.Results.ZeroMissingValues; 
 Nii_ref      = p.Results.Reference; 
 dec_reg      = p.Results.DecreasingReg; 
+nitgn        = p.Results.IterGaussNewton; 
+ref          = p.Results.Reference; 
+dec_reg      = p.Results.DecreasingReg;
+window       = p.Results.SliceProfile;
+gap          = p.Results.SliceGap;
 
 %--------------------------------------------------------------------------
 % Preliminaries
@@ -198,6 +217,43 @@ if C == 1,             num_workers = 0; end
 if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
 
+% Prepare slice profile
+if ~iscell(window)
+    window = {window};
+end
+window = padarray(window, [0 max(0,C-numel(window))], 'replicate', 'post');
+for c=1:C
+    if ~iscell(window{c})
+        window{c} = {window{c}};
+    end
+    window{c} = padarray(window{c}, [0 max(0,numel(Nii_x{c})-numel(window{c}))], 'replicate', 'post');
+    for i=1:numel(window{c})
+        if isempty(window{c}{i})
+            window{c}{i} = 2;
+        end
+        window{c}{i} = padarray(window{c}{i}, [0 max(0,3-numel(window{c}{i}))], 'replicate', 'post');
+    end
+end
+
+% Prepare slice gap
+if ~iscell(gap)
+    gap = {gap};
+end
+gap = padarray(gap, [0 max(0,C-numel(gap))], 'replicate', 'post');
+for c=1:C
+    if ~iscell(gap{c})
+        gap{c} = {gap{c}};
+    end
+    gap{c} = padarray(gap{c}, [0 max(0,numel(Nii_x{c})-numel(gap{c}))], 'replicate', 'post');
+    for i=1:numel(gap{c})
+        if isempty(gap{c}{i})
+            gap{c}{i} = 2;
+        end
+        gap{c}{i} = padarray(gap{c}{i}, [0 max(0,3-numel(gap{c}{i}))], 'replicate', 'post');
+    end
+end
+
+% Set defaults, get voxel size, orientation matrix and image dimensions
 %--------------------------------------------------------------------------
 % Initialise super-resolution/denoising
 %--------------------------------------------------------------------------
