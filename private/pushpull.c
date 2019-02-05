@@ -12,6 +12,7 @@ static const double one_div_root_two    = 7.071067811865475244008443621048490392
 static const double ln_two              = 6.931471805599453094172321214581765680e-01;
 static const double one_div_ln_two      = 1.442695040888963387004650940070860088;
 static const double one_div_root_ln_two = 1.201122408786449824447117862291634083;
+static const double two_div_root_pi     = 1.1283791670955125738961589031215452;
 
 //-------------------------------------------------------------------------
 // Window functions
@@ -36,6 +37,11 @@ static float windiraclim(float scl /* unused */, float sigbasis)
 {
     return(3*sigbasis);
 }
+static float windiracderiv(float x, float scl /* unused */, float sigbasis)
+{
+    sigbasis *= sigbasis;
+    return(-(x/sigbasis)*wingaussfast(x*x/sigbasis));
+}
 // GAUSSIAN (actually, GAUSSIAN * GAUSSIAN)
 static float wingauss(float x, float scl, float sigbasis)
 {
@@ -56,11 +62,19 @@ static float wingausslim(float scl, float sigbasis)
     
     return(3*sqrt((scl*scl*default_sig2+sigbasis*sigbasis)));
 }
+static float wingaussderiv(float x, float scl, float sigbasis)
+{
+    static const float default_sig2 = 0.1250*one_div_ln_two;
+    
+    sigbasis = (scl*scl*default_sig2+sigbasis*sigbasis);
+    return(-(x/sigbasis)*wingaussfast((x*x)/sigbasis));
+}
 // RECT (actually, RECT * GAUSSIAN)
 static float winrect(float x, float scl, float sigbasis)
 {
     float w1 = one_div_root_two/sigbasis;
-    return(fasterfc(w1*(x-0.5*scl))-fasterfc(w1*(x+0.5*scl)));   
+    scl = 0.5*scl;
+    return(fasterfc(w1*(x-scl))-fasterfc(w1*(x+scl)));   
 }
 static float winrectnorm(float scl, float sigbasis)
 {
@@ -69,6 +83,14 @@ static float winrectnorm(float scl, float sigbasis)
 static float winrectlim(float scl, float sigbasis)
 {
     return(0.5*scl+3*sigbasis);
+}
+static float winrectderiv(float x, float scl, float sigbasis)
+{
+    float w1 = one_div_root_two/sigbasis;
+    scl = 0.5*scl;
+    float xm = w1*(x-scl);
+    float xp = w1*(x+scl);
+    return(two_div_root_pi*w1*(fastexp(-xp*xp)-fastexp(-xm*xm)));   
 }
 
 //-------------------------------------------------------------------------
@@ -85,10 +107,13 @@ static float winrectlim(float scl, float sigbasis)
  * @param  S0   [float]             Count volume     (push:out)
  * @param  F1   [float m1*n]        Pulled volume    (pull:out / push:in)
  * @param code  [uint]              (0=push|1=pull|2=pushc|3=pullc)
- * @param Jac   [float m1*3*3]      Jacobian of the deformation
- * @param mJ    [mwSize]            Number of Jacobians (1 or m1)
+ * @param Jac   [float mJ*3*3]      Jacobian of the deformation
+ * @param  mJ   [mwSize]            Number of Jacobians (1 or m1)
  * @param func  [double 3]          Selection window
- *                                  (0=dirac|1=gauss|2=rec|3=sinc)
+ *                                  (0=dirac|1=gauss|2=rect)
+ * @param  D1x  [float m1*n]        Pulled derivatives / x
+ * @param  D1y  [float m1*n]        Pulled derivatives / y
+ * @param  D1z  [float m1*n]        Pulled derivatives / z
  *
  * The Jacobian must map pulled voxels to reference voxels and it should 
  * be possible to write it as J=R*S, where R is a rotation matrix (R*R'=I) 
@@ -98,15 +123,21 @@ static float winrectlim(float scl, float sigbasis)
 static void jpushpull(mwSize dm0[], mwSize m1, mwSize n, 
                       float Psi[], float F0[], float S0[], float F1[], 
                       unsigned int code, float Jac[], mwSize mJ, 
-                      double win[])
+                      double win[], float D1x[], float D1y[], float D1z[])
 {
-    /* SD corresponding to FWHM = 1 */
+    /* SD = 1/(2*sqrt(2*ln(2))) corresponding to FWHM = 1 */
     static const float default_sig = 0.5*one_div_root_two*one_div_root_ln_two;
     
+    /* Which derivatives should be computed */
+    const mwSize doD1x = (mwSize)D1x;
+    const mwSize doD1y = (mwSize)D1y;
+    const mwSize doD1z = (mwSize)D1z;
+    
     /* Pointers into input/output arrays */
-    mwSize  m0 = dm0[0]*dm0[1]*dm0[2],  /* Number of reference voxels */
-            oy = dm0[0],                /* Offsets between lines */
-            oz = dm0[0]*dm0[1];         /* Offsets between slices */
+    const float   NaN = mxGetNaN();
+    const mwSize  m0  = dm0[0]*dm0[1]*dm0[2], /* Number of reference voxels */
+                  oy  = dm0[0],               /* Offsets between lines */
+                  oz  = dm0[0]*dm0[1];        /* Offsets between slices */
     float  *px  = Psi;                  /* Deformation in x */
     float  *py  = Psi+m1;               /*                y */
     float  *pz  = Psi+m1*2;             /*                z */
@@ -119,50 +150,57 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
     float  *jxz = Jac+mJ*6;             /*             xz */
     float  *jyz = Jac+mJ*7;             /*             yz */
     float  *jzz = Jac+mJ*8;             /*             zz */
-    float  NaN  = mxGetNaN();
     
     /* Stuff needed inside the loop */
-    float  Jxx, Jyy, Jzz,       /* Jacobian, then Rotation */
+    float  Jxx, Jyy, Jzz,               /* Jacobian, then Rotation */
            Jxy, Jxz, Jyz,
            Jyx, Jzx, Jzy;
-    float  Sx, Sy, Sz;          /* Scale */
-    float  limx, limy, limz;    /* Bounding box in ref space */
-    float  klimx, klimy, klimz; /* Bounding box in kernel space */
-    float  norm, normx, normy, normz; /* Kernel normalisation */
-    mwSize i, k, iz, iy, ix;    /* Loop iteration variables */
+    float  Sx, Sy, Sz;                  /* Scale */
+    float  limx, limy, limz;            /* Bounding box in ref space */
+    float  klimx, klimy, klimz;         /* Bounding box in kernel space */
+    float  norm, normx, normy, normz;   /* Kernel normalisation */
+    mwSize i, k, iz, iy, ix;            /* Loop iteration variables */
     
     /* Get slice selection function pointers */
-    typedef float (*wintype)(float,float,float);
-    typedef float (*winctype)(float,float);
-    wintype  *fwin  = (wintype*)malloc(3*sizeof(wintype));
-    winctype *fnorm = (winctype*)malloc(3*sizeof(winctype));
-    winctype *flim  = (winctype*)malloc(3*sizeof(winctype));
+    typedef float (*wintype3)(float,float,float);
+    typedef float (*wintype2)(float,float);
+    wintype3 *fwin   = (wintype3*)malloc(3*sizeof(wintype3)); /* Window */
+    wintype2 *fnorm  = (wintype2*)malloc(3*sizeof(wintype2)); /* Normalisation */
+    wintype2 *flim   = (wintype2*)malloc(3*sizeof(wintype2)); /* Support */
+    wintype3 *fderiv = (wintype3*)malloc(3*sizeof(wintype3)); /* Derivative */
     for(i=0; i<3; ++i)
     {
         switch((unsigned int)(win[i]))
         {
             case 0:
-                fwin[i]  = &windirac;
-                fnorm[i] = &windiracnorm;
-                flim[i]  = &windiraclim;
+                fwin[i]   = &windirac;
+                fnorm[i]  = &windiracnorm;
+                flim[i]   = &windiraclim;
+                fderiv[i] = &windiracderiv;
                 break;
             case 1:
-                fwin[i]  = &wingauss;
-                fnorm[i] = &wingaussnorm;
-                flim[i]  = &wingausslim;
+                fwin[i]   = &wingauss;
+                fnorm[i]  = &wingaussnorm;
+                flim[i]   = &wingausslim;
+                fderiv[i] = &wingaussderiv;
                 break;
             case 2:
-                fwin[i]  = &winrect;
-                fnorm[i] = &winrectnorm;
-                flim[i]  = &winrectlim;
+                fwin[i]   = &winrect;
+                fnorm[i]  = &winrectnorm;
+                flim[i]   = &winrectlim;
+                fderiv[i] = &winrectderiv;
                 break;
             default:
+                free(fwin);
+                free(fnorm);
+                free(flim);
+                free(fderiv);
                 mexErrMsgTxt("Window type must be 0 (dirac), 1 (gauss) or 2 (rect).");
                 break;
         }
     }
     
-    int voxJ = (mJ != 1);
+    const int voxJ = (mJ != 1);
     if (!voxJ)
     /* Invert Jacobian if same for all voxels */
     {
@@ -200,7 +238,7 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
         limx = fmax(fmax(fabs(Jxx*klimx),fabs(Jxy*klimy)),fabs(Jxz*klimz));
         limy = fmax(fmax(fabs(Jyx*klimx),fabs(Jyy*klimy)),fabs(Jyz*klimz));
         limz = fmax(fmax(fabs(Jzx*klimx),fabs(Jzy*klimy)),fabs(Jzz*klimz));
-        mexPrintf("Limits: %f %f %f\n", limx, limy, limz);
+//         mexPrintf("Limits: %f %f %f\n", limx, limy, limz);
         
         normx = fnorm[0](Sx, default_sig);
         normy = fnorm[1](Sy, default_sig);
@@ -208,8 +246,12 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
         norm  = normx*normy*normz;
     }
     
-    float *pf1 = F1;
-    for (i=0; i<m1; ++i, ++pf1)    /* loop over pulled voxels */
+    float *pf1  = F1;   /* Pointer to pulled volume */
+    float *pd1x = D1x;  /* Pointers to pulled derivative */
+    float *pd1y = D1y;
+    float *pd1z = D1z;
+    for (i=0; i<m1; ++i, ++pf1, ++pd1x, ++pd1y, ++pd1z)
+    /* loop over pulled voxels */
     {
         float  x, y, z;     /* Coordinates in reference volume */
         x = *(px++)-1.0f;   /* Subtract 1 because of MATLAB indexing */
@@ -225,7 +267,11 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
             if (voxJ)
             /* Invert Jacobian if voxel-specific */
             {
-                mexErrMsgTxt("Not implemented yet");
+                free(fwin);
+                free(fnorm);
+                free(flim);
+                free(fderiv);
+                mexErrMsgTxt("Non-stationary Jacobian not implemented yet");
             }
             
             /* Voxels inside the bounding box */
@@ -267,23 +313,49 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
                             float dx    = ddx[ix];
                             float *pf0x = pf0y + oox[ix++];
                             
-                            // Td = R'*d
+                            /* Rotate dx towards subject space: Td=R'*d */
                             float Tdx  = Jxx * dx + Jyx * dy + Jzx * dz;
                             float Tdy  = Jxy * dx + Jyy * dy + Jzy * dz;
                             float Tdz  = Jxz * dx + Jyz * dy + Jzz * dz;
                             
-                            if (fabs(Tdx)<klimx && fabs(Tdy)<klimy && fabs(Tdz)<klimz) 
+                            if (fabs(Tdx)<klimx && fabs(Tdy)<klimy && fabs(Tdz)<klimz)
+                            /* If x is near enough to the basis centre */
                             {
+                                /* Compute weight */
                                 float w = norm * fwin[0](Tdx, Sx, default_sig) 
                                                * fwin[1](Tdy, Sy, default_sig) 
                                                * fwin[2](Tdz, Sz, default_sig);
                             
-                                float *pf1k = pf1;
-                                for (k=0; k<n; ++k, pf0x += m0, pf1k += m1)
+                                float wdx, wdy, wdz;
+                                if (doD1x || doD1y || doD1z)
                                 {
-                                    if (pf0x-F0 <0 || pf0x-F0 >= m0*n)
-                                        mexErrMsgTxt("Out of bound! (pull acc)");
+                                    /* Compute derivative weights in subject space */
+                                    float Twdx = normx * fderiv[0](Tdx, Sx, default_sig);
+                                    float Twdy = normy * fderiv[1](Tdy, Sy, default_sig);
+                                    float Twdz = normz * fderiv[2](Tdz, Sz, default_sig);
+                                    /* Rotate back towards reference space: wd=R*Twd */
+                                    wdx  = Jxx * Twdx + Jxy * Twdy + Jxz * Twdz;
+                                    wdy  = Jyx * Twdx + Jyy * Twdy + Jyy * Twdz;
+                                    wdz  = Jzx * Twdx + Jzy * Twdy + Jzz * Twdz;
+                                }
+                                
+                                /* Write result in output array */
+                                float *pf1k  = pf1;
+                                float *pd1xk = pd1x;
+                                float *pd1yk = pd1y;
+                                float *pd1zk = pd1z;
+                                for (k=0; k<n; ++k, pf0x += m0, pf1k += m1, 
+                                     pd1xk += m1, pd1yk += m1, pd1zk += m1)
+                                {
+//                                     if (pf0x-F0 <0 || pf0x-F0 >= m0*n)
+//                                         mexErrMsgTxt("Out of bound! (pull acc)");
                                     (*pf1k) += w * (*pf0x);
+                                    if (doD1x)
+                                        (*pd1xk) += wdx * (*pf0x);
+                                    if (doD1y)
+                                        (*pd1yk) += wdy * (*pf0x);
+                                    if (doD1z)
+                                        (*pd1zk) += wdz * (*pf0x);
                                 }
                             }
                         }
@@ -310,31 +382,34 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
                             float *pf0x = pf0y + oox[ix];
                             float *ps0x = ps0y + oox[ix++];
                             
-                            // Td = R'*d
+                            /* Rotate dx towards subject space: Td=R'*d */
                             float Tdx  = Jxx * dx + Jyx * dy + Jzx * dz;
                             float Tdy  = Jxy * dx + Jyy * dy + Jzy * dz;
                             float Tdz  = Jxz * dx + Jyz * dy + Jzz * dz;
                             
                             if (fabs(Tdx)<klimx && fabs(Tdy)<klimy && fabs(Tdz)<klimz) 
+                            /* If x is near enough to the basis centre */
                             {
+                                /* Compute weight */
                                 float w = norm * fwin[0](Tdx, Sx, default_sig) 
                                                * fwin[1](Tdy, Sy, default_sig) 
                                                * fwin[2](Tdz, Sz, default_sig);
 
+                                /* Write result in output array */
                                 float *pf1k = pf1;
                                 for (k=0; k<n; ++k, pf0x += m0, pf1k += m1)
                                 {
-                                    if (pf0x-F0 <0 || pf0x-F0 >= m0*n)
-                                        mexErrMsgTxt("Out of bound! (push F0).");
-                                    if (pf1k-F1 <0 || pf1k-F1 >= m1*n)
-                                        mexErrMsgTxt("Out of bound! (push F1).");
+//                                     if (pf0x-F0 <0 || pf0x-F0 >= m0*n)
+//                                         mexErrMsgTxt("Out of bound! (push F0).");
+//                                     if (pf1k-F1 <0 || pf1k-F1 >= m1*n)
+//                                         mexErrMsgTxt("Out of bound! (push F1).");
                                     (*pf0x) += w * (*pf1k);
                                 }
                                 /* Count image */
                                 if (S0!=0)
                                 {
-                                    if (ps0x-S0 <0 || ps0x-S0 >= m0)
-                                        mexErrMsgTxt("Out of bound! (push S0).");
+//                                     if (ps0x-S0 <0 || ps0x-S0 >= m0)
+//                                         mexErrMsgTxt("Out of bound! (push S0).");
                                     (*ps0x) += w;
                                 }
                             }
@@ -349,8 +424,8 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
             float *pf1k = pf1;
             for(k=0; k<n; ++k, pf1k += m1)
             {
-                if (pf1k-F1 <0 || pf1k-F1 >= m1*n)
-                    mexErrMsgTxt("Out of bound! (NaN).");
+//                 if (pf1k-F1 <0 || pf1k-F1 >= m1*n)
+//                     mexErrMsgTxt("Out of bound! (NaN).");
                 (*pf1k) = NaN;
             }
         }
@@ -360,30 +435,31 @@ static void jpushpull(mwSize dm0[], mwSize m1, mwSize n,
     free(fwin);
     free(fnorm);
     free(flim);
+    free(fderiv);
 }
 
 //-------------------------------------------------------------------------
 // Wrappers
 //-------------------------------------------------------------------------
 
-static void jpullc(mwSize dm0[], mwSize m1, mwSize n, float Psi[],  float F0[], /*@out@*/ float F1[], float Jac[], mwSize mJ, double win[])
+static void jpullc(mwSize dm0[], mwSize m1, mwSize n, float Psi[],  float F0[], /*@out@*/ float F1[], float Jac[], mwSize mJ, double win[], float D1x[], float D1y[], float D1z[])
 {
-    jpushpull(dm0, m1, n, Psi, F0, 0, F1, 3, Jac, mJ, win);
+    jpushpull(dm0, m1, n, Psi, F0, 0, F1, 3, Jac, mJ, win, D1x, D1y, D1z);
 }
 
-static void  jpull(mwSize dm0[], mwSize m1, mwSize n, float Psi[],  float F0[], /*@out@*/ float F1[], float Jac[], mwSize mJ, double win[])
+static void  jpull(mwSize dm0[], mwSize m1, mwSize n, float Psi[],  float F0[], /*@out@*/ float F1[], float Jac[], mwSize mJ, double win[], float D1x[], float D1y[], float D1z[])
 {
-    jpushpull(dm0, m1, n, Psi, F0, 0, F1, 1, Jac, mJ, win);
+    jpushpull(dm0, m1, n, Psi, F0, 0, F1, 1, Jac, mJ, win, D1x, D1y, D1z);
 }
 
 static void jpushc(mwSize dm0[], mwSize m1, mwSize n, float Psi[], float F1[], /*@out@*/ float F0[], /*@null@@out@*/ float S0[], float Jac[], mwSize mJ, double win[])
 {
-    jpushpull(dm0, m1, n, Psi, F0, S0, F1, 2, Jac, mJ, win);
+    jpushpull(dm0, m1, n, Psi, F0, S0, F1, 2, Jac, mJ, win, (float*)0, (float*)0, (float*)0);
 }
 
 static void  jpush(mwSize dm0[], mwSize m1, mwSize n, float Psi[], float F1[], /*@out@*/ float F0[], /*@null@@out@*/ float S0[], float Jac[], mwSize mJ, double win[])
 {
-    jpushpull(dm0, m1, n, Psi, F0, S0, F1, 0, Jac, mJ, win);
+    jpushpull(dm0, m1, n, Psi, F0, S0, F1, 0, Jac, mJ, win, (float*)0, (float*)0, (float*)0);
 }
 
 //-------------------------------------------------------------------------
@@ -398,7 +474,7 @@ static void jpull_mexFunction(int flag, int nlhs, mxArray *plhs[], int nrhs, con
     if (nrhs == 0) mexErrMsgTxt("Incorrect usage");
     if (nrhs == 4)
     {
-        if (nlhs > 1) mexErrMsgTxt("Only 1 output argument required");
+        if (nlhs > 4) mexErrMsgTxt("Max 4 output argument required");
     }
     else
         mexErrMsgTxt("Four input arguments required");
@@ -440,11 +516,29 @@ static void jpull_mexFunction(int flag, int nlhs, mxArray *plhs[], int nrhs, con
     dm1[2] = dmpsi[2];
     dm1[3] = dm0[3];  /* Number of output volumes */
     plhs[0] = mxCreateNumericArray(4,dm1, mxSINGLE_CLASS, mxREAL);
+    float * D1x = (float *)0;
+    float * D1y = (float *)0;
+    float * D1z = (float *)0;
+    if (nlhs >= 2)
+    {
+        plhs[1] = mxCreateNumericArray(4,dm1, mxSINGLE_CLASS, mxREAL);
+        D1x     = (float *)mxGetPr(plhs[1]);
+    }
+    if (nlhs >= 3)
+    {
+        plhs[2] = mxCreateNumericArray(4,dm1, mxSINGLE_CLASS, mxREAL);
+        D1y     = (float *)mxGetPr(plhs[2]);
+    }
+    if (nlhs >= 4)
+    {
+        plhs[3] = mxCreateNumericArray(4,dm1, mxSINGLE_CLASS, mxREAL);
+        D1z     = (float *)mxGetPr(plhs[3]);
+    }
     
     if ((flag&2)==2)
-        jpull (dm0, dm1[0]*dm1[1]*dm1[2], dm0[3], (float *)mxGetPr(prhs[1]), (float *)mxGetPr(prhs[0]), (float *)mxGetPr(plhs[0]), (float *)mxGetPr(prhs[2]), dmjac[0]*dmjac[1]*dmjac[2], (double *)mxGetPr(prhs[3]));
+        jpull (dm0, dm1[0]*dm1[1]*dm1[2], dm0[3], (float *)mxGetPr(prhs[1]), (float *)mxGetPr(prhs[0]), (float *)mxGetPr(plhs[0]), (float *)mxGetPr(prhs[2]), dmjac[0]*dmjac[1]*dmjac[2], (double *)mxGetPr(prhs[3]), D1x, D1y, D1z);
     else
-        jpullc(dm0, dm1[0]*dm1[1]*dm1[2], dm0[3], (float *)mxGetPr(prhs[1]), (float *)mxGetPr(prhs[0]), (float *)mxGetPr(plhs[0]), (float *)mxGetPr(prhs[2]), dmjac[0]*dmjac[1]*dmjac[2], (double *)mxGetPr(prhs[3]));
+        jpullc(dm0, dm1[0]*dm1[1]*dm1[2], dm0[3], (float *)mxGetPr(prhs[1]), (float *)mxGetPr(prhs[0]), (float *)mxGetPr(plhs[0]), (float *)mxGetPr(prhs[2]), dmjac[0]*dmjac[1]*dmjac[2], (double *)mxGetPr(prhs[3]), D1x, D1y, D1z);
 }
 
 static void jpush_mexFunction(int flag, int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
