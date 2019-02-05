@@ -52,8 +52,8 @@ function Nii = spm_mtv_preproc(varargin)
 %                          has finished [C=1:true, C>1:false]
 % IterGaussNewton        - Number of Gauss-Newton iterations for FMG 
 %                          super-resolution [1]
-% Reference              - Cell array (1xC) with reference images, if given
-%                          computes PSNR and displays for each iteration of
+% Reference              - Struct with NIfTI reference images, if given
+%                          computes PSNR and displays it, for each iteration of
 %                          the algoirthm [{}]
 % DecreasingReg          - Regularisation decreases over iterations, based
 %                          on the scheduler in spm_shoot_defaults 
@@ -132,7 +132,7 @@ p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || str
 p.addParameter('ReadWrite', false, @islogical);
 p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
 p.addParameter('IterGaussNewton', 1, @(in) (isnumeric(in) && in > 0));
-p.addParameter('Reference', {}, @iscell);
+p.addParameter('Reference', [], @(in)  isa(in,'nifti'));
 p.addParameter('DecreasingReg', [], @(in) (islogical(in) || isempty(in)));
 p.parse(varargin{:});
 InputImages  = p.Results.InputImages;
@@ -149,14 +149,14 @@ coreg        = p.Results.CoRegister;
 modality     = p.Results.Modality; 
 do_readwrite = p.Results.ReadWrite; 
 zeroMissing  = p.Results.ZeroMissingValues; 
-ref          = p.Results.Reference; 
+Nii_ref      = p.Results.Reference; 
 dec_reg      = p.Results.DecreasingReg; 
 
 %--------------------------------------------------------------------------
 % Preliminaries
 %--------------------------------------------------------------------------
 
-if ~isempty(ref) && strcmpi(method,'superres')
+if ~isempty(Nii_ref) && strcmpi(method,'superres')
     error('Super-resolution with reference image(s) not yet implemented!');
 end
 
@@ -298,17 +298,19 @@ for it=1:nit % Start iterating
     ll   = [ll, sum(ll1) + ll2];    
     gain = abs((ll(end - 1)*(1 + 10*eps) - ll(end))/ll(end));
                        
-    if speak >= 1 || ~isempty(ref)
+    if speak >= 1 || ~isempty(Nii_ref)
         % Some verbose    
         
-        if ~isempty(ref)
+        if ~isempty(Nii_ref)
             % Reference image(s) given, compute and output PSNR
             psnrs = zeros(1,C);
+            ssims = zeros(1,C);
             for c=1:C
-                psnrs(c) = get_psnr(get_nii(Nii_y(c)),ref{c});
+                psnrs(c) = get_psnr(get_nii(Nii_y(c)),get_nii(Nii_ref(c)));
+                ssims(c) = ssim(get_nii(Nii_y(c)),get_nii(Nii_ref(c)));
             end
             
-            fprintf('%2d | %10.1f %10.1f %10.1f %0.6f|%s\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain, sprintf(' %2.2f', psnrs)); 
+            fprintf('%2d | %10.1f %10.1f %10.1f %0.6f | psnr =%s, ssim =%s\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain, sprintf(' %2.2f', psnrs), sprintf(' %2.2f', ssims)); 
         else
             fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); 
         end
