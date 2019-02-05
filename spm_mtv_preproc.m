@@ -253,7 +253,6 @@ for c=1:C
     end
 end
 
-% Set defaults, get voxel size, orientation matrix and image dimensions
 %--------------------------------------------------------------------------
 % Initialise super-resolution/denoising
 %--------------------------------------------------------------------------
@@ -286,7 +285,7 @@ elseif strcmpi(method,'superres')
     [mat,dm] = max_bb_orient(Nii_x,vx);
     
     % Initialise dat struct with projection matrices, etc.
-    dat = init_dat(Nii_x,mat,dm);
+    dat = init_dat(Nii_x,mat,dm,window,gap);
             
     % Compute infinity norm
     infnrm = zeros(1,C);
