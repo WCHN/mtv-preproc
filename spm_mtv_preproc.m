@@ -67,6 +67,9 @@ function Nii = spm_mtv_preproc(varargin)
 %                        It should have the same shape as InputImages.
 %                        *  1  = Gaussian  (FWHM = low-resolution voxel)
 %                        * [2] = Rectangle (length = low-resolution voxel)
+% SliceGap             - Gap between slices in mm along directions x, y, z. 
+%                        A positive value means a gap, a negative value 
+%                        means an overlap. [0]
 %
 % OUTPUT
 % ------
@@ -147,6 +150,7 @@ p.addParameter('IterGaussNewton', 1, @(in) (isnumeric(in) && in > 0));
 p.addParameter('Reference', {}, @iscell);
 p.addParameter('DecreasingReg', [], @(in) (islogical(in) || isempty(in)));
 p.addParameter('SliceProfile', 2, @(in) (isnumeric(in) || iscell(in)));
+p.addParameter('SliceGap', 0, @(in) (isnumeric(in) || iscell(in)));
 p.parse(varargin{:});
 InputImages  = p.Results.InputImages;
 nit          = p.Results.IterMax;
@@ -170,6 +174,7 @@ nitgn        = p.Results.IterGaussNewton;
 ref          = p.Results.Reference; 
 dec_reg      = p.Results.DecreasingReg;
 window       = p.Results.SliceProfile;
+gap          = p.Results.SliceGap;
 
 %--------------------------------------------------------------------------
 % Preliminaries
@@ -215,6 +220,24 @@ for c=1:C
             window{c}{i} = 2;
         end
         window{c}{i} = padarray(window{c}{i}, [0 max(0,3-numel(window{c}{i}))], 'replicate', 'post');
+    end
+end
+
+% Prepare slice gap
+if ~iscell(gap)
+    gap = {gap};
+end
+gap = padarray(gap, [0 max(0,C-numel(gap))], 'replicate', 'post');
+for c=1:C
+    if ~iscell(gap{c})
+        gap{c} = {gap{c}};
+    end
+    gap{c} = padarray(gap{c}, [0 max(0,numel(Nii_x{c})-numel(gap{c}))], 'replicate', 'post');
+    for i=1:numel(gap{c})
+        if isempty(gap{c}{i})
+            gap{c}{i} = 2;
+        end
+        gap{c}{i} = padarray(gap{c}{i}, [0 max(0,3-numel(gap{c}{i}))], 'replicate', 'post');
     end
 end
 
@@ -397,7 +420,7 @@ if strcmpi(method,'superres')
     %---------------------------
             
     % Initialise dat struct with projection matrices, etc.
-    dat = init_dat(Nii_x,mat,dm,window);
+    dat = init_dat(Nii_x,mat,dm,window,gap);
             
     if superes_fmg
         % Compute infinity norm
