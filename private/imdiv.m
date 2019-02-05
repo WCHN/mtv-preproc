@@ -4,7 +4,7 @@ function D = imdiv(X,vs,type)
 % FORMAT div = spm_imbasics('div',img,(vs),(type))
 % img   - Image in "gradient space" (Nx * Nz * Nz * ... * Ndim * Ntype)
 % vs    - Voxel size [1]
-% type  - Finite difference type ['+']/'-'/'+-'/'-+'
+% type  - Finite difference type '+'/'-'/['+-']/'-+'
 % div   - Divergence (Nx * Nz * Nz * ...)
 %__________________________________________________________________________
 % Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging

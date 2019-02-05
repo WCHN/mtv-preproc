@@ -5,7 +5,7 @@ function D = imgrad(X,vs,type)
 % FORMAT grad = spm_imbasics('grad',img,(vs),(type))
 % img   - Image (Nx * Nz * Nz * ...)
 % vs    - voxel size [1]
-% type  - Finite difference type ['+']/'-'/'+-'/'-+'
+% type  - Finite difference type '+'/'-'/['+-']/'-+'
 % grad  - Gradients in all direction (Nx * Nz * Nz * ... * Ndim * Ntype)
 %__________________________________________________________________________
 % Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
