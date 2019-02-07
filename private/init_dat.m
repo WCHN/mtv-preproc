@@ -1,4 +1,4 @@
-function dat = init_dat(Nii,mat,dm,window,gap,B)
+function [dat,B] = init_dat(Nii,mat,dm,window,gap,B)
 % Initialise projection matrices for super-resolution
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
