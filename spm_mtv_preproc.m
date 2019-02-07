@@ -219,72 +219,11 @@ if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
     
 %--------------------------------------------------------------------------
-% Co-register input images
+% Co-register input images (modifies images' orientation matrices)
 %--------------------------------------------------------------------------
 
 if coreg
     Nii_x = coreg_ims(Nii_x,dir_tmp);
-end
-
-%--------------------------------------------------------------------------
-% Prepare slice profile and slice gap
-%--------------------------------------------------------------------------
-
-% Slice profile
-if ~iscell(window)
-    window = {window};
-end
-window = padarray(window, [0 max(0,C-numel(window))], 'replicate', 'post');
-for c=1:C
-    if ~iscell(window{c})
-        window{c} = {window{c}};
-    end
-    window{c} = padarray(window{c}, [0 max(0,numel(Nii_x{c})-numel(window{c}))], 'replicate', 'post');
-    for i=1:numel(window{c})
-        if isempty(window{c}{i})
-            window{c}{i} = 2;
-        end
-        window{c}{i} = padarray(window{c}{i}, [0 max(0,3-numel(window{c}{i}))], 'replicate', 'post');
-    end
-end
-
-% Slice gap
-if ~iscell(gap)
-    gap = {gap};
-end
-gap = padarray(gap, [0 max(0,C-numel(gap))], 'replicate', 'post');
-for c=1:C
-    if ~iscell(gap{c})
-        gap{c} = {gap{c}};
-    end
-    gap{c} = padarray(gap{c}, [0 max(0,numel(Nii_x{c})-numel(gap{c}))], 'replicate', 'post');
-    for i=1:numel(gap{c})
-        if isempty(gap{c}{i})
-            gap{c}{i} = 2;
-        end
-        gap{c}{i} = padarray(gap{c}{i}, [0 max(0,3-numel(gap{c}{i}))], 'replicate', 'post');
-    end
-end
-
-%--------------------------------------------------------------------------
-% Initialise estimation of rigid alignment part
-%--------------------------------------------------------------------------
-
-% Basis functions for the lie algebra of the special Eucliden group
-% (SE(3)): translation and rotation.
-B                = zeros(4,4,6);
-B(1,4,1)         = 1;
-B(2,4,2)         = 1;
-B(3,4,3)         = 1;
-B([1,2],[1,2],4) = [0 1;-1 0];
-B([3,1],[3,1],5) = [0 1;-1 0];
-B([2,3],[2,3],6) = [0 1;-1 0];
-
-% For storing line-search parameter
-armijo_rigid = cell(1,C);
-for c=1:C
-    N               = numel(Nii_x{c});
-    armijo_rigid{c} = ones([1 N]);
 end
 
 %--------------------------------------------------------------------------
@@ -319,7 +258,7 @@ elseif strcmpi(method,'superres')
     [mat,dm] = max_bb_orient(Nii_x,vx);
     
     % Initialise dat struct with projection matrices, etc.
-    dat = init_dat(Nii_x,mat,dm,window,gap,B);
+    dat = init_dat(Nii_x,mat,dm,window,gap);
             
     % Compute infinity norm
     infnrm = zeros(1,C);
@@ -361,7 +300,16 @@ if speak >= 1
     tic; 
 end
 
-ll = -Inf; % For storing model log-likelihood, for each iteration
+% For storing rigid optimisation line-search parameters
+armijo_rigid = cell(1,C);
+for c=1:C
+    N               = numel(Nii_x{c});
+    armijo_rigid{c} = ones([1 N]);
+end
+
+% For storing model log-likelihood, for each iteration
+ll = -Inf; 
+
 for it=1:nit % Start iterating
         
     if dec_reg
@@ -421,7 +369,7 @@ for it=1:nit % Start iterating
     
         if speak >= 1
             % Some verbose    
-            fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); 
+            fprintf('%   | %10.1f %10.1f %10.1f %0.6f\n', sum(ll1), ll2, sum(ll1) + ll2, gain); 
             
             if speak >= 2
                 show_progress(method,modality,ll,Nii_x,Nii_y,dm); 

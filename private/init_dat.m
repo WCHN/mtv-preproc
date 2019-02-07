@@ -3,6 +3,16 @@ function dat = init_dat(Nii,mat,dm,window,gap,B)
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
+if nargin < 4, window = 2;                end
+if nargin < 5, gap    = 0;                end
+if nargin < 6, B      = get_rigid_basis; end
+
+% Slice profile
+window = get_window(window,Nii);
+
+% Slice gap
+gap = get_slice_gap(gap,Nii);
+
 C   = numel(Nii);
 dat = struct('mat',[],'dm',[],'N',[],'A',[]);
 for c=1:C % Loop over channels
@@ -46,6 +56,74 @@ for n=1:N % Loop over LR images
     M = model_slice_gap(M,gap{n},vs);
     
     dat.A(n).J = single(reshape(M, [1 1 1 3 3]));
+end
+%==========================================================================
+
+%==========================================================================
+function B = get_rigid_basis
+% Basis functions for the lie algebra of the special Eucliden group
+% (SE(3)): translation and rotation.
+% _______________________________________________________________________
+%  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
+
+B                = zeros(4,4,6);
+B(1,4,1)         = 1;
+B(2,4,2)         = 1;
+B(3,4,3)         = 1;
+B([1,2],[1,2],4) = [0 1;-1 0];
+B([3,1],[3,1],5) = [0 1;-1 0];
+B([2,3],[2,3],6) = [0 1;-1 0];
+%==========================================================================
+
+%==========================================================================
+function gap = get_slice_gap(gap,Nii_x)
+% Construct slice-gap
+% _______________________________________________________________________
+%  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
+
+C = numel(Nii_x);
+
+if ~iscell(gap)
+    gap = {gap};
+end
+gap = padarray(gap, [0 max(0,C-numel(gap))], 'replicate', 'post');
+for c=1:C
+    if ~iscell(gap{c})
+        gap{c} = {gap{c}};
+    end
+    gap{c} = padarray(gap{c}, [0 max(0,numel(Nii_x{c})-numel(gap{c}))], 'replicate', 'post');
+    for i=1:numel(gap{c})
+        if isempty(gap{c}{i})
+            gap{c}{i} = 2;
+        end
+        gap{c}{i} = padarray(gap{c}{i}, [0 max(0,3-numel(gap{c}{i}))], 'replicate', 'post');
+    end
+end
+%==========================================================================
+
+%==========================================================================
+function window = get_window(window,Nii_x)
+% Construct slice-profile
+% _______________________________________________________________________
+%  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
+
+C = numel(Nii_x);
+
+if ~iscell(window)
+    window = {window};
+end
+window = padarray(window, [0 max(0,C-numel(window))], 'replicate', 'post');
+for c=1:C
+    if ~iscell(window{c})
+        window{c} = {window{c}};
+    end
+    window{c} = padarray(window{c}, [0 max(0,numel(Nii_x{c})-numel(window{c}))], 'replicate', 'post');
+    for i=1:numel(window{c})
+        if isempty(window{c}{i})
+            window{c}{i} = 2;
+        end
+        window{c}{i} = padarray(window{c}{i}, [0 max(0,3-numel(window{c}{i}))], 'replicate', 'post');
+    end
 end
 %==========================================================================
 
