@@ -113,7 +113,7 @@ function Nii = spm_mtv_preproc(varargin)
 % Copyright (C) 2018 Wellcome Centre for Human Neuroimaging
 
 % First check that all is okay with SPM
-spm_check_path;
+spm_check_path('Longitudinal');
 
 %--------------------------------------------------------------------------
 % Parse input
