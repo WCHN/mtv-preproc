@@ -24,7 +24,7 @@ function Nii = spm_mtv_preproc(varargin)
 % Tolerance            - Convergence threshold, set to zero to run until 
 %                        IterMax [0]
 % RegScaleSuperResMRI  - Scaling of regularisation for MRI super-
-%                        resolution [0.01]
+%                        resolution [20]
 % RegScaleDenoisingMRI - Scaling of regularisation for MRI denoising, 
 %                        increase this value for stronger denoising [3.2]
 % WorkersParfor        - Maximum number of parfor workers [Inf]
@@ -126,7 +126,7 @@ p.addParameter('InputImages', {}, @(in) ( isa(in,'nifti') || isempty(in) || ...
 p.addParameter('IterMax', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('ADMMStepSize', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('RegScaleSuperResMRI', 0.01, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegScaleSuperResMRI', 20, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegScaleDenoisingMRI', 3.2, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegSuperresCT', 0.001, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegDenoisingCT', 0.06, @(in) (isnumeric(in) && in > 0));
