@@ -1,0 +1,333 @@
+function [dat,sll,armijo] = update_rigid(Nii_x,Nii_y,dat,B,tau,armijo,num_workers,speak)
+% Optimise the rigid alignment between observed images and their 
+% corresponding channel's reconstruction. This routine runs in parallel
+% over image channels. The observed lowres images are here denoted by f and
+% the reconstructions by mu.
+% _______________________________________________________________________
+%  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
+
+% Parameters
+C  = numel(dat); % Number of channels
+Nq = size(B,3);  % Number of registration parameters
+    
+if num_workers > 0
+    speak = min(speak,1);
+end
+
+%--------------------------------------------------------------------------
+% Start updating, for each observation
+%--------------------------------------------------------------------------
+
+sll = 0;
+% for c=1:C, fprintf('OBS! for c=1:C\n')
+parfor (c=1:C,num_workers) % Loop over channels
+    
+    [dat(c),dll,armijo{c}] = update_channel(Nii_x(c),Nii_y(c),dat(c),B,tau{c},armijo{c},speak,c);
+    sll                    = sll + dll;
+    
+end % End loop over channels
+sll = -sll;
+
+%--------------------------------------------------------------------------
+% Mean correct the rigid-body transforms
+%--------------------------------------------------------------------------
+
+% Sum all rigid body parameters
+sq  = zeros([Nq 1]);
+cnt = 0;
+for c=1:C
+    N = numel(dat(c).A);
+    for n=1:N
+        sq  = sq + dat(c).A(n).q;
+        cnt = cnt + 1;
+    end
+end
+
+% Compute mean
+q_avg = sq/cnt;
+
+% Update all q and J
+for c=1:C
+    
+    Mmu  = dat(c).mat;        
+    vsmu = sqrt(sum(Mmu(1:3,1:3).^2));
+    
+    N = numel(dat(c).A);
+    for n=1:N
+        
+        Mf = dat(c).A(n).mat;                   
+        q  = dat(c).A(n).q;
+        
+        q = q - q_avg; 
+        
+        E  = spm_dexpm(q,B);
+        M  = Mmu\E*Mf;
+        Mg = model_slice_gap(M,dat(c).A(n).gap,vsmu);    
+        J  = single(reshape(Mg, [1 1 1 3 3]));
+
+        % Update dat struct
+        dat(c).A(n).q = q;        
+        dat(c).A(n).J = J;
+    end  
+end
+%==========================================================================
+
+%==========================================================================
+function [dat,sll,armijo] = update_channel(Nii_x,Nii_y,dat,B,tau,armijo,speak,c)
+
+% Parameters
+Nq          = size(B,3);             % Number of registration parameters
+lkp         = [1 4 5; 4 2 6; 5 6 3]; % Que?
+nlinesearch = 4;                     % Number of line-searches    
+
+% Cell-array of observations    
+f = get_nii(Nii_x); 
+
+% Template parameters
+mu   = get_nii(Nii_y);
+Mmu  = dat.mat;        
+vsmu = sqrt(sum(Mmu(1:3,1:3).^2));
+
+N   = numel(dat.A);
+sll = 0;
+for n=1:N % Loop over observed images (of channel c)
+
+    % Observation parameters
+    dmf  = size(f{n});        
+    Mf   = dat.A(n).mat;        
+    oq   = dat.A(n).q;                        
+    oJ   = dat.A(n).J;
+    tauf = tau(n);        % Noise precision
+
+    %------------------------------------------------------------------
+    % Compute gradient and Hessian (slice-wise)
+    %------------------------------------------------------------------
+
+    % Differentiate Rq w.r.t. q, store in dRq
+    [E,dE]         = spm_dexpm(oq,B);                     
+    dRq            = zeros(4,4,Nq);
+    for i=1:Nq
+        dRq(:,:,i) = Mmu\dE(:,:,i)*Mf;
+    end
+
+    % Make interpolation grids: yf - image, ymu - template-2-image
+    M     = Mmu\E*Mf;
+    yf    = get_id(dmf);        
+    ymu2f = affine_transf(M,yf);
+
+    % Build gradient and Hessian
+    g  = zeros([Nq 1], 'single');
+    H  = zeros([Nq Nq],'single');
+    ll = 0;
+    for z=1:dmf(3) % Loop over slices
+
+        % Compute matching-term part
+        [llz,gz,Hz] = meansq_objfun_slice(f{n},mu,ymu2f,dat.A(n),tauf,speak,z);
+        ll          = ll + llz;           
+
+        % Add dRq to gradients
+        dAff = cell(Nq,3);
+        for i=1:Nq
+            for d=1:3
+                tmp       = dRq(d,1,i)*yf(:,:,z,1) + dRq(d,2,i)*yf(:,:,z,2) + dRq(d,3,i)*yf(:,:,z,3) + dRq(d,4,i);
+                dAff{i,d} = tmp(:);
+            end
+        end
+        for d=1:3
+            tmp = gz(:,:,d);
+            tmp = tmp(:)';
+            for i=1:Nq
+                g(i) = g(i) + tmp*dAff{i,d};
+            end
+        end
+
+        % Add dRq to Hessian
+        for d1=1:3
+            for d2=1:3
+                tmp1 = Hz(:,:,lkp(d1,d2));
+                tmp1 = tmp1(:);
+                for i1=1:Nq
+                    tmp2 = (tmp1.*dAff{i1,d1})';
+                    for i2=i1:Nq % Only compute upper/lower triangle of symmetric matrix
+                        H(i1,i2) = H(i1,i2) + tmp2*dAff{i2,d2};
+                    end
+                end
+            end
+        end
+
+    end % End loop over slices
+
+    if speak >= 1
+        fprintf('   | c=%i, n=%i | ll=%g\n', c, n, ll); 
+    end
+
+    % Fill in missing triangle
+    for i1=1:Nq
+        for i2=1:Nq
+            H(i2,i1) = H(i1,i2);
+        end
+    end                
+
+    %------------------------------------------------------------------
+    % Update q by Gauss-Newton optimisation
+    %------------------------------------------------------------------
+
+    % Compute update step from gradient and Hessian
+    H      = loaddiag(H);
+    Update = H\g;
+
+    % Start line-search                       
+    oll = ll;        
+    for linesearch=1:nlinesearch
+
+        % Take step
+        q = oq - armijo(n)*Update;
+
+        % Compute new parameters
+        E  = spm_dexpm(q,B);
+        M  = Mmu\E*Mf;
+        Mg = model_slice_gap(M,dat.A(n).gap,vsmu);    
+        J  = single(reshape(Mg, [1 1 1 3 3]));
+
+        % Update dat struct
+        dat.A(n).q = q;        
+        dat.A(n).J = J;
+
+        % Compute new log-likelihood
+        ymu2f = affine_transf(M,yf);
+        ll  = meansq_objfun(f{n},mu,ymu2f,dat.A(n),tauf,speak);
+
+        if ll > oll
+            if speak >= 1
+                fprintf('   | c=%i, n=%i | ll=%g, ls=%i | :o)\n', c, n, ll, linesearch); 
+            end
+
+            armijo(n) = min(1.2*armijo(n),1);
+            sll          = sll + ll;   
+
+            break;
+        else
+            if speak >= 1
+                fprintf('   | c=%i, n=%i | ll=%g, ls=%i | :''(\n', c, n, ll, linesearch); 
+            end
+
+            armijo(n) = 0.5*armijo(n);
+
+            % Revert to previous values in dat struct
+            dat.A(n).q = oq;        
+            dat.A(n).J = oJ;
+        end
+    end
+
+    if ll <= oll
+        % Use old log-likelihood
+        sll = sll + oll;
+    end
+
+end % End loop over observations
+%==========================================================================
+    
+%==========================================================================
+function ll = meansq_objfun(f,mu,y,An,tau,speak)
+dm = size(f);
+ll = 0;
+for z=1:dm(3)
+    ll = ll + meansq_objfun_slice(f,mu,y,An,tau,speak,z);
+end
+%==========================================================================
+
+%==========================================================================
+function [ll,g,H] = meansq_objfun_slice(f,mu,y,An,tau,speak,z)
+
+dm = size(f); % Observation dimensions
+
+% Move template to image space
+dmu = cell(1,3);
+if nargout >= 2
+    [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',single(mu),single(y(:,:,z,:)),single(An.J),double(An.win));    
+else
+    mu                        = pushpull('pull',single(mu),single(y(:,:,z,:)),single(An.J),double(An.win));    
+end
+mu(~isfinite(mu)) = 0; 
+
+if speak >= 2
+    % Some verbose    
+    show_reg(mu,f,dm,z);
+end
+
+if nargout == 0, return; end
+
+% Compute log-likelihood of slice
+msk  = isfinite(f(:,:,z));
+ftmp = f(:,:,z);
+ll   = 0.5*tau*sum((ftmp(msk) - mu(msk)).^2);
+
+if nargout >= 2
+    % Compute gradient    
+    g = zeros([dm(1:2),3],'single');
+    
+    diff1        = f(:,:,z) - mu;
+    for d=1:3
+        g(:,:,d) = diff1.*dmu{d};
+    end
+    
+    if nargout >= 3
+        % Compute Hessian
+        H = zeros([dm(1:2),6],'single');
+        
+        H(:,:,1) = dmu{1}.*dmu{1};
+        H(:,:,2) = dmu{2}.*dmu{2};
+        H(:,:,3) = dmu{3}.*dmu{3};
+        H(:,:,4) = dmu{1}.*dmu{2};
+        H(:,:,5) = dmu{1}.*dmu{3};
+        H(:,:,6) = dmu{2}.*dmu{3};                
+    end
+end
+
+% Remove missing data from derivatives (represented by NaNs)
+if nargout >= 2
+    g(~isfinite(g)) = 0;
+    if nargout >= 3
+        H(~isfinite(H)) = 0;
+    end
+end
+%==========================================================================
+
+%==========================================================================
+function y1 = affine_transf(Affine,y)
+y1 = cat(4, Affine(1,1)*y(:,:,:,1) + Affine(1,2)*y(:,:,:,2) + Affine(1,3)*y(:,:,:,3) + Affine(1,4),...
+            Affine(2,1)*y(:,:,:,1) + Affine(2,2)*y(:,:,:,2) + Affine(2,3)*y(:,:,:,3) + Affine(2,4),...
+            Affine(3,1)*y(:,:,:,1) + Affine(3,2)*y(:,:,:,2) + Affine(3,3)*y(:,:,:,3) + Affine(3,4));
+%==========================================================================            
+
+%==========================================================================
+function id = get_id(dm)
+id        = cell(3,1);
+[id{1:3}] = ndgrid(single(1:dm(1)),single(1:dm(2)),single(1:dm(3)));
+id        = cat(4,id{:});
+%==========================================================================
+
+%==========================================================================
+function A = loaddiag(A)
+factor = 1e-7;
+while rcond(A) < 1e-5
+    A = A + factor * max([diag(A); eps]) * eye(size(A));
+    factor = 10 * factor;
+end
+%==========================================================================
+
+%==========================================================================
+function show_reg(mu,f,dm,z)
+if z == round((dm(3) + 1)/2)     
+    
+    figname = '(SPM) Rigid registration';
+    fig     = findobj('Type', 'Figure', 'Name', figname);
+    if isempty(fig), fig = figure('Name', figname, 'NumberTitle', 'off'); end
+    set(0, 'CurrentFigure', fig);  
+
+    mxf = max(f(:));
+    subplot(121); imagesc(mu',      [0 mxf]); axis image xy off; title('mu');
+    subplot(122); imagesc(f(:,:,z)',[0 mxf]); axis image xy off; title('f');
+    drawnow
+end    
+%==========================================================================    

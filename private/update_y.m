@@ -1,4 +1,4 @@
-function [Nii_y,Nii_u,Nii_w,ll1,ll2]= estimate_y(Nii_x,Nii_y,Nii_u,Nii_w,dat,tau,rho,lam,infnrm,vx,dm,num_workers,p)
+function [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,dat,tau,rho,lam,infnrm,vx,dm,num_workers,p)
 % Compute estimate of recovered image(s)
 %
 %_______________________________________________________________________

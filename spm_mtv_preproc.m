@@ -20,7 +20,7 @@ function Nii = spm_mtv_preproc(varargin)
 % IterMax              - Maximum number of iteration 
 %                        [method=superres:40, method=denoise:20]
 % ADMMStepSize         - The infamous ADMM step size, set to zero for an 
-%                        educated guess [0.1]
+%                        educated guess [0]
 % Tolerance            - Convergence threshold, set to zero to run until 
 %                        IterMax [0]
 % RegScaleSuperResMRI  - Scaling of regularisation for MRI super-
@@ -34,15 +34,12 @@ function Nii = spm_mtv_preproc(varargin)
 %                        super-resolution ('superres') ['denoise']
 % Verbose              - Verbosity level: 
 %                        *  0  = quiet
-%                        * [1] = write  (log likelihood, parameter estimates)
-%                        *  2  = draw   (log likelihood, rice fit, noisy+cleaned)
-%                        *  3  = result (show noisy and denoised image(s) in spm_check_registration)
+%                        * [1] = write   (print objective value and parameter estimates)
+%                        *  2  = draw   +(figure w. log likelihood, mixture fits, recons)
+%                        *  3  = result +(show observed and reconstructed images 
+%                                         in spm_check_registration, when finished)
 % CleanUp              - Delete temporary files [true] 
 % VoxelSize            - Voxel size of super-resolved image [1 1 1]
-% IterMaxCG            - Maximum number of iterations for conjugate gradient 
-%                        solver used for super-resolution [12]
-% ToleranceCG          - Convergence threshold for conjugate gradient 
-%                        solver used for super-resolution [1e-3]
 % CoRegister           - For super-resolution, co-register input images [true] 
 % Modality             - Either MRI (denoise and super-resolution) or CT 
 %                        (denoise) ['MRI']
@@ -51,15 +48,13 @@ function Nii = spm_mtv_preproc(varargin)
 % ReadWrite            - Keep variables in workspace (requires more RAM,
 %                        but faster), or read/write from disk (requires 
 %                        less RAM, but slower) [false] 
-% SuperResWithFMG      - Use either spm_field (true) or conjugate
-%                        gradient (false) for super-resolution [true]
 % ZeroMissingValues    - Set NaNs and zero values to zero after algorithm 
 %                        has finished [C=1:true, C>1:false]
 % IterGaussNewton      - Number of Gauss-Newton iterations for FMG 
 %                        super-resolution [1]
-% Reference            - Cell array (1xC) with reference images, if given
-%                        computes PSNR and displays for each iteration of
-%                        the algoirthm [{}]
+% Reference            - Struct with NIfTI reference images, if given 
+%                        computes PSNR and displays it, for each iteration of 
+%                        the algoirthm [{}] 
 % DecreasingReg        - Regularisation decreases over iterations, based
 %                        on the scheduler in spm_shoot_defaults 
 %                        [method=superres:true, method=denoise:false]
@@ -70,6 +65,9 @@ function Nii = spm_mtv_preproc(varargin)
 % SliceGap             - Gap between slices in mm along directions x, y, z. 
 %                        A positive value means a gap, a negative value 
 %                        means an overlap. [0]
+% EstimateRigid        - Optimise a rigid alignment between observed images
+%                        and their corresponding channel's reconstruction
+%                        [false]
 %
 % OUTPUT
 % ------
@@ -126,7 +124,7 @@ p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', {}, @(in) ( isa(in,'nifti') || isempty(in) || ...
                                         ((ischar(in{1}) || isa(in{1},'nifti')) || (ischar(in{1}{1}) || isa(in{1}{1},'nifti'))) ) );
 p.addParameter('IterMax', 0, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('ADMMStepSize', 0.1, @(in) (isnumeric(in) && in >= 0));
+p.addParameter('ADMMStepSize', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('RegScaleSuperResMRI', 0.01, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegScaleDenoisingMRI', 3.2, @(in) (isnumeric(in) && in > 0));
@@ -138,7 +136,7 @@ p.addParameter('OutputDirectory', 'out', @ischar);
 p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') || strcmpi(in,'superres'))));
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
-p.addParameter('VoxelSize', [], @(in) ((isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0)) || isempty(in));
+p.addParameter('VoxelSize', [1 1 1], @(in) ((isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0)) || isempty(in));
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
 p.addParameter('ReadWrite', false, @islogical);
@@ -148,35 +146,38 @@ p.addParameter('Reference', [], @(in)  isa(in,'nifti'));
 p.addParameter('DecreasingReg', [], @(in) (islogical(in) || isempty(in)));
 p.addParameter('SliceProfile', 2, @(in) (isnumeric(in) || iscell(in)));
 p.addParameter('SliceGap', 0, @(in) (isnumeric(in) || iscell(in)));
+p.addParameter('EstimateRigid', false, @islogical);
 p.parse(varargin{:});
-InputImages  = p.Results.InputImages;
-nit          = p.Results.IterMax;
-tol          = p.Results.Tolerance;
-num_workers  = p.Results.WorkersParfor;
-dir_tmp      = p.Results.TemporaryDirectory;
-dir_out      = p.Results.OutputDirectory;
-method       = p.Results.Method;
-speak        = p.Results.Verbose; 
-do_clean     = p.Results.CleanUp; 
-vx_sr        = p.Results.VoxelSize; 
-coreg        = p.Results.CoRegister; 
-modality     = p.Results.Modality; 
-do_readwrite = p.Results.ReadWrite; 
-zeroMissing  = p.Results.ZeroMissingValues; 
-Nii_ref      = p.Results.Reference; 
-dec_reg      = p.Results.DecreasingReg; 
-nitgn        = p.Results.IterGaussNewton; 
-ref          = p.Results.Reference; 
-dec_reg      = p.Results.DecreasingReg;
-window       = p.Results.SliceProfile;
-gap          = p.Results.SliceGap;
+InputImages   = p.Results.InputImages;
+nit           = p.Results.IterMax;
+tol           = p.Results.Tolerance;
+num_workers   = p.Results.WorkersParfor;
+dir_tmp       = p.Results.TemporaryDirectory;
+dir_out       = p.Results.OutputDirectory;
+method        = p.Results.Method;
+speak         = p.Results.Verbose; 
+do_clean      = p.Results.CleanUp; 
+vx_sr         = p.Results.VoxelSize; 
+coreg         = p.Results.CoRegister; 
+modality      = p.Results.Modality; 
+do_readwrite  = p.Results.ReadWrite; 
+zeroMissing   = p.Results.ZeroMissingValues; 
+Nii_ref       = p.Results.Reference; 
+dec_reg       = p.Results.DecreasingReg;
+window        = p.Results.SliceProfile;
+gap           = p.Results.SliceGap;
+EstimateRigid = p.Results.EstimateRigid;
 
 %--------------------------------------------------------------------------
 % Preliminaries
 %--------------------------------------------------------------------------
 
+% Some sanity checks
 if ~isempty(Nii_ref) && strcmpi(method,'superres')
     error('Super-resolution with reference image(s) not yet implemented!');
+end
+if EstimateRigid && strcmpi(method,'denoise')
+    error('Denoising with rigid alignment not yet implemented!');
 end
 
 % Get image data
@@ -216,8 +217,20 @@ num_workers                        = min(C,num_workers);
 if C == 1,             num_workers = 0; end
 if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
+    
+%--------------------------------------------------------------------------
+% Co-register input images
+%--------------------------------------------------------------------------
 
-% Prepare slice profile
+if coreg
+    Nii_x = coreg_ims(Nii_x,dir_tmp);
+end
+
+%--------------------------------------------------------------------------
+% Prepare slice profile and slice gap
+%--------------------------------------------------------------------------
+
+% Slice profile
 if ~iscell(window)
     window = {window};
 end
@@ -235,7 +248,7 @@ for c=1:C
     end
 end
 
-% Prepare slice gap
+% Slice gap
 if ~iscell(gap)
     gap = {gap};
 end
@@ -251,6 +264,27 @@ for c=1:C
         end
         gap{c}{i} = padarray(gap{c}{i}, [0 max(0,3-numel(gap{c}{i}))], 'replicate', 'post');
     end
+end
+
+%--------------------------------------------------------------------------
+% Initialise estimation of rigid alignment part
+%--------------------------------------------------------------------------
+
+% Basis functions for the lie algebra of the special Eucliden group
+% (SE(3)): translation and rotation.
+B                = zeros(4,4,6);
+B(1,4,1)         = 1;
+B(2,4,2)         = 1;
+B(3,4,3)         = 1;
+B([1,2],[1,2],4) = [0 1;-1 0];
+B([3,1],[3,1],5) = [0 1;-1 0];
+B([2,3],[2,3],6) = [0 1;-1 0];
+
+% For storing line-search parameter
+armijo_rigid = cell(1,C);
+for c=1:C
+    N               = numel(Nii_x{c});
+    armijo_rigid{c} = ones([1 N]);
 end
 
 %--------------------------------------------------------------------------
@@ -285,7 +319,7 @@ elseif strcmpi(method,'superres')
     [mat,dm] = max_bb_orient(Nii_x,vx);
     
     % Initialise dat struct with projection matrices, etc.
-    dat = init_dat(Nii_x,mat,dm,window,gap);
+    dat = init_dat(Nii_x,mat,dm,window,gap,B);
             
     % Compute infinity norm
     infnrm = zeros(1,C);
@@ -307,14 +341,6 @@ end
 %--------------------------------------------------------------------------
 
 [Nii_y,Nii_u,Nii_w] = alloc_aux_vars(do_readwrite,C,dm,mat,dir_tmp);
-
-%--------------------------------------------------------------------------
-% Co-register input images
-%--------------------------------------------------------------------------
-
-if coreg
-    Nii_x = coreg_ims(Nii_x,dir_tmp);
-end
 
 %--------------------------------------------------------------------------
 % Create intial estimate of solution (y)
@@ -344,14 +370,14 @@ for it=1:nit % Start iterating
     end
     
     %----------------------------------------------------------------------
-    % Estimate recovered image(s)
+    % Update recovered image(s) (Nii_y)
     %----------------------------------------------------------------------
     
-    [Nii_y,Nii_u,Nii_w,ll1,ll2]= estimate_y(Nii_x,Nii_y,Nii_u,Nii_w,dat,tau,rho,lam,infnrm,vx,dm,num_workers,p);
+    [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,dat,tau,rho,lam,infnrm,vx,dm,num_workers,p);
    
     % Compute log-posterior (objective value)        
     ll   = [ll, sum(ll1) + ll2];    
-    gain = abs((ll(end - 1)*(1 + 10*eps) - ll(end))/ll(end));
+    gain = get_gain(ll);
                        
     if speak >= 1 || ~isempty(Nii_ref)
         % Some verbose    
@@ -375,11 +401,38 @@ for it=1:nit % Start iterating
         end
     end   
     
+    % Check convergence
     if tol > 0 && gain < tol && it > numel(sched_lam)
         % Finished
         break
     end
+    
+    if EstimateRigid        
+        
+        %------------------------------------------------------------------
+        % Update rigid alignment matrices (dat(c).A(n).q)
+        %------------------------------------------------------------------
+                
+        [dat,ll1,armijo_rigid] = update_rigid(Nii_x,Nii_y,dat,B,tau,armijo_rigid,num_workers,speak);
+        
+        % Compute log-posterior (objective value)        
+        ll   = [ll, sum(ll1) + ll2];    
+        gain = get_gain(ll);
+    
+        if speak >= 1
+            % Some verbose    
+            fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); 
+            
+            if speak >= 2
+                show_progress(method,modality,ll,Nii_x,Nii_y,dm); 
+            end
+        end                           
+    end
+ 
 end
+
+fprintf('Saving dat\n')
+save('dat.mat','dat')
 
 if speak >= 1, toc; end
 

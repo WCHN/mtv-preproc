@@ -1,4 +1,4 @@
-function dat = init_dat(Nii,mat,dm,window,gap)
+function dat = init_dat(Nii,mat,dm,window,gap,B)
 % Initialise projection matrices for super-resolution
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -7,20 +7,21 @@ C   = numel(Nii);
 dat = struct('mat',[],'dm',[],'N',[],'A',[]);
 for c=1:C % Loop over channels
     if iscell(Nii(c))
-        dat(c) = init_A(Nii{c},mat,dm,window{c},gap{c});         
+        dat(c) = init_A(Nii{c},mat,dm,window{c},gap{c},B);         
     else
-        dat(c) = init_A(Nii(c),mat,dm,window{c},gap{c});         
+        dat(c) = init_A(Nii(c),mat,dm,window{c},gap{c},B);         
     end
 end    
 %==========================================================================
 
 %==========================================================================
-function dat = init_A(Nii,mat,dm,window,gap)
+function dat = init_A(Nii,mat,dm,window,gap,B)
 % Initialise projection matrices (stored in dat struct)
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
 N       = numel(Nii); % Number of LR images
+Nq      = size(B,3);  % Number of affine parameters
 dat.mat = mat;
 dat.dm  = dm;   
 dat.N   = N;
@@ -32,16 +33,17 @@ for n=1:N % Loop over LR images
     dat.A(n).mat = mat_n;    
     dat.A(n).dm  = dm_n;
     dat.A(n).win = window{n};
-            
-    M          = mat\mat_n;
+    dat.A(n).gap = gap{n};
+    dat.A(n).q   = zeros([Nq 1],'single'); 
+    
+    E = spm_dexpm(dat.A(n).q,B); % Rigid matrix
+    M = mat\E*mat_n;
 %     R          = (M(1:3,1:3)/diag(sqrt(sum(M(1:3,1:3).^2))))';
 %     dat.A(n).S = blur_fun(dm,R,sqrt(sum(M(1:3,1:3).^2)));
 %     dat.A(n).S = blur_function(dm,M);
 
-    S = sqrt(sum(M(1:3,1:3).^2));
-    R = M(1:3,1:3)/diag(S);
-    S = S - gap{n}./vs;
-    M = R*diag(S);
+    % Include slice-gap
+    M = model_slice_gap(M,gap{n},vs);
     
     dat.A(n).J = single(reshape(M, [1 1 1 3 3]));
 end
