@@ -1,11 +1,13 @@
-function [dat,B] = init_dat(Nii,mat,dm,window,gap,B)
+function dat = init_dat(Nii,mat,dm,window,gap)
 % Initialise projection matrices for super-resolution
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
-if nargin < 4, window = 2;                end
-if nargin < 5, gap    = 0;                end
-if nargin < 6, B      = get_rigid_basis; end
+if nargin < 4, window = 2; end
+if nargin < 5, gap    = 0; end
+
+% Get rigid basis
+B = get_rigid_basis;
 
 % Slice profile
 window = get_window(window,Nii);
@@ -46,8 +48,8 @@ for n=1:N % Loop over LR images
     dat.A(n).gap = gap{n};
     dat.A(n).q   = zeros([Nq 1],'single'); 
     
-    E = spm_dexpm(dat.A(n).q,B); % Rigid matrix
-    M = mat\E*mat_n;
+    R = spm_dexpm(dat.A(n).q,B); % Rigid matrix
+    M = mat\R*mat_n;
 %     R          = (M(1:3,1:3)/diag(sqrt(sum(M(1:3,1:3).^2))))';
 %     dat.A(n).S = blur_fun(dm,R,sqrt(sum(M(1:3,1:3).^2)));
 %     dat.A(n).S = blur_function(dm,M);
@@ -57,22 +59,6 @@ for n=1:N % Loop over LR images
     
     dat.A(n).J = single(reshape(M, [1 1 1 3 3]));
 end
-%==========================================================================
-
-%==========================================================================
-function B = get_rigid_basis
-% Basis functions for the lie algebra of the special Eucliden group
-% (SE(3)): translation and rotation.
-% _______________________________________________________________________
-%  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
-
-B                = zeros(4,4,6);
-B(1,4,1)         = 1;
-B(2,4,2)         = 1;
-B(3,4,3)         = 1;
-B([1,2],[1,2],4) = [0 1;-1 0];
-B([3,1],[3,1],5) = [0 1;-1 0];
-B([2,3],[2,3],6) = [0 1;-1 0];
 %==========================================================================
 
 %==========================================================================

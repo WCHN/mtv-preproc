@@ -34,7 +34,7 @@ parfor (c=1:C,num_workers)
             for n=1:dat(c).N
                 % Here we discard missing data, for MRI these are
                 % assumed to be zeros and NaNs.
-                mskn          = x{n} ~= 0 & isfinite(x{n});
+                mskn          = isfinite(x{n}) & x{n} ~= 0;
                 Ayx{n}        = Ayx{n} - x{n};
                 Ayx{n}(~mskn) = 0;
             end 

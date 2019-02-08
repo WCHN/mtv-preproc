@@ -258,7 +258,7 @@ elseif strcmpi(method,'superres')
     [mat,dm] = max_bb_orient(Nii_x,vx);
     
     % Initialise dat struct with projection matrices, etc.
-    [dat,B] = init_dat(Nii_x,mat,dm,window,gap);
+    dat = init_dat(Nii_x,mat,dm,window,gap);
             
     % Compute infinity norm
     infnrm = zeros(1,C);
@@ -324,7 +324,7 @@ for it=1:nit % Start iterating
     [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,dat,tau,rho,lam,infnrm,vx,dm,num_workers,p);
    
     % Compute log-posterior (objective value)        
-    ll   = [ll, sum(ll1) + ll2];    
+    ll   = [ll, -(sum(ll1) + ll2)]; % Minus sign because YB wants to see increasing objective functions...
     gain = get_gain(ll);
                        
     if speak >= 1 || ~isempty(Nii_ref)
@@ -339,9 +339,9 @@ for it=1:nit % Start iterating
                 ssims(c) = ssim(get_nii(Nii_y(c)),get_nii(Nii_ref(c)));
             end
             
-            fprintf('%2d | %10.1f %10.1f %10.1f %0.6f | psnr =%s, ssim =%s\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain, sprintf(' %2.2f', psnrs), sprintf(' %2.2f', ssims)); 
+            fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f | psnr =%s, ssim =%s\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain, sprintf(' %2.2f', psnrs), sprintf(' %2.2f', ssims)); 
         else
-            fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); 
+            fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); 
         end
         
         if speak >= 2
@@ -361,15 +361,15 @@ for it=1:nit % Start iterating
         % Update rigid alignment matrices (dat(c).A(n).q)
         %------------------------------------------------------------------
                 
-        [dat,ll1,armijo_rigid] = update_rigid(Nii_x,Nii_y,dat,B,tau,armijo_rigid,num_workers,speak);
+        [dat,ll1,armijo_rigid] = update_rigid(Nii_x,Nii_y,dat,tau,armijo_rigid,num_workers,speak);
         
         % Compute log-posterior (objective value)        
-        ll   = [ll, sum(ll1) + ll2];    
+        ll   = [ll, -(sum(ll1) + ll2)]; % Minus sign because YB wants to see increasing objective functions...    
         gain = get_gain(ll);
     
         if speak >= 1
             % Some verbose    
-            fprintf('%   | %10.1f %10.1f %10.1f %0.6f\n', sum(ll1), ll2, sum(ll1) + ll2, gain); 
+            fprintf('   | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f\n', sum(ll1), ll2, sum(ll1) + ll2, gain); 
             
             if speak >= 2
                 show_progress(method,modality,ll,Nii_x,Nii_y,dm); 
