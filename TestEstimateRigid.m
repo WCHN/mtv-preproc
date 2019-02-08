@@ -7,7 +7,7 @@ VoxelSize           = 1;
 Verbose             = 3;
 WorkersParfor       = Inf;
 
-IterMax             = 30;
+IterMax             = 20;
 Tolerance           = 0;
 
 ADMMStepSize        = 0;
