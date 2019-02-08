@@ -217,7 +217,11 @@ num_workers                        = min(C,num_workers);
 if C == 1,             num_workers = 0; end
 if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
-    
+
+% Boundary used to model HR image  
+spm_field('boundary',1);
+pushpull('boundary',1);
+
 %--------------------------------------------------------------------------
 % Co-register input images (modifies images' orientation matrices)
 %--------------------------------------------------------------------------
