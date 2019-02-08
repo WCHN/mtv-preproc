@@ -20,7 +20,7 @@ function Nii = spm_mtv_preproc(varargin)
 % IterMax              - Maximum number of iteration 
 %                        [method=superres:40, method=denoise:20]
 % IterImage            - Maximum number of iterations for solving for the
-%                        super-resolved image(s).
+%                        super-resolved image(s) [3]
 % ADMMStepSize         - The infamous ADMM step size, set to zero for an 
 %                        educated guess [0]
 % Tolerance            - Convergence threshold, set to zero to run until 
@@ -132,7 +132,7 @@ p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', {}, @(in) ( isa(in,'nifti') || isempty(in) || ...
                                         ((ischar(in{1}) || isa(in{1},'nifti')) || (ischar(in{1}{1}) || isa(in{1}{1},'nifti'))) ) );
 p.addParameter('IterMax', 0, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('IterImage', 1, @(in) (isnumeric(in) && in > 0));
+p.addParameter('IterImage', 3, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('RegScaleSuperResMRI', 20, @(in) (isnumeric(in) && in > 0));
