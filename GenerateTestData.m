@@ -15,8 +15,8 @@ Gap          = 0;
 
 % Randomly move images rigidly?
 PerturbRigid.do        = true;
-PerturbRigid.transl_mx = 6;
-PerturbRigid.rot_scl   = 0.075;
+PerturbRigid.transl_mx = 5;
+PerturbRigid.rot_scl   = 0.05;
 
 % Comment to use more than one observation per channel
 N = 1;
@@ -37,15 +37,15 @@ C        = numel(Nii_ref);
 %--------------------------------------------------------------------------
 
 DS     = {[DownSampling 1 1; 1 DownSampling 1], ... 
-          [1 DownSampling 1], ...
+          [DownSampling 1 1], ...
           [1 1 DownSampling; 1 DownSampling 1]};
   
 window = {{[WindowLR WindowHR WindowHR], [WindowHR WindowLR WindowHR]}, ... 
-          {[WindowHR WindowLR WindowHR]}, ...
+          {[WindowLR WindowHR WindowHR]}, ...
           {[WindowHR WindowHR WindowLR], [WindowHR WindowLR WindowHR]}};
 
 gap    = {{[Gap 0 0], [0 Gap 0]}, ... 
-          {[0 Gap 0]}, ...
+          {[Gap 0 0]}, ...
           {[0 0 Gap], [0 Gap 0]}};
 
 % Sanity check  
@@ -137,20 +137,4 @@ if PerturbRigid.do
 % 
 %     mat = T\(matr*mat)*T;
 end
-%==========================================================================
-
-%==========================================================================
-function B = get_rigid_basis
-% Basis functions for the lie algebra of the special Eucliden group
-% (SE(3)): translation and rotation.
-% _______________________________________________________________________
-%  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
-
-B                = zeros(4,4,6);
-B(1,4,1)         = 1;
-B(2,4,2)         = 1;
-B(3,4,3)         = 1;
-B([1,2],[1,2],4) = [0 1;-1 0];
-B([3,1],[3,1],5) = [0 1;-1 0];
-B([2,3],[2,3],6) = [0 1;-1 0];
 %==========================================================================
