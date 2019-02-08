@@ -379,9 +379,6 @@ for it=1:nit % Start iterating
  
 end
 
-fprintf('Saving dat\n')
-save('dat.mat','dat')
-
 if speak >= 1, toc; end
 
 %--------------------------------------------------------------------------
