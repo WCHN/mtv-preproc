@@ -125,6 +125,7 @@ end
 
 %==========================================================================
 function sched = get_lam_sched(nit)
-sched = 2.^repelem(fliplr(0:7),1,2);
+def   = spm_shoot_defaults;
+sched = [128 64 def.sched];
 sched = sched(max(numel(sched) - nit + 1,1):end);
 %==========================================================================
