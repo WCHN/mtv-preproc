@@ -94,7 +94,7 @@ else
         gap{c} = padarray(gap{c}, [0 max(0,numel(Nii_x{c})-numel(gap{c}))], 'replicate', 'post');
         for i=1:numel(gap{c})
             if isempty(gap{c}{i})
-                gap{c}{i} = 2;
+                gap{c}{i} = 0;
             end
             gap{c}{i} = padarray(gap{c}{i}, [0 max(0,3-numel(gap{c}{i}))], 'replicate', 'post');
         end
