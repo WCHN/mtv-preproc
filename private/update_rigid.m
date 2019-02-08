@@ -218,12 +218,18 @@ for n=1:N % Loop over observed images (of channel c)
                 if speak >= 1
                     fprintf('   | c=%i, n=%i, g=%i | ll=%g, ls=%i | :''(\n', c, n, gnit, ll, linesearch); 
                 end
-
-                armijo(n) = 0.5*armijo(n);
-
+                
                 % Revert to previous values in dat struct
                 dat.A(n).q = oq;        
                 dat.A(n).J = oJ;
+                
+                if armijo(n) < eps('single')
+                    % We are probably close to the optimum, so cancel
+                    % line-search
+                    break
+                end
+                
+                armijo(n) = 0.5*armijo(n);
             end
         end
 
