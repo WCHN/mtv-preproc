@@ -258,15 +258,7 @@ elseif strcmpi(method,'superres')
     [mat,dm] = max_bb_orient(Nii_x,vx);
     
     % Initialise dat struct with projection matrices, etc.
-    dat = init_dat(Nii_x,mat,dm,window,gap);
-            
-    % Compute infinity norm
-    infnrm = zeros(1,C);
-    for c=1:C        
-        tmp       = At(A(ones(dat(c).dm,'single'),dat(c)),dat(c));
-        infnrm(c) = max(tmp(:)); % If A is all positive, max(A'*A*ones(N,1)) gives the infinity norm
-    end        
-    clear tmp 
+    dat = init_dat(Nii_x,mat,dm,window,gap);            
 end
 
 %--------------------------------------------------------------------------
@@ -279,13 +271,22 @@ end
 % Allocate temporary variables
 %--------------------------------------------------------------------------
 
-[Nii_y,Nii_u,Nii_w] = alloc_aux_vars(do_readwrite,C,dm,mat,dir_tmp);
+[Nii_y,Nii_u,Nii_w,Nii_H] = alloc_aux_vars(do_readwrite,C,dm,mat,dir_tmp);
+
+if strcmpi(method,'superres')
+    % Compute approximation to the diagonal of the Hessian 
+    for c=1:C        
+        H        = At(A(ones(dat(c).dm,'single'),dat(c)),dat(c));        
+        Nii_H(c) = put_nii(Nii_H(c),H);
+    end            
+    clear H
+end
 
 %--------------------------------------------------------------------------
 % Create intial estimate of solution (y)
 %--------------------------------------------------------------------------
 
-[Nii_y,msk] = estimate_initial_y(Nii_x,Nii_y,dat,tau,rho,lam,infnrm,vx,dm,num_workers,p);
+[Nii_y,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p);
 
 %--------------------------------------------------------------------------
 % Start solving
@@ -321,7 +322,7 @@ for it=1:nit % Start iterating
     % Update recovered image(s) (Nii_y)
     %----------------------------------------------------------------------
     
-    [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,dat,tau,rho,lam,infnrm,vx,dm,num_workers,p);
+    [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p);
    
     % Compute log-posterior (objective value)        
     ll   = [ll, -(sum(ll1) + ll2)]; % Minus sign because YB wants to see increasing objective functions...

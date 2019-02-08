@@ -1,4 +1,4 @@
-function [Nii_y,msk] = estimate_initial_y(Nii_x,Nii_y,dat,tau,rho,lam,infnrm,vx,dm,num_workers,p)
+function [Nii_y,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p)
 % Compute initial estimate of recovered image(s)
 %
 %_______________________________________________________________________
@@ -26,7 +26,7 @@ parfor (c=1:C,num_workers)
         % Super-resolution
         %---------------------------
         
-        y = get_nii(Nii_y(c));  
+        y = get_nii(Nii_y(c));
         for gnit=1:nitgn % Iterate Gauss-Newton
 
             % Gradient      
@@ -44,8 +44,10 @@ parfor (c=1:C,num_workers)
             rhs  = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
 
             % Hessian
-            lhs = infnrm(c)*ones(dm,'single')*sum(tau{c})/rho;
-
+            H   = get_nii(Nii_H(c));
+            lhs = H*sum(tau{c})/rho;
+            H   = [];
+            
             % Compute GN step
             y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
             lhs = [];
