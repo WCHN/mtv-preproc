@@ -263,26 +263,9 @@ else
 end
 mu(~isfinite(mu)) = 0; 
 
-if 0
-    figure(666);
-    
-    mxf = max(f(:));
-    
-    subplot(231)
-    imagesc(f(:,:,z)',[0 mxf]); axis xy off; colorbar; title('f')
-    subplot(232)
-    imagesc(mu',[0 mxf]); axis xy off; colorbar; title('mu')
-    subplot(233)
-    imagesc(dmu{1}'); axis xy off; colorbar; title('dmux')
-    subplot(234)
-    imagesc(dmu{2}'); axis xy off; colorbar; title('dmuy')
-    subplot(235)
-    imagesc(dmu{3}'); axis xy off; colorbar; title('dmuz')
-end
-
-if speak >= 2
+if speak >= 2 && z == round((dm(3) + 1)/2)     
     % Some verbose    
-    show_reg(mu,f,dm,z,show_moved);
+    show_reg(mu,f(:,:,z),dmu,show_moved);
 end
 
 if nargout == 0, return; end
@@ -347,23 +330,24 @@ end
 %==========================================================================
 
 %==========================================================================
-function show_reg(mu,f,dm,z,show_moved)
-if nargin < 5, show_moved = 0; end
+function show_reg(mu,f,dmu,show_moved)
+if nargin < 4, show_moved = 0; end
 
-if show_moved
-    show_moved = 2;
+figname = '(SPM) Rigid registration';
+fig     = findobj('Type', 'Figure', 'Name', figname);
+if isempty(fig), fig = figure('Name', figname, 'NumberTitle', 'off'); end
+set(0, 'CurrentFigure', fig);  
+
+mxf = max(f(:));
+if ~show_moved
+    clf(fig)
+    subplot(2,3,1); imagesc(f', [0 mxf]); axis xy off; title('f');
+    subplot(2,3,2); imagesc(mu',[0 mxf]); axis xy off; title('mu');
+    subplot(2,3,4); imagesc(dmu{1}'); axis xy off; title('dmux');
+    subplot(2,3,5); imagesc(dmu{2}'); axis xy off; title('dmuy');
+    subplot(2,3,6); imagesc(dmu{3}'); axis xy off; title('dmuz');
+else
+    subplot(2,3,3); imagesc(mu',[0 mxf]); axis xy off; title('nmu');
 end
-
-if z == round((dm(3) + 1)/2)     
-    
-    figname = '(SPM) Rigid registration';
-    fig     = findobj('Type', 'Figure', 'Name', figname);
-    if isempty(fig), fig = figure('Name', figname, 'NumberTitle', 'off'); end
-    set(0, 'CurrentFigure', fig);  
-
-    mxf = max(f(:));
-    subplot(2,2,1 + show_moved); imagesc(mu',      [0 mxf]); axis xy off; title('mu');
-    subplot(2,2,2 + show_moved); imagesc(f(:,:,z)',[0 mxf]); axis xy off; title('f');
-    drawnow
-end    
+drawnow
 %==========================================================================    
