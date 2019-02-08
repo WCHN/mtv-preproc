@@ -7,6 +7,7 @@ figname          = '(SPM) MTV scaling';
 f                = findobj('Type', 'Figure', 'Name', figname);
 if isempty(f), f = figure('Name', figname, 'NumberTitle', 'off'); end
 set(0, 'CurrentFigure', f);  
+clf(f)
 
 imagesc3d(mtv_scale); axis off; colormap(parula); colorbar;
 
