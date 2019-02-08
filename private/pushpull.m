@@ -65,6 +65,18 @@ function varargout = pushpull(varargin)
 % - ref, y, J and sub are single precision floating point.
 % - win is double precision floating point.
 % Uses boundary condiditions that wrap around (circulant).
+%
+%__________________________________________________________________________
+%
+% FORMAT b = pushpull('boundary')
+% Get the current boundary condition.
+% b - boundary condition
+%     0 - field wraps around at the boundary, as if the field is on a
+%         torus (circulant).  This is typically assumed when using
+%         FFTs for convolution etc.
+%     1 - Neumann boundary condition.
+%     Note that after a `clear functions' in MATLAB, the boundary
+%     condition is reset to 0.
 %__________________________________________________________________________
 % Copyright (C) 2019 Wellcome Centre for Human Neuroimaging   
 

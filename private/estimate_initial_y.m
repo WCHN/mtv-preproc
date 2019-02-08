@@ -15,8 +15,10 @@ msk = cell(1,C); % For saving locations of missing values so that they can be 'r
 % for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers)  
 
-    spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
-            
+    % Boundary used to model HR image  
+    spm_field('boundary',1);
+    pushpull('boundary',1);
+    
     % Observed image
     x = get_nii(Nii_x(c));
         

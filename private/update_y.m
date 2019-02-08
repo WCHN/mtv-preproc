@@ -19,8 +19,12 @@ C        = numel(Nii_x);
 
 unorm = 0;    
 %     for c=1:C, fprintf('OBS! for c=1:C\n')
-parfor (c=1:C,num_workers) % Loop over channels
+parfor (c=1:C,num_workers) % Loop over channelsi
 
+    % Boundary used to model HR image  
+    spm_field('boundary',1);
+    pushpull('boundary',1); 
+    
     y = get_nii(Nii_y(c));        
     G = lam(c)*imgrad(y,vx);
     y = [];

@@ -23,6 +23,10 @@ sll = 0;
 % for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers) % Loop over channels
     
+    % Boundary used to model HR image  
+    spm_field('boundary',1);
+    pushpull('boundary',1); 
+    
     [dat(c),dll,armijo{c}] = update_channel(Nii_x(c),Nii_y(c),dat(c),B,tau{c},armijo{c},speak,c);
     sll                    = sll + dll;
     
