@@ -58,13 +58,19 @@ function Nii = spm_mtv_preproc(varargin)
 % DecreasingReg        - Regularisation decreases over iterations, based
 %                        on the scheduler in spm_shoot_defaults 
 %                        [method=superres:true, method=denoise:false]
-% SliceProfile         - Slice selection profile along directions x, y, z.
-%                        It should have the same shape as InputImages.
-%                        *  1  = Gaussian  (FWHM = low-resolution voxel)
-%                        * [2] = Rectangle (length = low-resolution voxel)
-% SliceGap             - Gap between slices in mm along directions x, y, z. 
-%                        A positive value means a gap, a negative value 
-%                        means an overlap. [0]
+% SliceProfile         - Slice selection profile, either a scalar (and the 
+%                        slice-select direction will be found automatically) 
+%                        or along directions x, y, z (same shape as
+%                        InputImages):
+%                        * 1 = Gaussian  (FWHM   = low-resolution voxel)
+%                        * 2 = Rectangle (length = low-resolution voxel)
+%                        [In-plane: Gaussian, Through-plane: Rectangle]
+% SliceGap             - Gap between slices, either a scalar (and the 
+%                        slice-select direction will be found automatically) 
+%                        or along directions x, y, z (same shape as
+%                        InputImages). A positive value means a gap, a 
+%                        negative value means an overlap. [0]
+% SliceGapUnit         - Percentage ('%') or milimeters ('mm') ['%']
 % EstimateRigid        - Optimise a rigid alignment between observed images
 %                        and their corresponding channel's reconstruction
 %                        [false]
@@ -144,8 +150,9 @@ p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
 p.addParameter('IterGaussNewton', 1, @(in) (isnumeric(in) && in > 0));
 p.addParameter('Reference', [], @(in)  isa(in,'nifti'));
 p.addParameter('DecreasingReg', [], @(in) (islogical(in) || isempty(in)));
-p.addParameter('SliceProfile', 2, @(in) (isnumeric(in) || iscell(in)));
+p.addParameter('SliceProfile', {}, @(in) (isnumeric(in) || iscell(in)));
 p.addParameter('SliceGap', 0, @(in) (isnumeric(in) || iscell(in)));
+p.addParameter('SliceGapUnit', '%', @(in) (ischar(in) && (strcmp(in,'%') || strcmp(in,'mm'))));
 p.addParameter('EstimateRigid', false, @islogical);
 p.parse(varargin{:});
 InputImages   = p.Results.InputImages;
@@ -166,6 +173,7 @@ Nii_ref       = p.Results.Reference;
 dec_reg       = p.Results.DecreasingReg;
 window        = p.Results.SliceProfile;
 gap           = p.Results.SliceGap;
+gapunit       = p.Results.SliceGapUnit;
 EstimateRigid = p.Results.EstimateRigid;
 
 %--------------------------------------------------------------------------
@@ -243,7 +251,6 @@ if strcmpi(method,'denoise')
     vx     = sqrt(sum(mat(1:3,1:3).^2));   
     dm     = Nii_x{1}(1).dat.dim;
     dat    = struct;
-    infnrm = 0;
 elseif strcmpi(method,'superres')
     %---------------------------
     % Super-resolution
@@ -258,7 +265,7 @@ elseif strcmpi(method,'superres')
     [mat,dm] = max_bb_orient(Nii_x,vx);
     
     % Initialise dat struct with projection matrices, etc.
-    dat = init_dat(Nii_x,mat,dm,window,gap);            
+    dat = init_dat(Nii_x,mat,dm,window,gap,gapunit);            
 end
 
 %--------------------------------------------------------------------------

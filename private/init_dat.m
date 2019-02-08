@@ -1,10 +1,11 @@
-function dat = init_dat(Nii,mat,dm,window,gap)
+function dat = init_dat(Nii,mat,dm,window,gap,gapunit)
 % Initialise projection matrices for super-resolution
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
-if nargin < 4, window = 2; end
-if nargin < 5, gap    = 0; end
+if nargin < 4, window  = 2; end
+if nargin < 5, gap     = 0; end
+if nargin < 6, gapunit = '%'; end
 
 % Get rigid basis
 B = get_rigid_basis;
@@ -13,7 +14,7 @@ B = get_rigid_basis;
 window = get_window(window,Nii);
 
 % Slice gap
-gap = get_slice_gap(gap,Nii);
+gap = get_slice_gap(gap,Nii,gapunit);
 
 C   = numel(Nii);
 dat = struct('mat',[],'dm',[],'N',[],'A',[]);
@@ -62,28 +63,55 @@ end
 %==========================================================================
 
 %==========================================================================
-function gap = get_slice_gap(gap,Nii_x)
+function gap = get_slice_gap(gap,Nii_x,gapunit)
 % Construct slice-gap
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
 C = numel(Nii_x);
 
-if ~iscell(gap)
-    gap = {gap};
-end
-gap = padarray(gap, [0 max(0,C-numel(gap))], 'replicate', 'post');
-for c=1:C
-    if ~iscell(gap{c})
-        gap{c} = {gap{c}};
-    end
-    gap{c} = padarray(gap{c}, [0 max(0,numel(Nii_x{c})-numel(gap{c}))], 'replicate', 'post');
-    for i=1:numel(gap{c})
-        if isempty(gap{c}{i})
-            gap{c}{i} = 2;
+if isscalar(gap)
+    % Find thick-slice direction automatically
+    G = cell(1,C);
+    for c=1:C
+        N    = numel(Nii_x{c});
+        G{c} = cell(1,N);
+        for n=1:N
+            G{c}{n} = zeros(1,3);
+            
+            thickslice_dir          = get_thickslice_dir(Nii_x{c}(n));
+            G{c}{n}(thickslice_dir) = gap;            
         end
-        gap{c}{i} = padarray(gap{c}{i}, [0 max(0,3-numel(gap{c}{i}))], 'replicate', 'post');
+    end    
+    gap = G;
+else
+    % x-, y-, z-directions given
+    gap = padarray(gap, [0 max(0,C-numel(gap))], 'replicate', 'post');
+    for c=1:C
+        if ~iscell(gap{c})
+            gap{c} = {gap{c}};
+        end
+        gap{c} = padarray(gap{c}, [0 max(0,numel(Nii_x{c})-numel(gap{c}))], 'replicate', 'post');
+        for i=1:numel(gap{c})
+            if isempty(gap{c}{i})
+                gap{c}{i} = 2;
+            end
+            gap{c}{i} = padarray(gap{c}{i}, [0 max(0,3-numel(gap{c}{i}))], 'replicate', 'post');
+        end
     end
+end
+
+if strcmp(gapunit,'%')
+    % Convert from percentage to mm
+    for c=1:C
+        N    = numel(Nii_x{c});
+        for n=1:N       
+            mat = Nii_x{c}(n).mat;
+            vx  = sqrt(sum(mat(1:3,1:3).^2));   
+            
+            gap{c}{n} = vx.*gap{c}{n};
+        end
+    end    
 end
 %==========================================================================
 
@@ -95,20 +123,38 @@ function window = get_window(window,Nii_x)
 
 C = numel(Nii_x);
 
-if ~iscell(window)
-    window = {window};
-end
-window = padarray(window, [0 max(0,C-numel(window))], 'replicate', 'post');
-for c=1:C
-    if ~iscell(window{c})
-        window{c} = {window{c}};
-    end
-    window{c} = padarray(window{c}, [0 max(0,numel(Nii_x{c})-numel(window{c}))], 'replicate', 'post');
-    for i=1:numel(window{c})
-        if isempty(window{c}{i})
-            window{c}{i} = 2;
+if isempty(window)
+    % Find thick-slice direction automatically and set defaults:
+    % In-plane: Gaussian, Through-plane: Rectangle
+    W = cell(1,C);
+    for c=1:C
+        N    = numel(Nii_x{c});
+        W{c} = cell(1,N);
+        for n=1:N
+            W{c}{n} = ones(1,3); % All Gaussian
+            
+            thickslice_dir          = get_thickslice_dir(Nii_x{c}(n));
+            W{c}{n}(thickslice_dir) = 2; % Rectangle
         end
-        window{c}{i} = padarray(window{c}{i}, [0 max(0,3-numel(window{c}{i}))], 'replicate', 'post');
+    end    
+    window = W;    
+else
+    % x-, y-, z-directions given
+    if ~iscell(window)
+        window = {window};
+    end
+    window = padarray(window, [0 max(0,C-numel(window))], 'replicate', 'post');
+    for c=1:C
+        if ~iscell(window{c})
+            window{c} = {window{c}};
+        end
+        window{c} = padarray(window{c}, [0 max(0,numel(Nii_x{c})-numel(window{c}))], 'replicate', 'post');
+        for i=1:numel(window{c})
+            if isempty(window{c}{i})
+                window{c}{i} = 2;
+            end
+            window{c}{i} = padarray(window{c}{i}, [0 max(0,3-numel(window{c}{i}))], 'replicate', 'post');
+        end
     end
 end
 %==========================================================================
@@ -154,3 +200,10 @@ for i=1:numel(dm)
     f                   = f.*tmp;
 end
 %==========================================================================
+
+%==========================================================================
+function thickslice_dir = get_thickslice_dir(Nii)
+mat                = Nii.mat;
+vx                 = sqrt(sum(mat(1:3,1:3).^2));   
+[~,thickslice_dir] = max(vx);
+%==========================================================================            
