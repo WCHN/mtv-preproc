@@ -86,13 +86,6 @@
 ## Other ignore
 *.ipynb_checkpoints
 out/
-
 tmp/
-
-data/ds_IXI002-Guys-0828-PD\.nii
-
-data/ds_IXI002-Guys-0828-T1\.nii
-
-data/ds_IXI002-Guys-0828-T2\.nii
-
+SampleData/
 *~

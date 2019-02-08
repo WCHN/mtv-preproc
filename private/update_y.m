@@ -1,4 +1,4 @@
-function [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,dat,tau,rho,lam,infnrm,vx,dm,num_workers,p)
+function [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p)
 % Compute estimate of recovered image(s)
 %
 %_______________________________________________________________________
@@ -82,7 +82,7 @@ parfor (c=1:C,num_workers) % Loop over channels
             for n=1:dat(c).N
                 % Here we discard missing data, for MRI these are
                 % assumed to be zeros and NaNs.
-                mskn          = x{n} ~= 0 & isfinite(x{n});
+                mskn          = isfinite(x{n}) & x{n} ~= 0;
                 Ayx{n}        = Ayx{n} - x{n};
                 Ayx{n}(~mskn) = 0;
             end                  
@@ -92,8 +92,10 @@ parfor (c=1:C,num_workers) % Loop over channels
             rhs  = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
 
             % Hessian
-            lhs = infnrm(c)*ones(dm,'single')*sum(tau{c})/rho;
-
+            H   = get_nii(Nii_H(c));
+            lhs = H*sum(tau{c})/rho;
+            H   = [];
+            
             % Compute GN step
             y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
             lhs = [];
@@ -156,5 +158,5 @@ if speak >= 2
 end
 
 % Compute prior part of objective function
-ll2 = -sum(sum(sum(sqrt(ll2)))); 
+ll2 = sum(sum(sum(sqrt(ll2)))); 
 %==========================================================================

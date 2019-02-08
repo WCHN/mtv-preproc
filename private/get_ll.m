@@ -4,14 +4,15 @@ function ll = get_ll(method,y,x,tau,dat,varargin)
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
 if numel(varargin) == 0
+    % Compute negative log of likelihood part
     if strcmpi(method,'superres')    
         Ay = A(y,dat);
         ll = 0;
         for n=1:dat.N
-            ll = ll - (tau(n)/2)*sum(sum(sum((Ay{n} - x{n}).^2)));
+            ll = ll + (tau(n)/2)*sum(sum(sum((Ay{n} - x{n}).^2)));
         end
     elseif strcmpi(method,'denoise')    
-        ll = -(tau/2)*sum(sum(sum((y - x{1}).^2)));
+        ll = (tau/2)*sum(sum(sum((y - x{1}).^2)));
     end
 else        
     % Parse input

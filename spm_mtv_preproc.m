@@ -24,7 +24,7 @@ function Nii = spm_mtv_preproc(varargin)
 % Tolerance            - Convergence threshold, set to zero to run until 
 %                        IterMax [0]
 % RegScaleSuperResMRI  - Scaling of regularisation for MRI super-
-%                        resolution [0.01]
+%                        resolution [20]
 % RegScaleDenoisingMRI - Scaling of regularisation for MRI denoising, 
 %                        increase this value for stronger denoising [3.2]
 % WorkersParfor        - Maximum number of parfor workers [Inf]
@@ -113,7 +113,7 @@ function Nii = spm_mtv_preproc(varargin)
 % Copyright (C) 2018 Wellcome Centre for Human Neuroimaging
 
 % First check that all is okay with SPM
-spm_check_path;
+spm_check_path('Longitudinal');
 
 %--------------------------------------------------------------------------
 % Parse input
@@ -126,7 +126,7 @@ p.addParameter('InputImages', {}, @(in) ( isa(in,'nifti') || isempty(in) || ...
 p.addParameter('IterMax', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('ADMMStepSize', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('RegScaleSuperResMRI', 0.01, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegScaleSuperResMRI', 20, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegScaleDenoisingMRI', 3.2, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegSuperresCT', 0.001, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegDenoisingCT', 0.06, @(in) (isnumeric(in) && in > 0));
@@ -219,72 +219,11 @@ if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
     
 %--------------------------------------------------------------------------
-% Co-register input images
+% Co-register input images (modifies images' orientation matrices)
 %--------------------------------------------------------------------------
 
 if coreg
     Nii_x = coreg_ims(Nii_x,dir_tmp);
-end
-
-%--------------------------------------------------------------------------
-% Prepare slice profile and slice gap
-%--------------------------------------------------------------------------
-
-% Slice profile
-if ~iscell(window)
-    window = {window};
-end
-window = padarray(window, [0 max(0,C-numel(window))], 'replicate', 'post');
-for c=1:C
-    if ~iscell(window{c})
-        window{c} = {window{c}};
-    end
-    window{c} = padarray(window{c}, [0 max(0,numel(Nii_x{c})-numel(window{c}))], 'replicate', 'post');
-    for i=1:numel(window{c})
-        if isempty(window{c}{i})
-            window{c}{i} = 2;
-        end
-        window{c}{i} = padarray(window{c}{i}, [0 max(0,3-numel(window{c}{i}))], 'replicate', 'post');
-    end
-end
-
-% Slice gap
-if ~iscell(gap)
-    gap = {gap};
-end
-gap = padarray(gap, [0 max(0,C-numel(gap))], 'replicate', 'post');
-for c=1:C
-    if ~iscell(gap{c})
-        gap{c} = {gap{c}};
-    end
-    gap{c} = padarray(gap{c}, [0 max(0,numel(Nii_x{c})-numel(gap{c}))], 'replicate', 'post');
-    for i=1:numel(gap{c})
-        if isempty(gap{c}{i})
-            gap{c}{i} = 2;
-        end
-        gap{c}{i} = padarray(gap{c}{i}, [0 max(0,3-numel(gap{c}{i}))], 'replicate', 'post');
-    end
-end
-
-%--------------------------------------------------------------------------
-% Initialise estimation of rigid alignment part
-%--------------------------------------------------------------------------
-
-% Basis functions for the lie algebra of the special Eucliden group
-% (SE(3)): translation and rotation.
-B                = zeros(4,4,6);
-B(1,4,1)         = 1;
-B(2,4,2)         = 1;
-B(3,4,3)         = 1;
-B([1,2],[1,2],4) = [0 1;-1 0];
-B([3,1],[3,1],5) = [0 1;-1 0];
-B([2,3],[2,3],6) = [0 1;-1 0];
-
-% For storing line-search parameter
-armijo_rigid = cell(1,C);
-for c=1:C
-    N               = numel(Nii_x{c});
-    armijo_rigid{c} = ones([1 N]);
 end
 
 %--------------------------------------------------------------------------
@@ -319,15 +258,7 @@ elseif strcmpi(method,'superres')
     [mat,dm] = max_bb_orient(Nii_x,vx);
     
     % Initialise dat struct with projection matrices, etc.
-    dat = init_dat(Nii_x,mat,dm,window,gap,B);
-            
-    % Compute infinity norm
-    infnrm = zeros(1,C);
-    for c=1:C        
-        tmp       = At(A(ones(dat(c).dm,'single'),dat(c)),dat(c));
-        infnrm(c) = max(tmp(:)); % If A is all positive, max(A'*A*ones(N,1)) gives the infinity norm
-    end        
-    clear tmp 
+    dat = init_dat(Nii_x,mat,dm,window,gap);            
 end
 
 %--------------------------------------------------------------------------
@@ -340,13 +271,22 @@ end
 % Allocate temporary variables
 %--------------------------------------------------------------------------
 
-[Nii_y,Nii_u,Nii_w] = alloc_aux_vars(do_readwrite,C,dm,mat,dir_tmp);
+[Nii_y,Nii_u,Nii_w,Nii_H] = alloc_aux_vars(do_readwrite,C,dm,mat,dir_tmp);
+
+if strcmpi(method,'superres')
+    % Compute approximation to the diagonal of the Hessian 
+    for c=1:C        
+        H        = At(A(ones(dat(c).dm,'single'),dat(c)),dat(c));        
+        Nii_H(c) = put_nii(Nii_H(c),H);
+    end            
+    clear H
+end
 
 %--------------------------------------------------------------------------
 % Create intial estimate of solution (y)
 %--------------------------------------------------------------------------
 
-[Nii_y,msk] = estimate_initial_y(Nii_x,Nii_y,dat,tau,rho,lam,infnrm,vx,dm,num_workers,p);
+[Nii_y,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p);
 
 %--------------------------------------------------------------------------
 % Start solving
@@ -361,7 +301,16 @@ if speak >= 1
     tic; 
 end
 
-ll = -Inf; % For storing model log-likelihood, for each iteration
+% For storing rigid optimisation line-search parameters
+armijo_rigid = cell(1,C);
+for c=1:C
+    N               = numel(Nii_x{c});
+    armijo_rigid{c} = ones([1 N]);
+end
+
+% For storing model log-likelihood, for each iteration
+ll = -Inf; 
+
 for it=1:nit % Start iterating
         
     if dec_reg
@@ -373,10 +322,10 @@ for it=1:nit % Start iterating
     % Update recovered image(s) (Nii_y)
     %----------------------------------------------------------------------
     
-    [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,dat,tau,rho,lam,infnrm,vx,dm,num_workers,p);
+    [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p);
    
     % Compute log-posterior (objective value)        
-    ll   = [ll, sum(ll1) + ll2];    
+    ll   = [ll, -(sum(ll1) + ll2)]; % Minus sign because YB wants to see increasing objective functions...
     gain = get_gain(ll);
                        
     if speak >= 1 || ~isempty(Nii_ref)
@@ -391,9 +340,9 @@ for it=1:nit % Start iterating
                 ssims(c) = ssim(get_nii(Nii_y(c)),get_nii(Nii_ref(c)));
             end
             
-            fprintf('%2d | %10.1f %10.1f %10.1f %0.6f | psnr =%s, ssim =%s\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain, sprintf(' %2.2f', psnrs), sprintf(' %2.2f', ssims)); 
+            fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f | psnr =%s, ssim =%s\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain, sprintf(' %2.2f', psnrs), sprintf(' %2.2f', ssims)); 
         else
-            fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); 
+            fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); 
         end
         
         if speak >= 2
@@ -413,15 +362,15 @@ for it=1:nit % Start iterating
         % Update rigid alignment matrices (dat(c).A(n).q)
         %------------------------------------------------------------------
                 
-        [dat,ll1,armijo_rigid] = update_rigid(Nii_x,Nii_y,dat,B,tau,armijo_rigid,num_workers,speak);
+        [dat,ll1,armijo_rigid] = update_rigid(Nii_x,Nii_y,dat,tau,armijo_rigid,num_workers,speak);
         
         % Compute log-posterior (objective value)        
-        ll   = [ll, sum(ll1) + ll2];    
+        ll   = [ll, -(sum(ll1) + ll2)]; % Minus sign because YB wants to see increasing objective functions...    
         gain = get_gain(ll);
     
         if speak >= 1
             % Some verbose    
-            fprintf('%2d | %10.1f %10.1f %10.1f %0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); 
+            fprintf('   | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f\n', sum(ll1), ll2, sum(ll1) + ll2, gain); 
             
             if speak >= 2
                 show_progress(method,modality,ll,Nii_x,Nii_y,dm); 
@@ -430,9 +379,6 @@ for it=1:nit % Start iterating
     end
  
 end
-
-fprintf('Saving dat\n')
-save('dat.mat','dat')
 
 if speak >= 1, toc; end
 

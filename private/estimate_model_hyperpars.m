@@ -93,9 +93,7 @@ end
 
 % For decreasing regularisation with iteration number
 lam0      = lam;
-def       = spm_shoot_defaults;
-sched_lam = def.sched;
-sched_lam = sched_lam(1:min(numel(sched_lam),nit));
+sched_lam = get_lam_sched(nit);
 if dec_reg
     lam   = sched_lam(1)*lam;
 end
@@ -123,4 +121,10 @@ if speak  >= 1
     end
     fprintf('\n');
 end
+%==========================================================================
+
+%==========================================================================
+function sched = get_lam_sched(nit)
+sched = 2.^repelem(fliplr(0:7),1,2);
+sched = sched(max(numel(sched) - nit + 1,1):end);
 %==========================================================================
