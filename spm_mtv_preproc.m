@@ -19,6 +19,8 @@ function Nii = spm_mtv_preproc(varargin)
 %                        If empty, uses spm_select ['']
 % IterMax              - Maximum number of iteration 
 %                        [method=superres:40, method=denoise:20]
+% IterImage            - Maximum number of iterations for solving for the
+%                        super-resolved image(s).
 % ADMMStepSize         - The infamous ADMM step size, set to zero for an 
 %                        educated guess [0]
 % Tolerance            - Convergence threshold, set to zero to run until 
@@ -130,6 +132,7 @@ p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', {}, @(in) ( isa(in,'nifti') || isempty(in) || ...
                                         ((ischar(in{1}) || isa(in{1},'nifti')) || (ischar(in{1}{1}) || isa(in{1}{1},'nifti'))) ) );
 p.addParameter('IterMax', 0, @(in) (isnumeric(in) && in >= 0));
+p.addParameter('IterImage', 1, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('RegScaleSuperResMRI', 20, @(in) (isnumeric(in) && in > 0));
@@ -157,6 +160,7 @@ p.addParameter('EstimateRigid', false, @islogical);
 p.parse(varargin{:});
 InputImages   = p.Results.InputImages;
 nit           = p.Results.IterMax;
+nity          = p.Results.IterImage;
 tol           = p.Results.Tolerance;
 num_workers   = p.Results.WorkersParfor;
 dir_tmp       = p.Results.TemporaryDirectory;
@@ -323,7 +327,7 @@ end
 % For storing model log-likelihood, for each iteration
 ll = -Inf; 
 
-for it=1:nit % Start iterating
+for it=1:nit % Start main loop
         
     if dec_reg
         % Decrease regularisation with iteration number
@@ -334,33 +338,37 @@ for it=1:nit % Start iterating
     % Update recovered image(s) (Nii_y)
     %----------------------------------------------------------------------
     
-    [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p);
-   
-    % Compute log-posterior (objective value)        
-    ll   = [ll, -(sum(ll1) + ll2)]; % Minus sign because YB wants to see increasing objective functions...
-    gain = get_gain(ll);
-                       
-    if speak >= 1 || ~isempty(Nii_ref)
-        % Some verbose    
+    for ity=1:nity % Start y loop
         
-        if ~isempty(Nii_ref)
-            % Reference image(s) given, compute and output PSNR
-            psnrs = zeros(1,C);
-            ssims = zeros(1,C);
-            for c=1:C
-                psnrs(c) = get_psnr(get_nii(Nii_y(c)),get_nii(Nii_ref(c)));
-                ssims(c) = ssim(get_nii(Nii_y(c)),get_nii(Nii_ref(c)));
+        [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p);
+
+        % Compute log-posterior (objective value)        
+        ll   = [ll, -(sum(ll1) + ll2)]; % Minus sign because YB wants to see increasing objective functions...
+        gain = get_gain(ll);
+
+        if speak >= 1 || ~isempty(Nii_ref)
+            % Some verbose    
+
+            if ~isempty(Nii_ref)
+                % Reference image(s) given, compute and output PSNR
+                psnrs = zeros(1,C);
+                ssims = zeros(1,C);
+                for c=1:C
+                    psnrs(c) = get_psnr(get_nii(Nii_y(c)),get_nii(Nii_ref(c)));
+                    ssims(c) = ssim(get_nii(Nii_y(c)),get_nii(Nii_ref(c)));
+                end
+
+                fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f | psnr =%s, ssim =%s\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain, sprintf(' %2.2f', psnrs), sprintf(' %2.2f', ssims)); 
+            else
+                fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); 
             end
-            
-            fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f | psnr =%s, ssim =%s\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain, sprintf(' %2.2f', psnrs), sprintf(' %2.2f', ssims)); 
-        else
-            fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); 
-        end
+
+            if speak >= 2
+                show_progress(method,modality,ll,Nii_x,Nii_y,dm); 
+            end
+        end   
         
-        if speak >= 2
-            show_progress(method,modality,ll,Nii_x,Nii_y,dm); 
-        end
-    end   
+    end % End y loop
     
     % Check convergence
     if tol > 0 && gain < tol && it > numel(sched_lam)
@@ -390,7 +398,7 @@ for it=1:nit % Start iterating
         end                           
     end
  
-end
+end % End main loop
 
 if speak >= 1, toc; end
 
