@@ -302,7 +302,7 @@ end
 % Create intial estimate of solution (y)
 %--------------------------------------------------------------------------
 
-[Nii_y,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p);
+[Nii_y,ll1,ll2,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p);
 
 %--------------------------------------------------------------------------
 % Start solving
@@ -324,8 +324,11 @@ for c=1:C
     armijo_rigid{c} = ones([1 N]);
 end
 
-% For storing model log-likelihood, for each iteration
-ll = -Inf; 
+% Initial objective value
+ll = -(sum(ll1) + ll2); % Minus sign because YB wants to see increasing objective functions...    
+if speak >= 1
+    fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f\n', 0, sum(ll1), ll2, sum(ll1) + ll2, 0); 
+end
 
 for it=1:nit % Start main loop
         

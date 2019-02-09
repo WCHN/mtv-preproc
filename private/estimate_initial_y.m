@@ -1,4 +1,4 @@
-function [Nii_y,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p)
+function [Nii_y,ll1,ll2,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p)
 % Compute initial estimate of recovered image(s)
 %
 %_______________________________________________________________________
@@ -10,8 +10,11 @@ method   = p.Results.Method;
 nitgn    = p.Results.IterGaussNewton; 
 speak    = p.Results.Verbose; 
 
-C   = numel(Nii_x);
+C = numel(Nii_x); % Number of channels
+
 msk = cell(1,C); % For saving locations of missing values so that they can be 're-applied' once the algorithm has finished
+ll1 = zeros(1,C);
+ll2 = 0;
 % for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers)  
 
@@ -70,16 +73,27 @@ parfor (c=1:C,num_workers)
             msk{c} = isfinite(x{1}) & x{1} ~= 0;
         end
     end        
-    x = [];
     
     if strcmpi(modality,'MRI')
         % Ensure non-negativity
         y(y < 0) = 0;
     end 
         
+    % Compute negative log of likelihood part
+    ll1(c) = get_negloglik(method,y,x,tau{c},dat(c));
+    x      = [];
+    
+    % Compute negative log of prior part
+    G   = lam(c)*imgrad(y,vx);
+    ll2 = ll2 + sum(sum(G.^2,4),5);
+    G   = [];         
+    
     Nii_y(c) = put_nii(Nii_y(c),y);                
     y        = [];
 end
+
+% Compute negative log of prior part
+ll2 = sum(sum(sum(sqrt(ll2)))); 
 
 if speak >= 2
     % Show initial estimate

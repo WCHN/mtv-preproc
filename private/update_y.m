@@ -129,8 +129,8 @@ parfor (c=1:C,num_workers) % Loop over channels
         y(y < 0) = 0;
     end 
 
-    % Compute likelihood term of posterior
-    ll1(c) = get_ll(method,y,x,tau{c},dat(c));
+    % Compute negative log of likelihood part
+    ll1(c) = get_negloglik(method,y,x,tau{c},dat(c));
     x      = [];
 
     %------------------------------------------------------------------
@@ -145,22 +145,22 @@ parfor (c=1:C,num_workers) % Loop over channels
 
     w = w + rho*(G - u);        
 
-    % Compute prior term of posterior
+    % Compute negative log of prior part
     ll2 = ll2 + sum(sum(G.^2,4),5);
     G   = [];                
 
     Nii_u(c) = put_nii(Nii_u(c),u);
-    u = [];
+    u        = [];
 
     Nii_w(c) = put_nii(Nii_w(c),w);
-    w = [];
+    w        = [];
 end % End loop over channels     
+
+% Compute negative log of prior part
+ll2 = sum(sum(sum(sqrt(ll2)))); 
 
 if speak >= 2
     % Show MTV scaling
     show_mtv_scale(mtv_scale);
 end
-
-% Compute prior part of objective function
-ll2 = sum(sum(sum(sqrt(ll2)))); 
 %==========================================================================
