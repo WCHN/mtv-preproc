@@ -301,6 +301,13 @@ end
 % Create intial estimate of solution (y)
 %--------------------------------------------------------------------------
 
+if ~isempty(Nii_ref)
+    % Reference image(s) given, compute SSIM and PSNR
+    [psnr1,ssim1] = compute_image_metrics(Nii_x,Nii_ref);
+
+    fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', 0, 0, 0, 0, 0, psnr1, ssim1); 
+end
+
 [Nii_y,ll1,ll2,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p);
 
 %--------------------------------------------------------------------------
@@ -324,9 +331,16 @@ for c=1:C
 end
 
 % Initial objective value
-ll = -(sum(ll1) + ll2); % Minus sign because YB wants to see increasing objective functions...    
+ll = sum(ll1) + ll2;
 if speak >= 1
-    fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f\n', 0, sum(ll1), ll2, sum(ll1) + ll2, 0); 
+    if ~isempty(Nii_ref)
+        % Reference image(s) given, compute SSIM and PSNR
+        [psnr1,ssim1] = compute_image_metrics(Nii_y,Nii_ref);
+
+        fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', 0, ll(end), sum(ll1), ll2, 0, psnr1, ssim1); 
+    else
+        fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', 0, ll(end), sum(ll1), ll2, 0); 
+    end
 end
 
 for it=1:nit % Start main loop
@@ -345,24 +359,19 @@ for it=1:nit % Start main loop
         [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p);
 
         % Compute log-posterior (objective value)        
-        ll   = [ll, -(sum(ll1) + ll2)]; % Minus sign because YB wants to see increasing objective functions...
+        ll   = [ll, sum(ll1) + ll2];
         gain = get_gain(ll);
 
         if speak >= 1 || ~isempty(Nii_ref)
             % Some verbose    
 
             if ~isempty(Nii_ref)
-                % Reference image(s) given, compute and output PSNR
-                psnrs = zeros(1,C);
-                ssims = zeros(1,C);
-                for c=1:C
-                    psnrs(c) = get_psnr(get_nii(Nii_y(c)),get_nii(Nii_ref(c)));
-                    ssims(c) = ssim(get_nii(Nii_y(c)),get_nii(Nii_ref(c)));
-                end
-
-                fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f | psnr =%s, ssim =%s\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain, sprintf(' %2.2f', psnrs), sprintf(' %2.2f', ssims)); 
+                % Reference image(s) given, compute SSIM and PSNR
+                [psnr1,ssim1] = compute_image_metrics(Nii_y,Nii_ref);
+                
+                fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', it, ll(end), sum(ll1), ll2, gain, psnr1, ssim1); 
             else
-                fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f\n', it, sum(ll1), ll2, sum(ll1) + ll2, gain); 
+                fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, gain); 
             end
 
             if speak >= 2
@@ -387,12 +396,12 @@ for it=1:nit % Start main loop
         [dat,ll1,armijo_rigid] = update_rigid(Nii_x,Nii_y,dat,tau,armijo_rigid,num_workers,speak);
         
         % Compute log-posterior (objective value)        
-        ll   = [ll, -(sum(ll1) + ll2)]; % Minus sign because YB wants to see increasing objective functions...    
+        ll   = [ll, sum(ll1) + ll2];
         gain = get_gain(ll);
     
         if speak >= 1
             % Some verbose    
-            fprintf('   | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f\n', sum(ll1), ll2, sum(ll1) + ll2, gain); 
+            fprintf('   | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', ll(end), sum(ll1), ll2, gain); 
             
             if speak >= 2
                 show_progress(method,modality,ll,Nii_x,Nii_y,dm); 
