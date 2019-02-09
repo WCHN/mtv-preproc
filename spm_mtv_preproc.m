@@ -254,10 +254,10 @@ if strcmpi(method,'denoise')
     if isempty(dec_reg), dec_reg = false; end
     if nit == 0,         nit     = 20; end
     
-    mat    = Nii_x{1}(1).mat;
-    vx     = sqrt(sum(mat(1:3,1:3).^2));   
-    dm     = Nii_x{1}(1).dat.dim;
-    dat    = struct;
+    mat      = Nii_x{1}(1).mat;
+    vx       = sqrt(sum(mat(1:3,1:3).^2));   
+    dm       = Nii_x{1}(1).dat.dim;
+    dat(1:C) = struct;
 elseif strcmpi(method,'superres')
     %---------------------------
     % Super-resolution
