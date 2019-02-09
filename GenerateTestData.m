@@ -5,18 +5,17 @@ function GenerateTestData
 %--------------------------------------------------------------------------
 
 % Where to write output
+DirRef    = './data';
 DirLowRes = './SampleData';
 
 % Slice-profile related
 DownSampling = 1/6; % Down-sampling factor, will be applied in orthogonal directions
-WindowLR     = 2;
-WindowHR     = 2;
 Gap          = 0;
 
 % Randomly move images rigidly?
 PerturbRigid.do        = true;
-PerturbRigid.transl_mx = 5;
-PerturbRigid.rot_scl   = 0.05;
+PerturbRigid.transl_mx = 1;
+PerturbRigid.rot_scl   = 0.01;
 
 % Comment to use more than one observation per channel
 N = 1;
@@ -28,25 +27,16 @@ if  exist(DirLowRes,'dir') == 7,  rmdir(DirLowRes,'s'); end; mkdir(DirLowRes);
 % Get reference IXI NIfTIs
 %--------------------------------------------------------------------------
 
-dir_data = './data';
-Nii_ref  = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
+Nii_ref  = nifti(spm_select('FPList',DirRef,'^.*\.nii$'));
 C        = numel(Nii_ref);
 
 %--------------------------------------------------------------------------
 % Define projection matrices
 %--------------------------------------------------------------------------
 
-DS     = {[DownSampling 1 1; 1 DownSampling 1], ... 
-          [DownSampling 1 1], ...
-          [1 1 DownSampling; 1 DownSampling 1]};
-  
-window = {{[WindowLR WindowHR WindowHR], [WindowHR WindowLR WindowHR]}, ... 
-          {[WindowLR WindowHR WindowHR]}, ...
-          {[WindowHR WindowHR WindowLR], [WindowHR WindowLR WindowHR]}};
-
-gap    = {{[Gap 0 0], [0 Gap 0]}, ... 
-          {[Gap 0 0]}, ...
-          {[0 0 Gap], [0 Gap 0]}};
+DS = {[DownSampling 1 1; 1 DownSampling 1], ... 
+      [DownSampling 1 1], ...
+      [1 1 DownSampling; 1 DownSampling 1]};
 
 % Sanity check  
 if numel(DS) ~= C
@@ -57,13 +47,17 @@ end
 % Simulate thick-sliced data
 %--------------------------------------------------------------------------
 
+fnames = {};
 for c=1:numel(DS) % Loop over channels
     
     % Get HR reference data
-    img0 = Nii_ref(c).dat(:,:,:);
-    mat0 = Nii_ref(c).mat;
-    dm0  = size(img0);
-        
+    img0  = Nii_ref(c).dat(:,:,:);
+    mat0  = Nii_ref(c).mat;
+    dm0   = size(img0);
+    
+    fname           = Nii_ref(c).dat.fname;    
+    fnames{end + 1} = fname;
+    
     % Build dat object
     Nii   = {struct};
     ds    = DS{c};
@@ -80,7 +74,7 @@ for c=1:numel(DS) % Loop over channels
         Nii{1}(n).dat.dim = dm;
     end
     
-    dat = init_dat(Nii,mat0,dm0,window(c),gap(c));
+    dat = init_dat(Nii,mat0,dm0,[],Gap);
         
     % Apply projection matrix to simulate LR data
     img = A(img0,dat);
@@ -89,8 +83,9 @@ for c=1:numel(DS) % Loop over channels
     [~,nam,ext] = fileparts(Nii_ref(c).dat.fname);    
     for n=1:dat.N    
         % Save thick-sliced data        
-        nfname      = fullfile(DirLowRes,['n' num2str(n) '_' nam ext]);
-
+        nfname          = fullfile(DirLowRes,['n' num2str(n) '_' nam ext]);
+        fnames{end + 1} = nfname;
+        
         % Rigidly realign the image a little bit (randomly)
         mat           = Nii{1}(n).mat;            
         dm            = Nii{1}(n).dat.dim;
@@ -101,6 +96,8 @@ for c=1:numel(DS) % Loop over channels
         create_nii(nfname,img{n},Nii{1}(n).mat,[spm_type('float32') spm_platform('bigend')],'Simulated thick-sliced');
     end
 end
+
+spm_check_registration(char(fnames))
 %==========================================================================
 
 %==========================================================================
