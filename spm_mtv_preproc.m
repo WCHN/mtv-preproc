@@ -23,7 +23,7 @@ function Nii = spm_mtv_preproc(varargin)
 % ADMMStepSize         - The infamous ADMM step size, set to zero for an 
 %                        educated guess [0]
 % Tolerance            - Convergence threshold, set to zero to run until 
-%                        IterMax [0]
+%                        IterMax [1e-5]
 % RegScaleSuperResMRI  - Scaling of regularisation for MRI super-
 %                        resolution [20]
 % RegScaleDenoisingMRI - Scaling of regularisation for MRI denoising, 
@@ -133,7 +133,7 @@ p.addParameter('InputImages', {}, @(in) ( isa(in,'nifti') || isempty(in) || ...
 p.addParameter('IterMax', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('IterImage', 3, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('Tolerance', 0, @(in) (isnumeric(in) && in >= 0));
+p.addParameter('Tolerance', 1e-5, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('RegScaleSuperResMRI', 20, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegScaleDenoisingMRI', 3.2, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegSuperresCT', 0.001, @(in) (isnumeric(in) && in > 0));
@@ -382,7 +382,7 @@ for it=1:nit % Start main loop
     end % End y loop
     
     % Check convergence
-    if tol > 0 && gain < tol && it > numel(sched_lam)
+    if tol > 0 && gain < tol && it > 1
         % Finished
         break
     end
