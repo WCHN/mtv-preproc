@@ -17,8 +17,7 @@ function Nii = spm_mtv_preproc(varargin)
 %                        C are the number of image channels. Each array 
 %                        entry contains N_c images of the same channel. 
 %                        If empty, uses spm_select ['']
-% IterMax              - Maximum number of iteration 
-%                        [method=superres:40, method=denoise:20]
+% IterMax              - Maximum number of iteration [20]
 % IterImage            - Maximum number of iterations for solving for the
 %                        super-resolved image(s) [3]
 % ADMMStepSize         - The infamous ADMM step size, set to zero for an 
