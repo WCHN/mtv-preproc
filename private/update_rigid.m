@@ -32,6 +32,9 @@ parfor (c=1:C,num_workers) % Loop over channels
     
 end % End loop over channels
 
+% Minus sign because YB wants to see increasing objective functions...
+sll = -sll;
+
 %--------------------------------------------------------------------------
 % Mean correct the rigid-body transforms
 %--------------------------------------------------------------------------

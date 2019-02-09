@@ -95,6 +95,10 @@ end
 % Compute negative log of prior part
 ll2 = sum(sum(sum(sqrt(ll2)))); 
 
+% Minus sign because YB wants to see increasing objective functions...
+ll1 = -ll1;
+ll2 = -ll2;
+
 if speak >= 2
     % Show initial estimate
     show_progress(method,modality,0,Nii_x,Nii_y,dm); 
