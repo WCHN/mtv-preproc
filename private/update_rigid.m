@@ -258,7 +258,8 @@ end
 function [ll,g,H] = meansq_objfun_slice(f,mu,y,An,tau,speak,z,show_moved)
 if nargin < 8, show_moved = 0; end
 
-dm = size(f); % Observation dimensions
+dm                = size(f); % Observation dimensions
+mu(~isfinite(mu)) = 0; 
 
 % Move template to image space
 dmu = cell(1,3);
