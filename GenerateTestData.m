@@ -5,8 +5,8 @@ function GenerateTestData
 %--------------------------------------------------------------------------
 
 % Where to write output
-DirRef    = './data';
-DirLowRes = './SampleData';
+DirRef = './ReferenceData/IXI';
+DirSim = './SimulatedData';
 
 % Slice-profile related
 DownSampling = 1/6; % Down-sampling factor, will be applied in orthogonal directions
@@ -21,7 +21,7 @@ PerturbRigid.rot_scl   = 0.01;
 N = 1;
 
 % Create output directory
-if  exist(DirLowRes,'dir') == 7,  rmdir(DirLowRes,'s'); end; mkdir(DirLowRes);
+if  ~exist(DirSim,'dir') == 7,  mkdir(DirSim); end
 
 %--------------------------------------------------------------------------
 % Get reference IXI NIfTIs
@@ -83,7 +83,7 @@ for c=1:numel(DS) % Loop over channels
     [~,nam,ext] = fileparts(Nii_ref(c).dat.fname);    
     for n=1:dat.N    
         % Save thick-sliced data        
-        nfname          = fullfile(DirLowRes,['n' num2str(n) '_' nam ext]);
+        nfname          = fullfile(DirSim,['n' num2str(n) '_' nam ext]);
         fnames{end + 1} = nfname;
         
         % Rigidly realign the image a little bit (randomly)
