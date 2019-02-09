@@ -3,7 +3,7 @@ function dat = init_dat(Nii,mat,dm,window,gap,gapunit)
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
-if nargin < 4, window  = 2; end
+if nargin < 4, window  = []; end
 if nargin < 5, gap     = 0; end
 if nargin < 6, gapunit = '%'; end
 
