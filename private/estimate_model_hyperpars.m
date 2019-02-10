@@ -107,7 +107,8 @@ if rho == 0
             atau = [atau tau{c}(n)];
         end
     end
-    rho = sqrt(mean(atau))/mean(lam);    
+    rho = sqrt(mean(atau))/mean(lam);        
+%     rho = mean(lam); % From: 'An ADMM Algorithm for a Class of Total Variation Regularized Estimation Problems'
 end
 
 if speak  >= 1
