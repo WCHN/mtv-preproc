@@ -150,7 +150,7 @@ p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || str
 p.addParameter('ReadWrite', false, @islogical);
 p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
 p.addParameter('IterGaussNewton', 1, @(in) (isnumeric(in) && in > 0));
-p.addParameter('Reference', [], @(in)  isa(in,'nifti'));
+p.addParameter('Reference', {}, @(in)  (isa(in,'nifti') || isempty(in)));
 p.addParameter('DecreasingReg', [], @(in) (islogical(in) || isempty(in)));
 p.addParameter('SliceProfile', {}, @(in) (isnumeric(in) || iscell(in)));
 p.addParameter('SliceGap', 0, @(in) (isnumeric(in) || iscell(in)));
@@ -305,7 +305,7 @@ if ~isempty(Nii_ref)
     % Reference image(s) given, compute SSIM and PSNR
     [psnr1,ssim1] = compute_image_metrics(Nii_x,Nii_ref);
 
-    fprintf('%2d | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', 0, 0, 0, 0, 0, psnr1, ssim1); 
+    fprintf('   | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', 0, 0, 0, 0, psnr1, ssim1); 
 end
 
 [Nii_y,ll1,ll2,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p);
