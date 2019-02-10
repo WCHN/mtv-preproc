@@ -289,12 +289,7 @@ end
 
 if strcmpi(method,'superres')
     % Compute approximation to the diagonal of the Hessian 
-    for c=1:C        
-        H        = At(A(ones(dat(c).dm,'single'),dat(c)),dat(c));   
-%         H        = max(H(:))*ones(size(H),'single'); % Infinity norm
-        Nii_H(c) = put_nii(Nii_H(c),H);
-    end            
-    clear H
+    Nii_H = approx_hessian(Nii_H,dat);
 end
 
 %--------------------------------------------------------------------------
@@ -395,6 +390,11 @@ for it=1:nit % Start main loop
                 
         [dat,ll1,armijo_rigid] = update_rigid(Nii_x,Nii_y,dat,tau,armijo_rigid,num_workers,speak);
         
+        if strcmpi(method,'superres')
+            % update approximation to the diagonal of the Hessian 
+            Nii_H = approx_hessian(Nii_H,dat);
+        end
+
         % Compute log-posterior (objective value)        
         ll   = [ll, sum(ll1) + ll2];
         gain = get_gain(ll);

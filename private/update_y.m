@@ -71,8 +71,6 @@ parfor (c=1:C,num_workers) % Loop over channels
     if strcmpi(method,'superres')              
         %---------------------------
         % Super-resolution
-        % Here we want to solve for y using Gauss-Newton (GN)
-        % optimisation
         %---------------------------      
 
         y = get_nii(Nii_y(c)); % Get solution
