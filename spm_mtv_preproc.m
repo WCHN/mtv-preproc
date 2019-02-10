@@ -233,12 +233,17 @@ if num_workers > 1,    manage_parpool(num_workers);  end
 spm_field('boundary',1);
 pushpull('boundary',1);
 
+if coreg
+    % Make copies input data and update Nii_x
+    Nii_x = copy_ims(Nii_x,dir_tmp);
+end
+
 %--------------------------------------------------------------------------
 % Co-register input images (modifies images' orientation matrices)
 %--------------------------------------------------------------------------
 
 if coreg
-    Nii_x = coreg_ims(Nii_x,dir_tmp);
+    Nii_x = coreg_ims(Nii_x);
 end
 
 %--------------------------------------------------------------------------

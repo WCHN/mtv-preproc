@@ -1,4 +1,4 @@
-function Nii = coreg_ims(Nii,dir_write)
+function Nii = coreg_ims(Nii)
 % Alternately co-register images so that each channel acts as the reference
 % image
 %__________________________________________________________________________
@@ -11,21 +11,15 @@ if C == 1 && numel(Nii{1}) == 1
     return;
 end
 
-% Make copies then collect all image in spm_vol object (V)
+% Collect all image in spm_vol object (V)
 V   = spm_vol;
 cnt = 1;
 for c=1:C
     N = numel(Nii{c});
     for n=1:N
-        f           = Nii{c}(n).dat.fname;
-        [~,nam,ext] = fileparts(f);
-        nf          = fullfile(dir_write,[nam ext]);
-
-        copyfile(f,nf);
-
-        Nii{c}(n) = nifti(nf);
-        V(cnt)    = spm_vol(nf);
-        cnt       = cnt + 1;
+        f      = Nii{c}(n).dat.fname;
+        V(cnt) = spm_vol(f);
+        cnt    = cnt + 1;
     end
 end
 
