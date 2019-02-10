@@ -17,17 +17,9 @@ CoRegister      = false;
 EstimateRigid   = false;
 
 % Grid-searches if vector
-RegScaleDenoisingMRI = 1:0.5:10; 
+RegScaleDenoisingMRI = 1:0.5:20; 
 
-psnrs = zeros([1 numel(RegScaleDenoisingMRI) + 1]);
-ssims = zeros([1 numel(RegScaleDenoisingMRI) + 1]);
-
-ref  = cat(3,single(Nii_ref(1).dat(:,:,:)),single(Nii_ref(2).dat(:,:,:)),single(Nii_ref(3).dat(:,:,:)));
-nois = cat(3,single(Nii_noisy(1).dat(:,:,:)),single(Nii_noisy(2).dat(:,:,:)),single(Nii_noisy(3).dat(:,:,:)));
-
-psnrs(1) = get_psnr(nois(:),ref(:));
-ssims(1) = ssim(nois,ref);
-clear ref nois
+[psnrs(1),ssims(1)] = compute_image_metrics(Nii_noisy,Nii_ref);
 
 for r=1:numel(RegScaleDenoisingMRI)
     
@@ -41,10 +33,12 @@ for r=1:numel(RegScaleDenoisingMRI)
                               'CoRegister',CoRegister,'EstimateRigid',EstimateRigid);
     
     % Compute metrics
-    ref  = cat(3,single(Nii_ref(1).dat(:,:,:)),single(Nii_ref(2).dat(:,:,:)),single(Nii_ref(3).dat(:,:,:)));
-    den = cat(3,single(Nii_den(1).dat(:,:,:)),single(Nii_den(2).dat(:,:,:)),single(Nii_den(3).dat(:,:,:)));
-
-    psnrs(1 + r) = get_psnr(den(:),ref(:));
-    ssims(1 + r) = ssim(den,ref);
-    clear ref den                          
+    [psnrs(1 + r),ssims(1 + r)] = compute_image_metrics(Nii_den,Nii_ref);
 end                      
+
+%%
+figure(666);
+subplot(121)
+plot([0 RegScaleDenoisingMRI], psnrs,'b-'); title('PSNR')
+subplot(122)
+plot([0 RegScaleDenoisingMRI], ssims,'r-'); title('SSIM')
