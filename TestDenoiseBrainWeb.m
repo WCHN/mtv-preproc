@@ -10,15 +10,15 @@ C         = 3;
 
 % Parameters
 WorkersParfor = Inf;
-Verbose       = 0;
+Verbose       = 2;
 IterMax       = 20;
 ADMMStepSize  = 0;
 CoRegister    = false;
 EstimateRigid = false;
-Reference     = [];%Nii_ref;
+Reference     = Nii_ref;
 
 %% Run multi-channel denoising
-RegScaleDenoisingMRI = 1:0.25:15; % Grid-searches if vector [5]
+RegScaleDenoisingMRI = 5;%1:0.25:15; % Grid-searches if vector [5]
 
 [psnrs(1),ssims(1)] = compute_image_metrics(Nii_noisy,Nii_ref);
 

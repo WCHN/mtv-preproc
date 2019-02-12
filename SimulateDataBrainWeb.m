@@ -10,11 +10,13 @@ DirSim = './SimulatedData/BrainWeb';
 
 % Randomly move images rigidly?
 PerturbRigid.do        = true;
-PerturbRigid.transl_mx = 4;
+PerturbRigid.transl_mx = 1;
 PerturbRigid.rot_scl   = 0;
 
+offset = {[1 -2 2]',[-2 1 1]',[1 -2 -1]'};
+
 % Create output directory
-if  ~exist(DirSim,'dir') == 7,  mkdir(DirSim); end
+if  exist(DirSim,'dir') ~= 7,  mkdir(DirSim); end
 
 %--------------------------------------------------------------------------
 % Get noisy BrainWeb images
@@ -43,7 +45,7 @@ for c=1:C % Loop over channels
     fnames{end + 1} = nfname;
 
     % Rigidly realign the image a little bit (randomly)
-    mat = rigid_perturb(mat,dm,PerturbRigid);
+    mat = rigid_perturb(mat,dm,PerturbRigid,offset{c});
 
     % Write to NIfTI
     create_nii(nfname,img,mat,[spm_type('float32') spm_platform('bigend')],'Simulated');
@@ -54,7 +56,7 @@ spm_check_registration(char(fnames))
 %==========================================================================
 
 %==========================================================================
-function mat = rigid_perturb(mat,dm,PerturbRigid)
+function mat = rigid_perturb(mat,dm,PerturbRigid,offset)
 if PerturbRigid.do 
     
     B = get_rigid_basis;
@@ -75,7 +77,8 @@ if PerturbRigid.do
     matr = spm_dexpm(r,B);    
     
     % Apply to image orientation matrix
-    mat = matr*mat;
+%     mat = matr*mat;
+    mat(1:3,4) = mat(1:3,4) + offset;
     
 %     % Matrix for translating the origin
 %     orig = (dm(1:3) + 1)/2;

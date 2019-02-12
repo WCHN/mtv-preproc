@@ -5,11 +5,15 @@ function [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
 % Some parameters from options struct
-modality = p.Results.Modality;
-method   = p.Results.Method;
-nitgn    = p.Results.IterGaussNewton; 
-speak    = p.Results.Verbose; 
-C        = numel(Nii_x);
+modality      = p.Results.Modality;
+method        = p.Results.Method;
+nitgn         = p.Results.IterGaussNewtonImage; 
+speak         = p.Results.Verbose; 
+C             = numel(Nii_x);
+EstimateRigid = p.Results.EstimateRigid;
+
+% Flag saying if we solve using projection matrices (A, At), or not
+use_projmat = ~(strcmpi(method,'denoise') && ~EstimateRigid);
 
 %------------------------------------------------------------------
 % Proximal operator for u
@@ -68,45 +72,63 @@ parfor (c=1:C,num_workers) % Loop over channels
     %------------------------------------------------------------------
 
     x = get_nii(Nii_x(c)); % Get observed image
-
     y = get_nii(Nii_y(c)); % Get solution
 
-    for gnit=1:nitgn % Iterate Gauss-Newton
+    if use_projmat
+        % We use the projection matrices (A, At)
+        
+        for gnit=1:nitgn % Iterate Gauss-Newton
 
-        % Gradient      
-        rhs = w/rho - u; 
+            % Gradient      
+            rhs = w/rho - u; 
+            rhs = lam(c)*imdiv(rhs,vx);
+            Ayx = A(y,dat(c));
+            for n=1:dat(c).N
+                % Here we discard missing data, for MRI these are
+                % assumed to be zeros and NaNs.
+                mskn          = isfinite(x{n}) & x{n} ~= 0;
+                Ayx{n}        = Ayx{n} - x{n};
+                Ayx{n}(~mskn) = 0;
+            end                  
+            mskn = [];
+            rhs  = rhs + At(Ayx,dat(c),tau{c})*(1/rho); 
+            Ayx  = [];
+            rhs  = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
+
+            % Hessian
+            H   = get_nii(Nii_H(c));
+            lhs = H*sum(tau{c})/rho;
+            H   = [];
+
+            % Compute GN step
+            y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
+            lhs = [];
+            rhs = [];
+        end                                
+    else
+        % We do not use the projection matrices (A, At)
+        
+        % RHS
+        rhs = u - w/rho; 
         rhs = lam(c)*imdiv(rhs,vx);
-        Ayx = A(y,dat(c));
-        for n=1:dat(c).N
-            % Here we discard missing data, for MRI these are
-            % assumed to be zeros and NaNs.
-            mskn          = isfinite(x{n}) & x{n} ~= 0;
-            Ayx{n}        = Ayx{n} - x{n};
-            Ayx{n}(~mskn) = 0;
-        end                  
-        mskn = [];
-        rhs  = rhs + At(Ayx,dat(c),tau{c})*(1/rho); 
-        Ayx  = [];
-        rhs  = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
+        rhs = rhs + x{1}*(tau{c}/rho);
 
-        % Hessian
-        H   = get_nii(Nii_H(c));
-        lhs = H*sum(tau{c})/rho;
-        H   = [];
+        % LHS
+        lhs = ones(dm,'single')*tau{c}/rho;
 
-        % Compute GN step
-        y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
+        % Compute new y
+        y   = spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
         lhs = [];
-        rhs = [];
-    end                                
-
+        rhs = [];        
+    end
+    
     if strcmpi(modality,'MRI')
         % Ensure non-negativity (ad-hoc)
         y(y < 0) = 0;
     end 
 
-    % Compute log of likelihood part
-    ll1(c) = get_ll1(y,x,tau{c},dat(c));
+    % Compute log of likelihood part    
+    ll1(c) = get_ll1(use_projmat,y,x,tau{c},dat(c));
     x      = [];
 
     %------------------------------------------------------------------

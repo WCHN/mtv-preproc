@@ -1,4 +1,4 @@
-function [dat,ll1,armijo] = update_rigid(Nii_x,Nii_y,dat,tau,armijo,num_workers,speak)
+function [dat,ll1,armijo] = update_rigid(Nii_x,Nii_y,dat,tau,armijo,num_workers,p)
 % Optimise the rigid alignment between observed images and their 
 % corresponding channel's reconstruction. This routine runs in parallel
 % over image channels. The observed lowres images are here denoted by f and
@@ -6,11 +6,15 @@ function [dat,ll1,armijo] = update_rigid(Nii_x,Nii_y,dat,tau,armijo,num_workers,
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
-% Parameters
-B        = get_rigid_basis; % Get rigid basis
-C        = numel(dat);      % Number of channels
-Nq       = size(B,3);       % Number of registration parameters
-meancrct = false;           % Mean correct the rigid-body transforms
+% Some parameters from options struct
+meancrct = p.Results.MeanCorrectRigid;
+nitgn    = p.Results.IterGaussNewtonRigid; 
+speak    = p.Results.Verbose; 
+
+% More parameters
+B  = get_rigid_basis; % Get rigid basis
+C  = numel(dat);      % Number of channels
+Nq = size(B,3);       % Number of registration parameters
 
 if num_workers > 0
     speak = min(speak,1);
@@ -28,7 +32,7 @@ parfor (c=1:C,num_workers) % Loop over channels
     spm_field('boundary',1);
     pushpull('boundary',1); 
     
-    [dat(c),ll1(c),armijo{c}] = update_channel(Nii_x(c),Nii_y(c),dat(c),B,tau{c},armijo{c},speak,c);    
+    [dat(c),ll1(c),armijo{c}] = update_channel(Nii_x(c),Nii_y(c),dat(c),B,tau{c},armijo{c},speak,nitgn,c);    
     
 end % End loop over channels
 
@@ -79,13 +83,12 @@ end
 %==========================================================================
 
 %==========================================================================
-function [dat,sll,armijo] = update_channel(Nii_x,Nii_y,dat,B,tau,armijo,speak,c)
+function [dat,sll,armijo] = update_channel(Nii_x,Nii_y,dat,B,tau,armijo,speak,nitgn,c)
 
 % Parameters
 Nq          = size(B,3);             % Number of registration parameters
 lkp         = [1 4 5; 4 2 6; 5 6 3]; % Que?
 nlinesearch = 4;                     % Number of line-searches    
-ngnit       = 3;                     % Number of Gauss-Newton iterations
 method      = dat.method;
 
 % Cell-array of observations    
@@ -105,7 +108,7 @@ for n=1:N % Loop over observed images (of channel c)
     Mf   = dat.A(n).mat;            
     tauf = tau(n);        % Noise precision
 
-    for gnit=1:ngnit % Loop over Gauss-Newton iterations
+    for gnit=1:nitgn % Loop over Gauss-Newton iterations
         
         oq = dat.A(n).q;                        
         oJ = dat.A(n).J;
@@ -169,7 +172,7 @@ for n=1:N % Loop over observed images (of channel c)
         end % End loop over slices
 
         if speak >= 1
-            fprintf('   | c=%i, n=%i, g=%i | ll=%g\n', c, n, gnit, ll); 
+            fprintf('   | c=%i, n=%i, gn=%i, ls=0 | ll=%g\n', c, n, gnit, ll); 
         end
 
         % Fill in missing triangle
@@ -210,7 +213,7 @@ for n=1:N % Loop over observed images (of channel c)
 
             if ll > oll
                 if speak >= 1
-                    fprintf('   | c=%i, n=%i, g=%i | ll=%g, ls=%i | :o) | q=%s\n', c, n, gnit, ll, linesearch, sprintf(' %2.3f', q)); 
+                    fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%g | :o) | q=%s\n', c, n, gnit, linesearch, ll, sprintf(' %2.3f', q)); 
                 end
 
                 armijo(n) = min(1.2*armijo(n),1);
@@ -218,7 +221,7 @@ for n=1:N % Loop over observed images (of channel c)
                 break;
             else
                 if speak >= 1
-                    fprintf('   | c=%i, n=%i, g=%i | ll=%g, ls=%i | :''(\n', c, n, gnit, ll, linesearch); 
+                    fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%g | :''(\n', c, n, gnit, linesearch, ll); 
                 end
                 
                 % Revert to previous values in dat struct

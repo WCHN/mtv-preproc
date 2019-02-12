@@ -93,7 +93,7 @@ end
 
 % For decreasing regularisation with iteration number
 lam0      = lam;
-sched_lam = get_lam_sched(nit);
+sched_lam = get_lam_sched;
 if dec_reg
     lam   = sched_lam(1)*lam;
 end
@@ -125,9 +125,6 @@ end
 %==========================================================================
 
 %==========================================================================
-function sched = get_lam_sched(nit)
-% def        = spm_shoot_defaults;
-% sched      = def.sched(2:14);
-% sched(end) = 1;
-sched = fliplr(2.^(0:5));
+function sched = get_lam_sched
+sched = fliplr(2.^(0:4));
 %==========================================================================
