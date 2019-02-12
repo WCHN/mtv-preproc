@@ -26,7 +26,7 @@ nc = ceil(C/nr);
     
 for d=1:nim
     subplot(1,nim+1,1+d)
-    if strcmpi(method,'superres')
+%     if strcmpi(method,'superres')
         img_y = zeros([nr*dm(dims(2,d)) nc*dm(dims(3,d))],'single');
         cnt   = 0;
         z     = ceil(dm(dims(1,d))/2);
@@ -43,30 +43,30 @@ for d=1:nim
         end
 
         imagesc(img_y');
-    else    
-        img_x = zeros([nr*dm(dims(2,d)) nc*dm(dims(3,d))],'single');
-        img_y = zeros([nr*dm(dims(2,d)) nc*dm(dims(3,d))],'single');
-        cnt   = 0;
-        z     = ceil(dm(dims(1,d))/2);
-        for c=1:nc
-            for r=1:nr        
-                rngr = ((r - 1)*dm(dims(2,d)) + 1):r*dm(dims(2,d));
-                rngc = ((c - 1)*dm(dims(3,d)) + 1):c*dm(dims(3,d));
-
-                img_x(rngr,rngc) = fliplr(reshape(get_nii(nii_x{c},z,dims(1,d)), [dm(dims(2,d)) dm(dims(3,d))]));                 
-                img_y(rngr,rngc) = fliplr(reshape(get_nii(nii_y(c),z,dims(1,d)), [dm(dims(2,d)) dm(dims(3,d))]));
-
-                cnt = cnt + 1;
-                if cnt == C, break; end        
-            end
-        end
-
-        if strcmpi(modality,'MRI')
-            imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]');
-        elseif strcmpi(modality,'CT')
-            imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]',[0 100]);
-        end               
-    end    
+%     else    
+%         img_x = zeros([nr*dm(dims(2,d)) nc*dm(dims(3,d))],'single');
+%         img_y = zeros([nr*dm(dims(2,d)) nc*dm(dims(3,d))],'single');
+%         cnt   = 0;
+%         z     = ceil(dm(dims(1,d))/2);
+%         for c=1:nc
+%             for r=1:nr        
+%                 rngr = ((r - 1)*dm(dims(2,d)) + 1):r*dm(dims(2,d));
+%                 rngc = ((c - 1)*dm(dims(3,d)) + 1):c*dm(dims(3,d));
+% 
+%                 img_x(rngr,rngc) = fliplr(reshape(get_nii(nii_x{c},z,dims(1,d)), [dm(dims(2,d)) dm(dims(3,d))]));                 
+%                 img_y(rngr,rngc) = fliplr(reshape(get_nii(nii_y(c),z,dims(1,d)), [dm(dims(2,d)) dm(dims(3,d))]));
+% 
+%                 cnt = cnt + 1;
+%                 if cnt == C, break; end        
+%             end
+%         end
+% 
+%         if strcmpi(modality,'MRI')
+%             imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]');
+%         elseif strcmpi(modality,'CT')
+%             imagesc([img_x; max(img_x(:))*ones([20 size(img_x,2)]); img_y]',[0 100]);
+%         end               
+%     end    
     axis off image; colormap(gray); 
     
     if strcmpi(method,'superres')

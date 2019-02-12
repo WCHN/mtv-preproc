@@ -122,6 +122,10 @@ function Nii = spm_mtv_preproc(varargin)
 % First check that all is okay with SPM
 spm_check_path('Longitudinal');
 
+% Boundary used to model HR image  
+spm_field('boundary',1);
+pushpull('boundary',1); 
+    
 %--------------------------------------------------------------------------
 % Parse input
 %--------------------------------------------------------------------------
@@ -139,8 +143,8 @@ p.addParameter('RegScaleDenoisingMRI', 3.2, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegSuperresCT', 0.001, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegDenoisingCT', 0.06, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('TemporaryDirectory', 'tmp', @ischar);
-p.addParameter('OutputDirectory', 'out', @ischar);
+p.addParameter('TemporaryDirectory', 'Temp', @ischar);
+p.addParameter('OutputDirectory', 'Output', @ischar);
 p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') || strcmpi(in,'superres'))));
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
@@ -186,9 +190,6 @@ EstimateRigid = p.Results.EstimateRigid;
 % Some sanity checks
 if ~isempty(Nii_ref) && strcmpi(method,'superres')
     error('Super-resolution with reference image(s) not yet implemented!');
-end
-if EstimateRigid && strcmpi(method,'denoise')
-    error('Denoising with rigid alignment not yet implemented!');
 end
 
 % Get image data
@@ -259,10 +260,7 @@ if strcmpi(method,'denoise')
     if isempty(dec_reg), dec_reg = false; end
     if nit == 0,         nit     = 20; end
     
-    mat      = Nii_x{1}(1).mat;
-    vx       = sqrt(sum(mat(1:3,1:3).^2));   
-    dm       = Nii_x{1}(1).dat.dim;
-    dat(1:C) = struct;
+    vx = sqrt(sum(Nii_x{1}(1).mat(1:3,1:3).^2));
 elseif strcmpi(method,'superres')
     %---------------------------
     % Super-resolution
@@ -273,13 +271,15 @@ elseif strcmpi(method,'superres')
     
     % For super-resolution, calculate orientation matrix and dimensions 
     % from maximum bounding-box
-    vx       = vx_sr;
-    [mat,dm] = max_bb_orient(Nii_x,vx);
+    vx = vx_sr;
     
-    % Initialise dat struct with projection matrices, etc.
-    dat = init_dat(Nii_x,mat,dm,window,gap,gapunit);            
 end
 
+[mat,dm] = max_bb_orient(Nii_x,vx);
+
+% Initialise dat struct with projection matrices, etc.
+dat = init_dat(method,Nii_x,mat,dm,window,gap,gapunit);    
+    
 %--------------------------------------------------------------------------
 % Estimate model hyper-parameters
 %--------------------------------------------------------------------------
@@ -292,10 +292,10 @@ end
 
 [Nii_y,Nii_u,Nii_w,Nii_H] = alloc_aux_vars(do_readwrite,C,dm,mat,dir_tmp);
 
-if strcmpi(method,'superres')
+% if strcmpi(method,'superres')
     % Compute approximation to the diagonal of the Hessian 
     Nii_H = approx_hessian(Nii_H,dat);
-end
+% end
 
 %--------------------------------------------------------------------------
 % Create intial estimate of solution (y)
@@ -392,13 +392,11 @@ for it=1:nit % Start main loop
         %------------------------------------------------------------------
         % Update rigid alignment matrices (dat(c).A(n).q)
         %------------------------------------------------------------------
-                
+                        
         [dat,ll1,armijo_rigid] = update_rigid(Nii_x,Nii_y,dat,tau,armijo_rigid,num_workers,speak);
         
-        if strcmpi(method,'superres')
-            % update approximation to the diagonal of the Hessian 
-            Nii_H = approx_hessian(Nii_H,dat);
-        end
+        % Update approximation to the diagonal of the Hessian 
+        Nii_H = approx_hessian(Nii_H,dat);
 
         % Compute log-posterior (objective value)        
         ll   = [ll, sum(ll1) + ll2];

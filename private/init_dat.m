@@ -1,11 +1,11 @@
-function dat = init_dat(Nii,mat,dm,window,gap,gapunit)
+function dat = init_dat(method,Nii,mat,dm,window,gap,gapunit)
 % Initialise projection matrices for super-resolution
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
-if nargin < 4, window  = []; end
-if nargin < 5, gap     = 0; end
-if nargin < 6, gapunit = '%'; end
+if nargin < 5, window  = []; end
+if nargin < 6, gap     = 0; end
+if nargin < 7, gapunit = '%'; end
 
 % Get rigid basis
 B = get_rigid_basis;
@@ -17,40 +17,44 @@ window = get_window(window,Nii);
 gap = get_slice_gap(gap,Nii,gapunit);
 
 C   = numel(Nii);
-dat = struct('mat',[],'dm',[],'N',[],'A',[]);
+dat = struct('mat',[],'dm',[],'N',[],'A',[],'method',[]);
 for c=1:C % Loop over channels
+    
+    matc = mat(:,:,min(c,size(mat,3)));
+    
     if iscell(Nii(c))
-        dat(c) = init_A(Nii{c},mat,dm,window{c},gap{c},B);         
+        dat(c) = init_A(Nii{c},matc,dm,window{c},gap{c},B,method); 
     else
-        dat(c) = init_A(Nii(c),mat,dm,window{c},gap{c},B);         
+        dat(c) = init_A(Nii(c),matc,dm,window{c},gap{c},B,method);    
     end
 end    
 %==========================================================================
 
 %==========================================================================
-function dat = init_A(Nii,mat,dm,window,gap,B)
+function dat = init_A(Nii,Mmu,dmmu,window,gap,B,method)
 % Initialise projection matrices (stored in dat struct)
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
-N       = numel(Nii); % Number of LR images
-Nq      = size(B,3);  % Number of affine parameters
-dat.mat = mat;
-dat.dm  = dm;   
-dat.N   = N;
-vs      = sqrt(sum(mat(1:3,1:3).^2));
+N          = numel(Nii); % Number of LR images
+Nq         = size(B,3);  % Number of affine parameters
+dat.mat    = Mmu;
+dat.dm     = dmmu;   
+dat.N      = N;
+dat.method = method;
+vs         = sqrt(sum(Mmu(1:3,1:3).^2));
 for n=1:N % Loop over LR images
-    mat_n = Nii(n).mat;    
-    dm_n  = Nii(n).dat.dim;
+    Mf  = Nii(n).mat;    
+    dmf = Nii(n).dat.dim;
     
-    dat.A(n).mat = mat_n;    
-    dat.A(n).dm  = dm_n;
+    dat.A(n).mat = Mf;    
+    dat.A(n).dm  = dmf;
     dat.A(n).win = window{n};
     dat.A(n).gap = gap{n};
     dat.A(n).q   = zeros([Nq 1],'single'); 
     
     R = spm_dexpm(dat.A(n).q,B); % Rigid matrix
-    M = mat\R*mat_n;
+    M = Mmu\R*Mf;
 %     R          = (M(1:3,1:3)/diag(sqrt(sum(M(1:3,1:3).^2))))';
 %     dat.A(n).S = blur_fun(dm,R,sqrt(sum(M(1:3,1:3).^2)));
 %     dat.A(n).S = blur_function(dm,M);

@@ -18,7 +18,7 @@ C        = numel(Nii_x);
 %------------------------------------------------------------------
 
 unorm = 0;    
-%     for c=1:C, fprintf('OBS! for c=1:C\n')
+% for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers) % Loop over channelsi
 
     % Boundary used to model HR image  
@@ -46,10 +46,11 @@ clear unorm
 
 ll1 = zeros(1,C);
 ll2 = 0;
-%     for c=1:C, fprintf('OBS! for c=1:C\n')
+% for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers) % Loop over channels
 
     spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
+    pushpull('boundary',1);
 
     u = get_nii(Nii_u(c));   
     w = get_nii(Nii_w(c));   
@@ -68,67 +69,44 @@ parfor (c=1:C,num_workers) % Loop over channels
 
     x = get_nii(Nii_x(c)); % Get observed image
 
-    if strcmpi(method,'superres')              
-        %---------------------------
-        % Super-resolution
-        %---------------------------      
+    y = get_nii(Nii_y(c)); % Get solution
 
-        y = get_nii(Nii_y(c)); % Get solution
+    for gnit=1:nitgn % Iterate Gauss-Newton
 
-        for gnit=1:nitgn % Iterate Gauss-Newton
-
-            % Gradient      
-            rhs = w/rho - u; 
-            rhs = lam(c)*imdiv(rhs,vx);
-            Ayx = A(y,dat(c));
-            for n=1:dat(c).N
-                % Here we discard missing data, for MRI these are
-                % assumed to be zeros and NaNs.
-                mskn          = isfinite(x{n}) & x{n} ~= 0;
-                Ayx{n}        = Ayx{n} - x{n};
-                Ayx{n}(~mskn) = 0;
-            end                  
-            mskn = [];
-            rhs  = rhs + At(Ayx,dat(c),tau{c})*(1/rho); 
-            Ayx  = [];
-            rhs  = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
-
-            % Hessian
-            H   = get_nii(Nii_H(c));
-            lhs = H*sum(tau{c})/rho;
-            H   = [];
-            
-            % Compute GN step
-            y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
-            lhs = [];
-            rhs = [];
-        end
-    else            
-        %---------------------------
-        % Denoising
-        %---------------------------
-
-        % RHS
-        rhs = u - w/rho; 
+        % Gradient      
+        rhs = w/rho - u; 
         rhs = lam(c)*imdiv(rhs,vx);
-        rhs = rhs + x{1}*(tau{c}/rho);
+        Ayx = A(y,dat(c));
+        for n=1:dat(c).N
+            % Here we discard missing data, for MRI these are
+            % assumed to be zeros and NaNs.
+            mskn          = isfinite(x{n}) & x{n} ~= 0;
+            Ayx{n}        = Ayx{n} - x{n};
+            Ayx{n}(~mskn) = 0;
+        end                  
+        mskn = [];
+        rhs  = rhs + At(Ayx,dat(c),tau{c})*(1/rho); 
+        Ayx  = [];
+        rhs  = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
 
-        % LHS
-        lhs = ones(dm,'single')*tau{c}/rho;
+        % Hessian
+        H   = get_nii(Nii_H(c));
+        lhs = H*sum(tau{c})/rho;
+        H   = [];
 
-        % Compute new y
-        y   = spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
+        % Compute GN step
+        y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
         lhs = [];
         rhs = [];
-    end                                       
+    end                                
 
     if strcmpi(modality,'MRI')
         % Ensure non-negativity (ad-hoc)
         y(y < 0) = 0;
     end 
 
-    % Compute negative log of likelihood part
-    ll1(c) = get_negloglik(method,y,x,tau{c},dat(c));
+    % Compute log of likelihood part
+    ll1(c) = get_ll1(y,x,tau{c},dat(c));
     x      = [];
 
     %------------------------------------------------------------------
@@ -143,7 +121,7 @@ parfor (c=1:C,num_workers) % Loop over channels
 
     w = w + rho*(G - u);        
 
-    % Compute negative log of prior part
+    % Compute log of prior part (part 1)
     ll2 = ll2 + sum(sum(G.^2,4),5);
     G   = [];                
 
@@ -154,12 +132,8 @@ parfor (c=1:C,num_workers) % Loop over channels
     w        = [];
 end % End loop over channels     
 
-% Compute negative log of prior part
-ll2 = sum(sum(sum(sqrt(ll2)))); 
-
-% Minus sign because YB wants to see increasing objective functions...
-ll1 = -ll1;
-ll2 = -ll2;
+% Compute log of prior part (part 2)
+ll2 = -sum(sum(sum(sqrt(double(ll2))))); 
 
 if speak >= 2
     % Show MTV scaling

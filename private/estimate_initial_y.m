@@ -25,65 +25,46 @@ parfor (c=1:C,num_workers)
     % Observed image
     x = get_nii(Nii_x(c));
         
-    % Initial guesses for solution    
-    if strcmpi(method,'superres')    
-        %---------------------------
-        % Super-resolution
-        %---------------------------
-        
-        y = get_nii(Nii_y(c));
-        for gnit=1:nitgn % Iterate Gauss-Newton
+    y = get_nii(Nii_y(c));
+    for gnit=1:nitgn % Iterate Gauss-Newton
 
-            % Gradient      
-            Ayx  = A(y,dat(c));                
-            for n=1:dat(c).N
-                % Here we discard missing data, for MRI these are
-                % assumed to be zeros and NaNs.
-                mskn          = isfinite(x{n}) & x{n} ~= 0;
-                Ayx{n}        = Ayx{n} - x{n};
-                Ayx{n}(~mskn) = 0;
-            end 
-            mskn = [];
-            rhs  = At(Ayx,dat(c),tau{c})*(1/rho); 
-            Ayx  = [];
-            rhs  = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
+        % Gradient      
+        Ayx  = A(y,dat(c));                
+        for n=1:dat(c).N
+            % Here we discard missing data, for MRI these are
+            % assumed to be zeros and NaNs.
+            mskn          = isfinite(x{n}) & x{n} ~= 0;
+            Ayx{n}        = Ayx{n} - x{n};
+            Ayx{n}(~mskn) = 0;
+        end 
+        mskn = [];
+        rhs  = At(Ayx,dat(c),tau{c})*(1/rho); 
+        Ayx  = [];
+        rhs  = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
 
-            % Hessian
-            H   = get_nii(Nii_H(c));
-            lhs = H*sum(tau{c})/rho;
-            H   = [];
-            
-            % Compute GN step
-            y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
-            lhs = [];
-            rhs = [];
+        % Hessian
+        H   = get_nii(Nii_H(c));
+        lhs = H*sum(tau{c})/rho;
+        H   = [];
 
-        end
-        msk{c} = isfinite(y) & y ~= 0;
-    else  
-        %---------------------------
-        % Denoising
-        %---------------------------        
-    
-        y = spm_field(tau{c}*ones(dm,'single'),tau{c}*x{1},[vx 0 lam(c)^2 0 2 2]); 
-        
-        if strcmpi(modality,'CT')
-            msk{c} = isfinite(x{1}) & x{1} ~= 0 & x{1} ~= min(x{1});
-        else
-            msk{c} = isfinite(x{1}) & x{1} ~= 0;
-        end
-    end        
+        % Compute GN step
+        y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
+        lhs = [];
+        rhs = [];
+
+    end
+    msk{c} = isfinite(y) & y ~= 0;       
     
     if strcmpi(modality,'MRI')
         % Ensure non-negativity
         y(y < 0) = 0;
     end 
         
-    % Compute negative log of likelihood part
-    ll1(c) = get_negloglik(method,y,x,tau{c},dat(c));
+    % Compute log of likelihood part
+    ll1(c) = get_ll1(y,x,tau{c},dat(c));
     x      = [];
     
-    % Compute negative log of prior part
+    % Compute log of prior part (part 1)
     G   = lam(c)*imgrad(y,vx);
     ll2 = ll2 + sum(sum(G.^2,4),5);
     G   = [];         
@@ -92,12 +73,8 @@ parfor (c=1:C,num_workers)
     y        = [];
 end
 
-% Compute negative log of prior part
-ll2 = sum(sum(sum(sqrt(ll2)))); 
-
-% Minus sign because YB wants to see increasing objective functions...
-ll1 = -ll1;
-ll2 = -ll2;
+% Compute log of prior part (part 2)
+ll2 = -sum(sum(sum(sqrt(double(ll2))))); 
 
 if speak >= 2
     % Show initial estimate

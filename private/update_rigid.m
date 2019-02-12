@@ -1,4 +1,4 @@
-function [dat,sll,armijo] = update_rigid(Nii_x,Nii_y,dat,tau,armijo,num_workers,speak)
+function [dat,ll1,armijo] = update_rigid(Nii_x,Nii_y,dat,tau,armijo,num_workers,speak)
 % Optimise the rigid alignment between observed images and their 
 % corresponding channel's reconstruction. This routine runs in parallel
 % over image channels. The observed lowres images are here denoted by f and
@@ -7,10 +7,11 @@ function [dat,sll,armijo] = update_rigid(Nii_x,Nii_y,dat,tau,armijo,num_workers,
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
 % Parameters
-B  = get_rigid_basis; % Get rigid basis
-C  = numel(dat);      % Number of channels
-Nq = size(B,3);       % Number of registration parameters
-    
+B        = get_rigid_basis; % Get rigid basis
+C        = numel(dat);      % Number of channels
+Nq       = size(B,3);       % Number of registration parameters
+meancrct = false;           % Mean correct the rigid-body transforms
+
 if num_workers > 0
     speak = min(speak,1);
 end
@@ -19,7 +20,7 @@ end
 % Start updating, for each observation
 %--------------------------------------------------------------------------
 
-sll = 0;
+ll1 = zeros(1,C);
 % for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers) % Loop over channels
     
@@ -27,55 +28,53 @@ parfor (c=1:C,num_workers) % Loop over channels
     spm_field('boundary',1);
     pushpull('boundary',1); 
     
-    [dat(c),dll,armijo{c}] = update_channel(Nii_x(c),Nii_y(c),dat(c),B,tau{c},armijo{c},speak,c);
-    sll                    = sll + dll;
+    [dat(c),ll1(c),armijo{c}] = update_channel(Nii_x(c),Nii_y(c),dat(c),B,tau{c},armijo{c},speak,c);    
     
 end % End loop over channels
 
-% Minus sign because YB wants to see increasing objective functions...
-sll = -sll;
+if meancrct
+    %----------------------------------------------------------------------
+    % Mean correct the rigid-body transforms
+    %----------------------------------------------------------------------
 
-%--------------------------------------------------------------------------
-% Mean correct the rigid-body transforms
-%--------------------------------------------------------------------------
-
-% Sum all rigid body parameters
-sq  = zeros([Nq 1]);
-cnt = 0;
-for c=1:C
-    N = numel(dat(c).A);
-    for n=1:N
-        sq  = sq + dat(c).A(n).q;
-        cnt = cnt + 1;
+    % Sum all rigid body parameters
+    sq  = zeros([Nq 1]);
+    cnt = 0;
+    for c=1:C
+        N = numel(dat(c).A);
+        for n=1:N
+            sq  = sq + dat(c).A(n).q;
+            cnt = cnt + 1;
+        end
     end
-end
 
-% Compute mean
-q_avg = sq/cnt;
+    % Compute mean
+    q_avg = sq/cnt;
 
-% Update all q and J
-for c=1:C
-    
-    Mmu  = dat(c).mat;        
-    vsmu = sqrt(sum(Mmu(1:3,1:3).^2));
-    
-    N = numel(dat(c).A);
-    for n=1:N
-        
-        Mf = dat(c).A(n).mat;                   
-        q  = dat(c).A(n).q;
-        
-        q = q - q_avg; 
-        
-        R  = spm_dexpm(q,B);
-        M  = Mmu\R*Mf;
-        Mg = model_slice_gap(M,dat(c).A(n).gap,vsmu);    
-        J  = single(reshape(Mg, [1 1 1 3 3]));
+    % Update all q and J
+    for c=1:C
 
-        % Update dat struct
-        dat(c).A(n).q = q;        
-        dat(c).A(n).J = J;
-    end  
+        Mmu  = dat(c).mat;        
+        vsmu = sqrt(sum(Mmu(1:3,1:3).^2));
+
+        N = numel(dat(c).A);
+        for n=1:N
+
+            Mf = dat(c).A(n).mat;                   
+            q  = dat(c).A(n).q;
+
+            q = q - q_avg; 
+
+            R  = spm_dexpm(q,B);
+            M  = Mmu\R*Mf;
+            Mg = model_slice_gap(M,dat(c).A(n).gap,vsmu);    
+            J  = single(reshape(Mg, [1 1 1 3 3]));
+
+            % Update dat struct
+            dat(c).A(n).q = q;        
+            dat(c).A(n).J = J;
+        end  
+    end
 end
 %==========================================================================
 
@@ -86,17 +85,19 @@ function [dat,sll,armijo] = update_channel(Nii_x,Nii_y,dat,B,tau,armijo,speak,c)
 Nq          = size(B,3);             % Number of registration parameters
 lkp         = [1 4 5; 4 2 6; 5 6 3]; % Que?
 nlinesearch = 4;                     % Number of line-searches    
-ngnit       = 1;                     % Number of Gauss-Newton iterations
+ngnit       = 3;                     % Number of Gauss-Newton iterations
+method      = dat.method;
 
 % Cell-array of observations    
 f = get_nii(Nii_x); 
+N = numel(f); % Number of observations
 
 % Template parameters
 mu   = get_nii(Nii_y);
 Mmu  = dat.mat;        
 vsmu = sqrt(sum(Mmu(1:3,1:3).^2));
 
-N = numel(dat.A);
+sll = 0;
 for n=1:N % Loop over observed images (of channel c)
 
     % Observation parameters
@@ -106,9 +107,8 @@ for n=1:N % Loop over observed images (of channel c)
 
     for gnit=1:ngnit % Loop over Gauss-Newton iterations
         
-        sll = 0;
-        oq  = dat.A(n).q;                        
-        oJ  = dat.A(n).J;
+        oq = dat.A(n).q;                        
+        oJ = dat.A(n).J;
         
         %------------------------------------------------------------------
         % Compute gradient and Hessian (slice-wise)
@@ -132,8 +132,8 @@ for n=1:N % Loop over observed images (of channel c)
         ll = 0;
         for z=1:dmf(3) % Loop over slices
 
-            % Compute matching-term part
-            [llz,gz,Hz] = meansq_objfun_slice(f{n},mu,ymu2f,dat.A(n),tauf,speak,z);
+            % Compute matching-term part (log likelihood)
+            [llz,gz,Hz] = meansq_objfun_slice(f{n},mu,ymu2f,dat.A(n),tauf,speak,z,method);
             ll          = ll + llz;           
 
             % Add dRq to gradients
@@ -206,7 +206,7 @@ for n=1:N % Loop over observed images (of channel c)
 
             % Compute new log-likelihood
             ymu2f = affine_transf(M,yf);
-            ll    = meansq_objfun(f{n},mu,ymu2f,dat.A(n),tauf,speak,true);
+            ll    = meansq_objfun(f{n},mu,ymu2f,dat.A(n),tauf,speak,method,true);
 
             if ll > oll
                 if speak >= 1
@@ -214,7 +214,6 @@ for n=1:N % Loop over observed images (of channel c)
                 end
 
                 armijo(n) = min(1.2*armijo(n),1);
-                sll       = sll + ll;   
 
                 break;
             else
@@ -237,29 +236,31 @@ for n=1:N % Loop over observed images (of channel c)
         end
 
         if ll <= oll
-            % Use old log-likelihood
-            sll = sll + oll;
+            % Use old neg log-likelihood
+            ll = oll;
         end
         
     end % End loop over Gauss-Newton iterations
 
+    sll = sll + ll;
+    
 end % End loop over observations
 %==========================================================================
     
 %==========================================================================
-function ll = meansq_objfun(f,mu,y,An,tau,speak,show_moved)
-if nargin < 7, show_moved = 0; end
+function ll = meansq_objfun(f,mu,y,An,tau,speak,method,show_moved)
+if nargin < 8, show_moved = 0; end
 
 dm = size(f);
 ll = 0;
 for z=1:dm(3)
-    ll = ll + meansq_objfun_slice(f,mu,y,An,tau,speak,z,show_moved);
+    ll = ll + meansq_objfun_slice(f,mu,y,An,tau,speak,z,method,show_moved);
 end
 %==========================================================================
 
 %==========================================================================
-function [ll,g,H] = meansq_objfun_slice(f,mu,y,An,tau,speak,z,show_moved)
-if nargin < 8, show_moved = 0; end
+function [ll,g,H] = meansq_objfun_slice(f,mu,y,An,tau,speak,z,method,show_moved)
+if nargin < 9, show_moved = 0; end
 
 dm                = size(f); % Observation dimensions
 mu(~isfinite(mu)) = 0; 
@@ -267,9 +268,21 @@ mu(~isfinite(mu)) = 0;
 % Move template to image space
 dmu = cell(1,3);
 if nargout >= 2
-    [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',single(mu),single(y(:,:,z,:)),single(An.J),double(An.win));    
+    if strcmp(method,'superres')
+        [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',single(mu),single(y(:,:,z,:)),single(An.J),double(An.win)); 
+    elseif strcmp(method,'denoise')
+        [~,dmu{1}]     = spm_diffeo('bsplins',mu,y(:,:,z,:),[2 0 0  0 0 0]);        
+        [~,~,dmu{2}]   = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 2 0  0 0 0]);
+        [~,~,~,dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 0 2  0 0 0]);
+        
+        mu = spm_diffeo('pull',mu,y(:,:,z,:));        
+    end
 else
-    mu                        = pushpull('pull',single(mu),single(y(:,:,z,:)),single(An.J),double(An.win));    
+    if strcmp(method,'superres')
+        mu = pushpull('pull',single(mu),single(y(:,:,z,:)),single(An.J),double(An.win));    
+    elseif strcmp(method,'denoise')
+        mu = spm_diffeo('pull',mu,y(:,:,z,:));
+    end
 end
 mu(~isfinite(mu)) = 0; 
 
@@ -282,14 +295,15 @@ if nargout == 0, return; end
 
 % Compute log-likelihood of slice
 msk  = isfinite(f(:,:,z)) & f(:,:,z) ~= 0;
+msk  = msk(:);
 ftmp = f(:,:,z);
-ll   = 0.5*tau*sum((ftmp(msk) - mu(msk)).^2);
+ll   = -0.5*tau*sum((double(ftmp(msk)) - double(mu(msk))).^2);
 
 if nargout >= 2
     % Compute gradient    
     g = zeros([dm(1:2),3],'single');
     
-    diff1        = f(:,:,z) - mu;
+    diff1        = mu - f(:,:,z);
     for d=1:3
         g(:,:,d) = diff1.*dmu{d};
     end
@@ -350,9 +364,10 @@ set(0, 'CurrentFigure', fig);
 
 mxf = max(f(:));
 if ~show_moved
-    clf(fig)
+%     clf(fig)
     subplot(2,3,1); imagesc(f', [0 mxf]); axis xy off; title('f');
     subplot(2,3,2); imagesc(mu',[0 mxf]); axis xy off; title('mu');
+    subplot(2,3,3); imagesc(mu',[0 mxf]); axis xy off; title('nmu');
     subplot(2,3,4); imagesc(dmu{1}'); axis xy off; title('dmux');
     subplot(2,3,5); imagesc(dmu{2}'); axis xy off; title('dmuy');
     subplot(2,3,6); imagesc(dmu{3}'); axis xy off; title('dmuz');

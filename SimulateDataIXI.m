@@ -1,4 +1,4 @@
-function GenerateTestData
+function SimulateDataIXI
 
 %--------------------------------------------------------------------------
 % Parameters
@@ -6,7 +6,7 @@ function GenerateTestData
 
 % Where to write output
 DirRef = './ReferenceData/IXI';
-DirSim = './SimulatedData';
+DirSim = './SimulatedData/IXI';
 
 % Slice-profile related
 DownSampling = 1/6; % Down-sampling factor, will be applied in orthogonal directions

@@ -126,8 +126,8 @@ end
 
 %==========================================================================
 function sched = get_lam_sched(nit)
-def        = spm_shoot_defaults;
-sched      = def.sched(1:14);
-sched(end) = 1;
-% sched = fliplr(1:2:20);
+% def        = spm_shoot_defaults;
+% sched      = def.sched(2:14);
+% sched(end) = 1;
+sched = fliplr(2.^(0:5));
 %==========================================================================

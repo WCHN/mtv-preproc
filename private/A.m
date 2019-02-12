@@ -14,8 +14,12 @@ for n=1:dat.N
     T = dat.mat\R*dat.A(n).mat;
     y = apply_affine(T,dat.A(n).dm);
     
-    X{n}                  = pushpull('pull',single(Y),single(y),single(dat.A(n).J),double(dat.A(n).win));    
-    X{n}(~isfinite(X{n})) = 0; 
-    clear y tmp
+    if strcmp(dat.method,'superres')
+        X{n} = pushpull('pull',single(Y),single(y),single(dat.A(n).J),double(dat.A(n).win));    
+    elseif strcmp(dat.method,'denoise')
+        X{n} = spm_diffeo('pull',single(Y),single(y));
+    end
+    clear y    
+    X{n}(~isfinite(X{n})) = 0;     
 end
 %==========================================================================  
