@@ -95,6 +95,6 @@ ll2 = -sum(sum(sum(sqrt(double(ll2)))));
 
 if speak >= 2
     % Show initial estimate
-    show_progress(method,modality,0,Nii_x,Nii_y,dm); 
+    show_model('solution',use_projmat,modality,Nii_x,Nii_y); 
 end
 %==========================================================================

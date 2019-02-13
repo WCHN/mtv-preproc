@@ -17,17 +17,17 @@ function Nii = spm_mtv_preproc(varargin)
 %                        C are the number of image channels. Each array 
 %                        entry contains N_c images of the same channel. 
 %                        If empty, uses spm_select ['']
-% IterMax              - Maximum number of iteration [20]
+% IterMax              - Maximum number of iteration [40]
 % IterImage            - Maximum number of iterations for solving for the
-%                        super-resolved image(s) [2]
+%                        super-resolved image(s) [1]
 % ADMMStepSize         - The infamous ADMM step size, set to zero for an 
 %                        educated guess [0]
 % Tolerance            - Convergence threshold, set to zero to run until 
 %                        IterMax [1e-4]
 % RegScaleSuperResMRI  - Scaling of regularisation for MRI super-
-%                        resolution [5]
+%                        resolution [6]
 % RegScaleDenoisingMRI - Scaling of regularisation for MRI denoising, 
-%                        increase this value for stronger denoising [5]
+%                        increase this value for stronger denoising [6]
 % RegSuperresCT        - Regularisation used for CT denoising [0.06]
 % RegDenoisingCT       - Regularisation used for CT super-resolution [0.06]
 % WorkersParfor        - Maximum number of parfor workers [Inf]
@@ -54,7 +54,7 @@ function Nii = spm_mtv_preproc(varargin)
 % IterGaussNewtonImage - Number of Gauss-Newton iterations for solving for 
 %                        super-resolution [1]
 % IterGaussNewtonRigid - Number of Gauss-Newton iterations for solving for
-%                        rigid registration [3]
+%                        rigid registration [1]
 % Reference            - Struct with NIfTI reference images, if given 
 %                        computes PSNR and displays it, for each iteration of 
 %                        the algoirthm [{}] 
@@ -78,7 +78,7 @@ function Nii = spm_mtv_preproc(varargin)
 %                        and their corresponding channel's reconstruction
 %                        [false]
 % MeanCorrectRigid     - Mean correct the rigid-body transform parameters 
-%                        q [true]
+%                        q [false]
 %
 % OUTPUT
 % ------
@@ -138,12 +138,12 @@ p              = inputParser;
 p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', {}, @(in) ( isa(in,'nifti') || isempty(in) || ...
                                         ((ischar(in{1}) || isa(in{1},'nifti')) || (ischar(in{1}{1}) || isa(in{1}{1},'nifti'))) ) );
-p.addParameter('IterMax', 20, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('IterImage', 2, @(in) (isnumeric(in) && in > 0));
+p.addParameter('IterMax', 40, @(in) (isnumeric(in) && in >= 0));
+p.addParameter('IterImage', 1, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 1e-4, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('RegScaleSuperResMRI', 5, @(in) (isnumeric(in) && in > 0));
-p.addParameter('RegScaleDenoisingMRI', 5, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegScaleSuperResMRI', 6, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegScaleDenoisingMRI', 6, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegSuperresCT', 0.06, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegDenoisingCT', 0.06, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
@@ -158,7 +158,7 @@ p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || str
 p.addParameter('ReadWrite', false, @islogical);
 p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
 p.addParameter('IterGaussNewtonImage', 1, @(in) (isnumeric(in) && in > 0));
-p.addParameter('IterGaussNewtonRigid', 3, @(in) (isnumeric(in) && in > 0));
+p.addParameter('IterGaussNewtonRigid', 1, @(in) (isnumeric(in) && in > 0));
 p.addParameter('Reference', {}, @(in)  (isa(in,'nifti') || isempty(in)));
 p.addParameter('DecreasingReg', [], @(in) (islogical(in) || isempty(in)));
 p.addParameter('SliceProfile', {}, @(in) (isnumeric(in) || iscell(in)));
@@ -194,7 +194,7 @@ EstimateRigid = p.Results.EstimateRigid;
 %--------------------------------------------------------------------------
 
 % Get image data
-[Nii_x,C] = parse_input_data(InputImages,method);
+[Nii_x,C,is3d] = parse_input_data(InputImages,method);
 
 if isempty(zeroMissing)    
     % Missing values (NaNs and zeros) will be...
@@ -252,7 +252,7 @@ end
 % Co-register input images (modifies images' orientation matrices)
 %--------------------------------------------------------------------------
 
-if coreg
+if coreg && is3d
     Nii_x = coreg_ims(Nii_x);
 end
 
@@ -286,8 +286,11 @@ end
 if use_projmat
     [mat,dm] = max_bb_orient(Nii_x,vx);
 else
-    mat      = Nii_x{1}(1).mat;
-    dm       = Nii_x{1}(1).dat.dim;
+    mat       = Nii_x{1}(1).mat;
+    dm        = Nii_x{1}(1).dat.dim;
+    if ~is3d
+        dm(3) = 1;
+    end
 end
 
 % Initialise dat struct with projection matrices, etc.
@@ -327,13 +330,6 @@ if speak >= 1
         fprintf('Start %s, running (max) %d iterations\n', method, nit);
     end
     tic; 
-end
-
-% For storing rigid optimisation line-search parameters
-armijo_rigid = cell(1,C);
-for c=1:C
-    N               = numel(Nii_x{c});
-    armijo_rigid{c} = ones([1 N]);
 end
 
 % Initial objective value
@@ -386,7 +382,7 @@ for it=1:nit % Start main loop
             end
 
             if speak >= 2
-                show_progress(method,modality,ll,Nii_x,Nii_y,dm); 
+                show_model('ll',ll);                
             end
         end   
         
@@ -394,17 +390,17 @@ for it=1:nit % Start main loop
     
     % Check convergence
     if tol > 0 && gain < tol && it > 1
-        % Finished
+        % Finished!
         break
     end
     
-    if EstimateRigid        
+    if EstimateRigid && it > 1 
         
         %------------------------------------------------------------------
         % Update rigid alignment matrices (dat(c).A(n).q)
         %------------------------------------------------------------------
         
-        [dat,ll1,armijo_rigid] = update_rigid(Nii_x,Nii_y,dat,tau,armijo_rigid,num_workers,p);
+        [dat,ll1] = update_rigid(Nii_x,Nii_y,dat,tau,num_workers,p);
         
         % Update approximation to the diagonal of the Hessian 
         Nii_H = approx_hessian(Nii_H,dat);
@@ -418,7 +414,7 @@ for it=1:nit % Start main loop
             fprintf('   | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', ll(end), sum(ll1), ll2, gain); 
             
             if speak >= 2
-                show_progress(method,modality,ll,Nii_x,Nii_y,dm); 
+                show_model('ll',ll);
             end
         end                           
     end
@@ -449,6 +445,9 @@ for c=1:C
     end
     
     % Write to NIfTI
+    if ~is3d
+        mat(3,4) = Nii_x{1}(1).mat(3,4);
+    end
     Nii(c) = create_nii(nfname,y,mat,[spm_type('float32') spm_platform('bigend')],'MTV recovered');
 end
 

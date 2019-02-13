@@ -4,7 +4,8 @@ function X = A(Y,dat)
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
 % Get rigid basis
-B = get_rigid_basis;
+is3d = dat.dm(3) > 1;
+B    = get_rigid_basis(is3d);
 
 Y(~isfinite(Y)) = 0; 
 

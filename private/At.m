@@ -6,7 +6,8 @@ function Y = At(X,dat,tau)
 if nargin < 3, tau = ones(1,dat.N); end
     
 % Get rigid basis
-B = get_rigid_basis;
+is3d = dat.dm(3) > 1;
+B    = get_rigid_basis(is3d);
 
 Y = single(0);   
 for n=1:dat.N      

@@ -8,7 +8,8 @@ if nargin < 6, gap     = 0; end
 if nargin < 7, gapunit = '%'; end
 
 % Get rigid basis
-B = get_rigid_basis;
+is3d = dm(3) > 1;
+B    = get_rigid_basis(is3d);
 
 % Slice profile
 window = get_window(window,Nii);
@@ -46,6 +47,7 @@ vs         = sqrt(sum(Mmu(1:3,1:3).^2));
 for n=1:N % Loop over LR images
     Mf  = Nii(n).mat;    
     dmf = Nii(n).dat.dim;
+    dmf = [dmf 1];
     
     dat.A(n).mat = Mf;    
     dat.A(n).dm  = dmf;

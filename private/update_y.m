@@ -142,23 +142,29 @@ parfor (c=1:C,num_workers) % Loop over channels
     y        = [];
 
     w = w + rho*(G - u);        
-
-    % Compute log of prior part (part 1)
-    ll2 = ll2 + sum(sum(G.^2,4),5);
-    G   = [];                
-
+    
     Nii_u(c) = put_nii(Nii_u(c),u);
     u        = [];
 
     Nii_w(c) = put_nii(Nii_w(c),w);
     w        = [];
+    
+    %------------------------------------------------------------------
+    % Compute log of prior part (part 1)
+    %------------------------------------------------------------------
+    
+    ll2 = ll2 + sum(sum(G.^2,4),5);
+    G   = [];                
+
 end % End loop over channels     
 
 % Compute log of prior part (part 2)
 ll2 = -sum(sum(sum(sqrt(double(ll2))))); 
 
 if speak >= 2
-    % Show MTV scaling
-    show_mtv_scale(mtv_scale);
+    % Show MTV prior
+    show_model('solution',use_projmat,modality,Nii_x,Nii_y);
+    show_model('mtv',mtv_scale);
+    show_model('rgb',Nii_y);
 end
 %==========================================================================

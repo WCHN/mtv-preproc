@@ -8,12 +8,15 @@ function imagesc3d(img,varargin)
 %__________________________________________________________________________
 % Copyright (C) 2018 Wellcome Centre for Human Neuroimaging
 
-dm = size(img);
-dm = [dm 1]; 
+dm        = size(img);
+if numel(dm) == 2
+    dm(3) = 1;
+end
+is_rbg    = dm(3) == 3 || (numel(dm) == 4 && dm(4) == 3);
 
-if numel(dm) > 3 && dm(4) > 1
-    error('imagesc3d does not support >3D arrays!')
-elseif dm(3) > 1
+if numel(dm) > 3 && ~is_rbg
+    error('imagesc3d does not support >3D arrays, unless 4D array has three channels in fourth dimension')
+elseif dm(3) > 1 && dm(3) ~= 3
     
     % Montage parameters: this is the spacing for picking slices in the
     % z-axis
@@ -22,11 +25,15 @@ elseif dm(3) > 1
     % Set up montage
     z  = 1:Spacing:dm(3);
     N  = numel(z);    
-    nr = floor(sqrt(N));
-    nc = ceil(N/nr);  
+    nc = floor(sqrt(N));
+    nr = ceil(N/nc);  
     
     % Create montage
-    mtg = zeros([nr*dm(1) nc*dm(2)],'single');
+    if is_rbg
+        mtg = zeros([nr*dm(1) nc*dm(2) 3],'single');
+    else
+        mtg = zeros([nr*dm(1) nc*dm(2)],'single');
+    end
     cnt = 1;
     for r=1:nr
         for c=1:nc
@@ -34,7 +41,11 @@ elseif dm(3) > 1
                 break
             end
             
-            mtg(1 + (r - 1)*dm(1):r*dm(1),1 + (c - 1)*dm(2):c*dm(2)) = img(:,:,z(cnt));
+            if is_rbg
+                mtg(1 + (r - 1)*dm(1):r*dm(1),1 + (c - 1)*dm(2):c*dm(2),:) = squeeze(img(:,:,z(cnt),:));
+            else
+                mtg(1 + (r - 1)*dm(1):r*dm(1),1 + (c - 1)*dm(2):c*dm(2)) = img(:,:,z(cnt));
+            end
             
             cnt = cnt + 1;
         end
@@ -43,6 +54,17 @@ elseif dm(3) > 1
     clear mtg
 end
 
-% Show image with imagesc()
-imagesc(img,varargin{:});
+if is_rbg
+    % Show image with imshow()
+    img  = permute(img,[2 1 3]);
+    img1 = img/max(img(:));
+%     img1 = bsxfun(@rdivide,img,sum(img,3));
+
+    warning('off','images:imshow:magnificationMustBeFitForDockedFigure');
+
+    imshow(img1,varargin{:});
+else
+    % Show image with imagesc()
+    imagesc(img',varargin{:});
+end
 %==========================================================================

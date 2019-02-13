@@ -1,23 +1,21 @@
 clear;
 
-dir_data = './SimulatedData/IXI';
+dir_data = './SimulatedData/IXI/3D';
 Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
+
+Verbose         = 3;
+WorkersParfor   = Inf;
+OutputDirectory = 'Output/SuperresRigid';
+
+IterMax             = 40;
 VoxelSize           = 1;
-Verbose             = 2;
-WorkersParfor       = Inf;
-
-IterMax             = 20;
-
 ADMMStepSize        = 0;
-RegScaleSuperResMRI = 5;
+RegScaleSuperResMRI = 6;
 DecreasingReg       = true;
 CoRegister          = false;
-IterImage           = 3;
-
-%% ------------------------------
-EstimateRigid   = true;
-OutputDirectory = './Output/EstimateRigid/True';
+IterImage           = 1;
+EstimateRigid       = true;
 
 spm_mtv_preproc('InputImages',Nii,'Method','superres', ...
                 'VoxelSize',VoxelSize,'Verbose',Verbose, ...
@@ -26,17 +24,4 @@ spm_mtv_preproc('InputImages',Nii,'Method','superres', ...
                 'IterMax',IterMax, ...
                 'DecreasingReg',DecreasingReg,'CoRegister',CoRegister, ...
                 'EstimateRigid',EstimateRigid,'IterImage',IterImage, ...
-                'OutputDirectory',OutputDirectory);
-            
-%% ------------------------------
-EstimateRigid   = false;
-OutputDirectory = './Output/EstimateRigid/False';
-
-spm_mtv_preproc('InputImages',Nii,'Method','superres', ...
-                'VoxelSize',VoxelSize,'Verbose',Verbose, ...
-                'RegScaleSuperResMRI',RegScaleSuperResMRI, ...                
-                'ADMMStepSize',ADMMStepSize,'WorkersParfor',WorkersParfor, ...
-                'IterMax',IterMax, ...
-                'DecreasingReg',DecreasingReg,'CoRegister',CoRegister, ...
-                'EstimateRigid',EstimateRigid,'IterImage',IterImage, ...
-                'OutputDirectory',OutputDirectory);            
+                'OutputDirectory',OutputDirectory); 

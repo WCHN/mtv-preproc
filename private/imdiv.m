@@ -28,7 +28,7 @@ vs   = padarray(vs(:)', [0 max(0,3-numel(dim))], 'replicate', 'post');
 % -------------------------------------------------------------------------
 % Sum finite differences
 D = zeros(dim,'like', X);
-for i=1:numel(dim)
+for i=1:numel(size(D))
     for t=1:numel(type)
         Xit = select_slices(X, [dimd dimt], {i t});
         switch type(t)

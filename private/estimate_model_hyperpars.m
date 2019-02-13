@@ -91,6 +91,9 @@ for c=1:C
     tau{c} = 1./(sd{c}.^2);
 end
 
+% % Make lambda the same over all channels
+% lam = mean(lam)*ones(1,C);
+
 % For decreasing regularisation with iteration number
 lam0      = lam;
 sched_lam = get_lam_sched;
@@ -107,8 +110,8 @@ if rho == 0
             atau = [atau tau{c}(n)];
         end
     end
-    rho = sqrt(mean(atau))/mean(lam);        
-%     rho = mean(lam); % From: 'An ADMM Algorithm for a Class of Total Variation Regularized Estimation Problems'
+    rho = sqrt(mean(atau))/mean(lam0);        
+%     rho = mean(lam0); % From: 'An ADMM Algorithm for a Class of Total Variation Regularized Estimation Problems'
 end
 
 if speak  >= 1
@@ -126,5 +129,5 @@ end
 
 %==========================================================================
 function sched = get_lam_sched
-sched = fliplr(2.^(0:4));
+sched = repelem(fliplr(2.^(0:5)),1,4);
 %==========================================================================

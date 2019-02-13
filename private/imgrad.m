@@ -16,6 +16,9 @@ if nargin < 2, vs = ones(1,'like',X); end
 if nargin < 3, type = '+-'; end
 
 dim    = size(X);
+if numel(dim) == 2
+    dim(3) = 1;
+end
 dimout = [numel(type) numel(dim) prod(dim)];
 vs     = padarray(vs(:)', [0 max(0,3-numel(dim))], 'replicate', 'post');
 

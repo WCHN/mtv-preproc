@@ -1,4 +1,4 @@
-function [dat,ll1,armijo] = update_rigid(Nii_x,Nii_y,dat,tau,armijo,num_workers,p)
+function [dat,ll1] = update_rigid(Nii_x,Nii_y,dat,tau,num_workers,p)
 % Optimise the rigid alignment between observed images and their 
 % corresponding channel's reconstruction. This routine runs in parallel
 % over image channels. The observed lowres images are here denoted by f and
@@ -12,9 +12,10 @@ nitgn    = p.Results.IterGaussNewtonRigid;
 speak    = p.Results.Verbose; 
 
 % More parameters
-B  = get_rigid_basis; % Get rigid basis
-C  = numel(dat);      % Number of channels
-Nq = size(B,3);       % Number of registration parameters
+is3d = dat(1).dm(3) > 1;
+B    = get_rigid_basis(is3d); % Get rigid basis
+C    = numel(dat);            % Number of channels
+Nq   = size(B,3);             % Number of registration parameters
 
 if num_workers > 0
     speak = min(speak,1);
@@ -32,7 +33,7 @@ parfor (c=1:C,num_workers) % Loop over channels
     spm_field('boundary',1);
     pushpull('boundary',1); 
     
-    [dat(c),ll1(c),armijo{c}] = update_channel(Nii_x(c),Nii_y(c),dat(c),B,tau{c},armijo{c},speak,nitgn,c);    
+    [dat(c),ll1(c)] = update_channel(Nii_x(c),Nii_y(c),dat(c),B,tau{c},speak,nitgn,c);    
     
 end % End loop over channels
 
@@ -83,12 +84,12 @@ end
 %==========================================================================
 
 %==========================================================================
-function [dat,sll,armijo] = update_channel(Nii_x,Nii_y,dat,B,tau,armijo,speak,nitgn,c)
+function [dat,sll] = update_channel(Nii_x,Nii_y,dat,B,tau,speak,nitgn,c)
 
 % Parameters
 Nq          = size(B,3);             % Number of registration parameters
 lkp         = [1 4 5; 4 2 6; 5 6 3]; % Que?
-nlinesearch = 4;                     % Number of line-searches    
+nlinesearch = 6;                     % Number of line-searches    
 method      = dat.method;
 
 % Cell-array of observations    
@@ -104,10 +105,12 @@ sll = 0;
 for n=1:N % Loop over observed images (of channel c)
 
     % Observation parameters
-    dmf  = size(f{n});        
+    dmf  = size(f{n});      
+    dmf  = [dmf 1];
     Mf   = dat.A(n).mat;            
     tauf = tau(n);        % Noise precision
-
+    
+    break_gn = false;
     for gnit=1:nitgn % Loop over Gauss-Newton iterations
         
         oq = dat.A(n).q;                        
@@ -191,11 +194,12 @@ for n=1:N % Loop over observed images (of channel c)
         Update = H\g;
 
         % Start line-search                       
-        oll = ll;        
+        oll    = ll;        
+        armijo = 1;
         for linesearch=1:nlinesearch
 
             % Take step
-            q = oq - armijo(n)*Update;
+            q = oq - armijo*Update;
 
             % Compute new parameters
             R  = spm_dexpm(q,B);
@@ -216,7 +220,7 @@ for n=1:N % Loop over observed images (of channel c)
                     fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%g | :o) | q=%s\n', c, n, gnit, linesearch, ll, sprintf(' %2.3f', q)); 
                 end
 
-                armijo(n) = min(1.2*armijo(n),1);
+                armijo = min(1.2*armijo,1);
 
                 break;
             else
@@ -228,18 +232,19 @@ for n=1:N % Loop over observed images (of channel c)
                 dat.A(n).q = oq;        
                 dat.A(n).J = oJ;
                 
-                if armijo(n) < eps('single')
+                if armijo < eps('single')
                     % We are probably close to the optimum, so cancel
                     % line-search
+                    break_gn = true;
                     break
                 end
                 
-                armijo(n) = 0.5*armijo(n);
+                armijo = 0.5*armijo;
             end
         end
 
         if ll <= oll
-            % Use old neg log-likelihood
+            % Use old log-likelihood
             ll = oll;
         end
         
@@ -247,6 +252,9 @@ for n=1:N % Loop over observed images (of channel c)
 
     sll = sll + ll;
     
+    if break_gn
+        break
+    end
 end % End loop over observations
 %==========================================================================
     
@@ -255,6 +263,7 @@ function ll = meansq_objfun(f,mu,y,An,tau,speak,method,show_moved)
 if nargin < 8, show_moved = 0; end
 
 dm = size(f);
+dm = [dm 1];
 ll = 0;
 for z=1:dm(3)
     ll = ll + meansq_objfun_slice(f,mu,y,An,tau,speak,z,method,show_moved);
@@ -266,6 +275,7 @@ function [ll,g,H] = meansq_objfun_slice(f,mu,y,An,tau,speak,z,method,show_moved)
 if nargin < 9, show_moved = 0; end
 
 dm                = size(f); % Observation dimensions
+dm                = [dm 1];
 mu(~isfinite(mu)) = 0; 
 
 % Move template to image space
@@ -274,11 +284,11 @@ if nargout >= 2
     if strcmp(method,'superres')
         [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',single(mu),single(y(:,:,z,:)),single(An.J),double(An.win)); 
     elseif strcmp(method,'denoise')
-        [~,dmu{1}]     = spm_diffeo('bsplins',mu,y(:,:,z,:),[2 0 0  0 0 0]);        
-        [~,~,dmu{2}]   = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 2 0  0 0 0]);
-        [~,~,~,dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 0 2  0 0 0]);
+        [~,dmu{1},~,~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[2 0 0  0 0 0]);        
+        [~,~,dmu{2},~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 2 0  0 0 0]);
+        [~,~,~,dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 0 2  0 0 0]);                        
         
-        mu = spm_diffeo('pull',mu,y(:,:,z,:));        
+        mu = spm_diffeo('pull',mu,y(:,:,z,:));                
     end
 else
     if strcmp(method,'superres')
@@ -289,7 +299,7 @@ else
 end
 mu(~isfinite(mu)) = 0; 
 
-if speak >= 2 && z == round((dm(3) + 1)/2)     
+if speak >= 2 && z == floor((dm(3) + 1)/2)     
     % Some verbose    
     show_reg(mu,f(:,:,z),dmu,show_moved);
 end
@@ -334,10 +344,14 @@ end
 %==========================================================================
 
 %==========================================================================
-function y1 = affine_transf(Affine,y)
-y1 = cat(4, Affine(1,1)*y(:,:,:,1) + Affine(1,2)*y(:,:,:,2) + Affine(1,3)*y(:,:,:,3) + Affine(1,4),...
+function y = affine_transf(Affine,y)
+dm = size(y);
+y  = cat(4, Affine(1,1)*y(:,:,:,1) + Affine(1,2)*y(:,:,:,2) + Affine(1,3)*y(:,:,:,3) + Affine(1,4),...
             Affine(2,1)*y(:,:,:,1) + Affine(2,2)*y(:,:,:,2) + Affine(2,3)*y(:,:,:,3) + Affine(2,4),...
             Affine(3,1)*y(:,:,:,1) + Affine(3,2)*y(:,:,:,2) + Affine(3,3)*y(:,:,:,3) + Affine(3,4));
+if dm(3) == 1
+    y(:,:,:,end) = 1;
+end        
 %==========================================================================            
 
 %==========================================================================

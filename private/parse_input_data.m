@@ -1,4 +1,4 @@
-function [Nii,C] = parse_input_data(InputImages,method)
+function [Nii,C,is3d] = parse_input_data(InputImages,method)
 % Parse input data and return Nii cell array
 %
 % InputImages  - [1 x C cell array] or empty (let user select)
@@ -60,4 +60,6 @@ for c=1:C
         end
     end
 end
+dm0  = [dm0 1];
+is3d = dm0(3) > 1;
 %==========================================================================

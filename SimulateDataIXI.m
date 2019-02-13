@@ -17,11 +17,17 @@ PerturbRigid.do        = true;
 PerturbRigid.transl_mx = 1;
 PerturbRigid.rot_scl   = 0.01;
 
+offset = {[-2.75 1.5 -2]',[1.75 -1.5 2]',[-2 -2.5 1.5]'};
+% offset = {[-1.75 1.5 -2]',[1.75 -1.5 1]',[-1 -1.5 1.5]'};
+
 % Comment to use more than one observation per channel
 N = 1;
 
 % Create output directory
-if  ~exist(DirSim,'dir') == 7,  mkdir(DirSim); end
+DirSim3D = fullfile(DirSim,'3D');
+DirSim2D = fullfile(DirSim,'2D');
+if  exist(DirSim3D,'dir') ~= 7,  mkdir(DirSim3D); end
+if  exist(DirSim2D,'dir') ~= 7,  mkdir(DirSim2D); end
 
 %--------------------------------------------------------------------------
 % Get reference IXI NIfTIs
@@ -74,7 +80,7 @@ for c=1:numel(DS) % Loop over channels
         Nii{1}(n).dat.dim = dm;
     end
     
-    dat = init_dat(Nii,mat0,dm0,[],Gap);
+    dat = init_dat('superres',Nii,mat0,dm0,[],Gap);
         
     % Apply projection matrix to simulate LR data
     img = A(img0,dat);
@@ -83,17 +89,24 @@ for c=1:numel(DS) % Loop over channels
     [~,nam,ext] = fileparts(Nii_ref(c).dat.fname);    
     for n=1:dat.N    
         % Save thick-sliced data        
-        nfname          = fullfile(DirSim,['n' num2str(n) '_' nam ext]);
+        nfname          = fullfile(DirSim3D,['n' num2str(n) '_' nam ext]);
         fnames{end + 1} = nfname;
         
         % Rigidly realign the image a little bit (randomly)
         mat           = Nii{1}(n).mat;            
         dm            = Nii{1}(n).dat.dim;
-        mat           = rigid_perturb(mat,dm,PerturbRigid);
+        mat           = rigid_perturb(mat,dm,PerturbRigid,offset{c});
         Nii{1}(n).mat = mat;
             
         % Write to NIfTI
-        create_nii(nfname,img{n},Nii{1}(n).mat,[spm_type('float32') spm_platform('bigend')],'Simulated thick-sliced');
+        
+        % 3D
+        create_nii(nfname,img{n},Nii{1}(n).mat,[spm_type('float32') spm_platform('bigend')],'Simulated thick-sliced (3D)');
+        
+        % 2D
+        nfname             = fullfile(DirSim2D,[nam ext]);
+        Nii{1}(n).mat(3,4) = 0;
+        create_nii(nfname,img{n}(:,:,floor(dm(3)/2)),Nii{1}(n).mat,[spm_type('float32') spm_platform('bigend')],'Simulated thick-sliced (2D)');
     end
 end
 
@@ -101,28 +114,29 @@ spm_check_registration(char(fnames))
 %==========================================================================
 
 %==========================================================================
-function mat = rigid_perturb(mat,dm,PerturbRigid)
+function mat = rigid_perturb(mat,dm,PerturbRigid,offset)
 if PerturbRigid.do 
     
-    B = get_rigid_basis;
-
-    % Get random rigid perturbation
-    r = zeros([1 6]);
-    
-    % Translation part
-    mxt    = PerturbRigid.transl_mx;
-    t      = randi([-mxt mxt],[3 1]) + randn([3 1]);   
-    r(1:3) = t';
-    
-    % Rotation part
-    rot_scl = PerturbRigid.rot_scl;
-    r(4:6)  = rot_scl*randn(1,3); % rotation
-    
-    % Get matrix
-    matr = spm_dexpm(r,B);    
-    
+%     B = get_rigid_basis;
+% 
+%     % Get random rigid perturbation
+%     r = zeros([1 6]);
+%     
+%     % Translation part
+%     mxt    = PerturbRigid.transl_mx;
+%     t      = randi([-mxt mxt],[3 1]) + randn([3 1]);   
+%     r(1:3) = t';
+%     
+%     % Rotation part
+%     rot_scl = PerturbRigid.rot_scl;
+%     r(4:6)  = rot_scl*randn(1,3); % rotation
+%     
+%     % Get matrix
+%     matr = spm_dexpm(r,B);    
+%     
     % Apply to image orientation matrix
-    mat = matr*mat;
+%     mat = matr*mat;
+    mat(1:3,4) = mat(1:3,4) + offset;
     
 %     % Matrix for translating the origin
 %     orig = (dm(1:3) + 1)/2;
