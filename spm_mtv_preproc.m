@@ -17,9 +17,9 @@ function Nii = spm_mtv_preproc(varargin)
 %                        C are the number of image channels. Each array 
 %                        entry contains N_c images of the same channel. 
 %                        If empty, uses spm_select ['']
-% IterMax              - Maximum number of iteration [40]
+% IterMax              - Maximum number of iteration [30]
 % IterImage            - Maximum number of iterations for solving for the
-%                        super-resolved image(s) [1]
+%                        super-resolved image(s) [3]
 % ADMMStepSize         - The infamous ADMM step size, set to zero for an 
 %                        educated guess [0]
 % Tolerance            - Convergence threshold, set to zero to run until 
@@ -138,8 +138,8 @@ p              = inputParser;
 p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', {}, @(in) ( isa(in,'nifti') || isempty(in) || ...
                                         ((ischar(in{1}) || isa(in{1},'nifti')) || (ischar(in{1}{1}) || isa(in{1}{1},'nifti'))) ) );
-p.addParameter('IterMax', 40, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('IterImage', 1, @(in) (isnumeric(in) && in > 0));
+p.addParameter('IterMax', 30, @(in) (isnumeric(in) && in >= 0));
+p.addParameter('IterImage', 3, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 1e-4, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('RegScaleSuperResMRI', 6, @(in) (isnumeric(in) && in > 0));
