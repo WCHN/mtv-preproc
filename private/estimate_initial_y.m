@@ -22,9 +22,7 @@ ll2 = 0;
 % for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers)  
 
-    % Boundary used to model HR image  
-    spm_field('boundary',1);
-    pushpull('boundary',1);
+    set_boundary_conditions;
     
     % Observed image
     x = get_nii(Nii_x(c));        

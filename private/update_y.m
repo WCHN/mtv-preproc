@@ -25,9 +25,7 @@ unorm = 0;
 % for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers) % Loop over channelsi
 
-    % Boundary used to model HR image  
-    spm_field('boundary',1);
-    pushpull('boundary',1); 
+    set_boundary_conditions;
     
     y = get_nii(Nii_y(c));        
     G = lam(c)*imgrad(y,vx);
@@ -53,8 +51,7 @@ ll2 = 0;
 % for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers) % Loop over channels
 
-    spm_field('boundary',1) % Set up boundary conditions that match the gradient operator
-    pushpull('boundary',1);
+    set_boundary_conditions;
 
     u = get_nii(Nii_u(c));   
     w = get_nii(Nii_w(c));   
