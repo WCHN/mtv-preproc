@@ -1,5 +1,5 @@
-function [Nii_y,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,num_workers,p)
-% Update Nii_y
+function [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_image(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,num_workers,p)
+% Update Nii_y, Nii_u, Nii_w by an ADMM algorithm
 %
 %_______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -18,6 +18,37 @@ dm = dat(1).dm;
 % Flag saying if we solve using projection matrices (A, At), or not
 use_projmat = ~(strcmpi(method,'denoise') && ~EstimateRigid);
 
+%------------------------------------------------------------------
+% Proximal operator for u
+% Here we solve for the MTV term of the objective function using
+% vectorial soft thresholding 
+%------------------------------------------------------------------
+
+unorm = 0;    
+% for c=1:C, fprintf('OBS! for c=1:C\n')
+parfor (c=1:C,num_workers) % Loop over channelsi
+
+    set_boundary_conditions;
+    
+    y = get_nii(Nii_y(c));        
+    G = lam(c)*imgrad(y,vx);
+    y = [];
+
+    w = get_nii(Nii_w(c));        
+    u = G + w/rho;
+    G = [];
+    w = [];
+
+    Nii_u(c) = put_nii(Nii_u(c),u);
+
+    unorm = unorm + sum(sum(u.^2,4),5);
+    u     = [];
+end % End loop over channels
+
+unorm     = sqrt(unorm);
+mtv_scale = max(unorm - 1/rho,0)./(unorm + eps);
+clear unorm
+
 ll1 = zeros(1,C);
 ll2 = 0;
 % for c=1:C, fprintf('OBS! for c=1:C\n')
@@ -27,6 +58,14 @@ parfor (c=1:C,num_workers) % Loop over channels
 
     u = get_nii(Nii_u(c));   
     w = get_nii(Nii_w(c));   
+
+    %------------------------------------------------------------------
+    % Proximal operator for u (continued)
+    % Here we multiply each contrast image with the same scaling
+    % matrix, this is a key addition of using MTV
+    %------------------------------------------------------------------
+
+    u = bsxfun(@times,u,mtv_scale);
 
     %------------------------------------------------------------------
     % Proximal operator for y        
@@ -101,6 +140,14 @@ parfor (c=1:C,num_workers) % Loop over channels
 
     Nii_y(c) = put_nii(Nii_y(c),y);
     y        = [];
+
+    w = w + rho*(G - u);        
+    
+    Nii_u(c) = put_nii(Nii_u(c),u);
+    u        = [];
+
+    Nii_w(c) = put_nii(Nii_w(c),w);
+    w        = [];
     
     %------------------------------------------------------------------
     % Compute log of prior part (part 1)
@@ -114,8 +161,10 @@ end % End loop over channels
 % Compute log of prior part (part 2)
 ll2 = -sum(sum(sum(sqrt(double(ll2))))); 
 
-if speak >= 2    
-    show_model('solution',use_projmat,modality,Nii_x,Nii_y);    
+if speak >= 2
+    % Show MTV prior
+    show_model('solution',use_projmat,modality,Nii_x,Nii_y);
+    show_model('mtv',mtv_scale);
     show_model('rgb',Nii_y);
 end
 %==========================================================================

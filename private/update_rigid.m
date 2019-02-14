@@ -1,4 +1,6 @@
 function [dat,ll1] = update_rigid(Nii_x,Nii_y,dat,tau,num_workers,p)
+% Update q with a Gauss-Newton algorithm
+%
 % Optimise the rigid alignment between observed images and their 
 % corresponding channel's reconstruction. This routine runs in parallel
 % over image channels. The observed lowres images are here denoted by f and
@@ -108,7 +110,6 @@ for n=1:N % Loop over observed images (of channel c)
     Mf   = dat.A(n).mat;            
     tauf = tau(n);        % Noise precision
     
-    break_gn = false;
     for gnit=1:nitgn % Loop over Gauss-Newton iterations
         
         oq = dat.A(n).q;                        
@@ -230,13 +231,6 @@ for n=1:N % Loop over observed images (of channel c)
                 dat.A(n).q = oq;        
                 dat.A(n).J = oJ;
                 
-                if armijo < eps('single')
-                    % We are probably close to the optimum, so cancel
-                    % line-search
-                    break_gn = true;
-                    break
-                end
-                
                 armijo = 0.5*armijo;
             end
         end
@@ -250,9 +244,6 @@ for n=1:N % Loop over observed images (of channel c)
 
     sll = sll + ll;
     
-    if break_gn
-        break
-    end
 end % End loop over observations
 %==========================================================================
     
@@ -281,18 +272,13 @@ dmu = cell(1,3);
 if nargout >= 2
     if strcmp(method,'superres')
         [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',single(mu),single(y(:,:,z,:)),single(An.J),double(An.win)); 
-    elseif strcmp(method,'denoise')
-%         [~,dmu{1},~,~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[2 0 0  0 0 0]);        
-%         [~,~,dmu{2},~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 2 0  0 0 0]);
-%         [~,~,~,dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 0 2  0 0 0]);                        
+    elseif strcmp(method,'denoise')               
         [mu,dmu{1},dmu{2},dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
-%         mu = spm_diffeo('pull',mu,y(:,:,z,:));                
     end
 else
     if strcmp(method,'superres')
         mu = pushpull('pull',single(mu),single(y(:,:,z,:)),single(An.J),double(An.win));    
     elseif strcmp(method,'denoise')
-%         mu = spm_diffeo('pull',mu,y(:,:,z,:));
         mu = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
     end
 end

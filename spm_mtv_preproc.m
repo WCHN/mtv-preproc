@@ -177,7 +177,6 @@ speak         = p.Results.Verbose;
 do_clean      = p.Results.CleanUp; 
 vx_sr         = p.Results.VoxelSize; 
 coreg         = p.Results.CoRegister; 
-modality      = p.Results.Modality; 
 do_readwrite  = p.Results.ReadWrite; 
 zeroMissing   = p.Results.ZeroMissingValues; 
 Nii_ref       = p.Results.Reference; 
@@ -311,7 +310,7 @@ end
 % Create intial estimate of solution (y)
 %--------------------------------------------------------------------------
 
-[Nii_y,ll1,ll2,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p);
+[Nii_y,ll1,ll2,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,num_workers,p);
 
 %--------------------------------------------------------------------------
 % Start solving
@@ -352,12 +351,13 @@ for it=1:nit % Start main loop
     end
     
     %----------------------------------------------------------------------
-    % Update recovered image(s) (Nii_y)
+    % Image, ADMM
     %----------------------------------------------------------------------
     
     for ity=1:nity % Start y loop
         
-        [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p);
+        % Update Nii_y, Nii_w, Nii_u
+        [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_image(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,num_workers,p);
 
         % Compute log-posterior (objective value)        
         ll   = [ll, sum(ll1) + ll2];
@@ -388,16 +388,14 @@ for it=1:nit % Start main loop
         break
     end
     
-    if EstimateRigid && it > 1 
+    if EstimateRigid
         
         %------------------------------------------------------------------
-        % Update rigid alignment matrices (dat(c).A(n).q)
+        % Rigid alignment, Gauss-Newton
         %------------------------------------------------------------------
         
-        [dat,ll1] = update_rigid(Nii_x,Nii_y,dat,tau,num_workers,p);
-        
-        % Update approximation to the diagonal of the Hessian 
-        Nii_H = approx_hessian(Nii_H,dat);
+        % Update q
+        [dat,ll1] = update_rigid(Nii_x,Nii_y,dat,tau,num_workers,p);                
         
         % Compute log-posterior (objective value)        
         ll   = [ll, sum(ll1) + ll2];
@@ -410,7 +408,26 @@ for it=1:nit % Start main loop
             if speak >= 2
                 show_model('ll',ll);
             end
-        end                           
+        end                 
+        
+        % Update approximation to the diagonal of the Hessian 
+        Nii_H = approx_hessian(Nii_H,dat);
+        
+        % Update Nii_y
+        [Nii_y,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,num_workers,p);
+        
+        % Compute log-posterior (objective value)        
+        ll   = [ll, sum(ll1) + ll2];
+        gain = get_gain(ll);
+    
+        if speak >= 1
+            % Some verbose    
+            fprintf('   | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', ll(end), sum(ll1), ll2, gain); 
+            
+            if speak >= 2
+                show_model('ll',ll);
+            end
+        end  
     end
  
 end % End main loop

@@ -1,4 +1,4 @@
-function [Nii_y,ll1,ll2,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,vx,dm,num_workers,p)
+function [Nii_y,ll1,ll2,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,num_workers,p)
 % Compute initial estimate of recovered image(s)
 %
 %_______________________________________________________________________
@@ -14,7 +14,9 @@ EstimateRigid = p.Results.EstimateRigid;
 % Flag saying if we solve using projection matrices (A, At), or not
 use_projmat = ~(strcmpi(method,'denoise') && ~EstimateRigid);
 
-C = numel(Nii_x); % Number of channels
+C  = numel(Nii_x);
+vx = sqrt(sum(dat(1).mat(1:3,1:3).^2));
+dm = dat(1).dm;
 
 msk = cell(1,C); % For saving locations of missing values so that they can be 're-applied' once the algorithm has finished
 ll1 = zeros(1,C);
