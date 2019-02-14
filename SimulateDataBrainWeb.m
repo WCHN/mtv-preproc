@@ -15,8 +15,8 @@ offset = {[-2.75 1.5 -2]',[1.75 -1.5 2]',[-2 -2.5 1.5]'};
 % Create output directory
 DirSim3D = fullfile(DirSim,'3D');
 DirSim2D = fullfile(DirSim,'2D');
-if  exist(DirSim3D,'dir') ~= 7,  mkdir(DirSim3D); end
-if  exist(DirSim2D,'dir') ~= 7,  mkdir(DirSim2D); end
+if  (exist(DirSim3D,'dir') == 7),  rmdir(DirSim3D,'s'); end; mkdir(DirSim3D);
+if  (exist(DirSim2D,'dir') == 7),  rmdir(DirSim2D,'s'); end; mkdir(DirSim2D);
 
 %--------------------------------------------------------------------------
 % Get noisy BrainWeb images
@@ -44,9 +44,11 @@ for c=1:C % Loop over channels
     nfname          = fullfile(DirSim3D,[nam ext]);
     fnames{end + 1} = nfname;
 
-    % Rigidly realign the image a little bit (randomly)
-    mat(1:3,4) = mat(1:3,4) + offset{c};
-
+    if exist('offset','var')
+        % Rigidly realign the image a little bit (randomly)
+        mat(1:3,4) = mat(1:3,4) + offset{c};
+    end
+    
     % Write to NIfTI
     
     % 3D

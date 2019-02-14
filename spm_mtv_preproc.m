@@ -446,7 +446,7 @@ for c=1:C
     
     % Write to NIfTI
     if ~is3d
-        mat(3,4) = Nii_x{1}(1).mat(3,4);
+        mat(3,4) = Nii_x{c}(1).mat(3,4);
     end
     Nii(c) = create_nii(nfname,y,mat,[spm_type('float32') spm_platform('bigend')],'MTV recovered');
 end

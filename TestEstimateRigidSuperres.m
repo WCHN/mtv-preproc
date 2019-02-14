@@ -1,21 +1,21 @@
 clear;
 
-dir_data = './SimulatedData/IXI/3D';
+dir_data = './SimulatedData/IXI/2D';
 Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
 
-Verbose         = 3;
+Verbose         = 2;
 WorkersParfor   = Inf;
 OutputDirectory = 'Output/SuperresRigid';
 
-IterMax             = 40;
+IterMax             = 30;
 VoxelSize           = 1;
 ADMMStepSize        = 0;
 RegScaleSuperResMRI = 6;
 DecreasingReg       = true;
 CoRegister          = false;
-IterImage           = 1;
-EstimateRigid       = true;
+IterImage           = 3;
+EstimateRigid       = false;
 
 spm_mtv_preproc('InputImages',Nii,'Method','superres', ...
                 'VoxelSize',VoxelSize,'Verbose',Verbose, ...
