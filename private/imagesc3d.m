@@ -54,17 +54,10 @@ elseif dm(3) > 1 && dm(3) ~= 3
     clear mtg
 end
 
-if is_rbg
-    % Show image with imshow()
-    img  = permute(img,[2 1 3]);
-    img1 = img/max(img(:));
-%     img1 = bsxfun(@rdivide,img,sum(img,3));
-
-    warning('off','images:imshow:magnificationMustBeFitForDockedFigure');
-
-    imshow(img1,varargin{:});
-else
-    % Show image with imagesc()
-    imagesc(img',varargin{:});
+if ~is_rbg
+    img = img';
 end
+
+% Show image with imagesc()
+imagesc(img,varargin{:});
 %==========================================================================

@@ -160,6 +160,14 @@ for c=2:C
         Gmag = cat(3,Gmag,imgradient3(single(Nii_y(c).dat(:,:,:))));
     end
 end
+
+% Make max value <= 1
+Gmag = Gmag/max(Gmag(:));
+% Gmag = bsxfun(@rdivide,Gmag,sum(Gmag,3));
+
+% Like Gmag' for RGB data
+Gmag = permute(Gmag,[2 1 3]);
+
 imagesc3d(Gmag); axis off image xy;
 title('RGB')
 
