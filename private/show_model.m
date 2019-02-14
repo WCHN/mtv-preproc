@@ -165,9 +165,6 @@ end
 Gmag = Gmag/max(Gmag(:));
 % Gmag = bsxfun(@rdivide,Gmag,sum(Gmag,3));
 
-% Like Gmag' for RGB data
-Gmag = permute(Gmag,[2 1 3]);
-
 imagesc3d(Gmag); axis off image xy;
 title('RGB')
 

@@ -54,7 +54,9 @@ elseif dm(3) > 1 && dm(3) ~= 3
     clear mtg
 end
 
-if ~is_rbg
+if is_rbg
+    img = permute(img,[2 1 3]);
+else
     img = img';
 end
 
