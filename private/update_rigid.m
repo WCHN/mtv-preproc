@@ -282,17 +282,18 @@ if nargout >= 2
     if strcmp(method,'superres')
         [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',single(mu),single(y(:,:,z,:)),single(An.J),double(An.win)); 
     elseif strcmp(method,'denoise')
-        [~,dmu{1},~,~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[2 0 0  0 0 0]);        
-        [~,~,dmu{2},~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 2 0  0 0 0]);
-        [~,~,~,dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 0 2  0 0 0]);                        
-        
-        mu = spm_diffeo('pull',mu,y(:,:,z,:));                
+%         [~,dmu{1},~,~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[2 0 0  0 0 0]);        
+%         [~,~,dmu{2},~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 2 0  0 0 0]);
+%         [~,~,~,dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 0 2  0 0 0]);                        
+        [mu,dmu{1},dmu{2},dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
+%         mu = spm_diffeo('pull',mu,y(:,:,z,:));                
     end
 else
     if strcmp(method,'superres')
         mu = pushpull('pull',single(mu),single(y(:,:,z,:)),single(An.J),double(An.win));    
     elseif strcmp(method,'denoise')
-        mu = spm_diffeo('pull',mu,y(:,:,z,:));
+%         mu = spm_diffeo('pull',mu,y(:,:,z,:));
+        mu = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
     end
 end
 mu(~isfinite(mu)) = 0; 
