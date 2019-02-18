@@ -9,15 +9,18 @@ Verbose         = 3;
 OutputDirectory = 'Output/DenoiseRigid';
 
 CoRegister           = false;
-EstimateRigid        = true;
-ADMMStepSize         = 0;
-IterMax              = 50;
-Tolerance            = 0;
-MeanCorrectRigid     = true;
-RegScaleDenoisingMRI = 6;
 
-IterImage            = 1;
-IterGaussNewtonRigid = 1;
+DecreasingReg        = true;
+EstimateRigid        = true;
+
+ADMMStepSize         = 0;
+IterMax              = 30;
+Tolerance            = 1e-4;
+MeanCorrectRigid     = true;
+RegScaleDenoisingMRI = 10;
+
+IterImage            = 12;
+IterGaussNewtonRigid = 3;
 IterGaussNewtonImage = 1;
 
 Nii_den = spm_mtv_preproc('InputImages',Nii,'Verbose',Verbose, ...
@@ -28,4 +31,5 @@ Nii_den = spm_mtv_preproc('InputImages',Nii,'Verbose',Verbose, ...
                           'IterMax',IterMax,'Tolerance',Tolerance,'IterImage',IterImage, ...
                           'RegScaleDenoisingMRI',RegScaleDenoisingMRI, ...
                           'IterGaussNewtonRigid',IterGaussNewtonRigid, ...
-                          'IterGaussNewtonImage',IterGaussNewtonImage);
+                          'IterGaussNewtonImage',IterGaussNewtonImage, ...
+                          'DecreasingReg',DecreasingReg);

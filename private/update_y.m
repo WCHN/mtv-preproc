@@ -1,5 +1,5 @@
-function [Nii_y,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,num_workers,p)
-% Update Nii_y
+function [Nii,ll1,ll2]= update_y(Nii,dat,tau,rho,lam,num_workers,p)
+% Update Nii.y
 %
 %_______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -10,13 +10,21 @@ method        = p.Results.Method;
 nitgn         = p.Results.IterGaussNewtonImage; 
 speak         = p.Results.Verbose; 
 EstimateRigid = p.Results.EstimateRigid;
+nnargout      = nargout;
+
+% Flag saying if we solve using projection matrices (A, At), or not
+use_projmat = ~(strcmpi(method,'denoise') && ~EstimateRigid);
+
+% Get data from Nii struct (otherwise we get parfor errors)
+Nii_x = Nii.x;
+Nii_y = Nii.y;
+Nii_H = Nii.H;
+Nii_w = Nii.w;
+Nii_u = Nii.u;
 
 C  = numel(Nii_x);
 vx = sqrt(sum(dat(1).mat(1:3,1:3).^2));
 dm = dat(1).dm;
-
-% Flag saying if we solve using projection matrices (A, At), or not
-use_projmat = ~(strcmpi(method,'denoise') && ~EstimateRigid);
 
 ll1 = zeros(1,C);
 ll2 = 0;
@@ -88,17 +96,16 @@ parfor (c=1:C,num_workers) % Loop over channels
         y(y < 0) = 0;
     end 
 
-    % Compute log of likelihood part    
-    ll1(c) = get_ll1(use_projmat,y,x,tau{c},dat(c));
+    if nnargout >= 1
+        % Compute log of likelihood part    
+        ll1(c) = get_ll1(use_projmat,y,x,tau{c},dat(c));
+    end
     x      = [];
 
-    %------------------------------------------------------------------
-    % Solve for w
-    % Here we update the Lagrange variable
-    %------------------------------------------------------------------
-
-    G = lam(c)*imgrad(y,vx);
-
+    if nnargout >= 2
+        G = lam(c)*imgrad(y,vx);
+    end
+    
     Nii_y(c) = put_nii(Nii_y(c),y);
     y        = [];
     
@@ -106,16 +113,22 @@ parfor (c=1:C,num_workers) % Loop over channels
     % Compute log of prior part (part 1)
     %------------------------------------------------------------------
     
-    ll2 = ll2 + sum(sum(G.^2,4),5);
-    G   = [];                
+    if nnargout >= 2
+        ll2 = ll2 + sum(sum(G.^2,4),5);
+        G   = [];      
+    end
 
 end % End loop over channels     
 
-% Compute log of prior part (part 2)
-ll2 = -sum(sum(sum(sqrt(double(ll2))))); 
+Nii.y = Nii_y;
+
+if nargout >= 2
+    % Compute log of prior part (part 2)
+    ll2 = -sum(sum(sum(sqrt(double(ll2))))); 
+end
 
 if speak >= 2    
-    show_model('solution',use_projmat,modality,Nii_x,Nii_y);    
+    show_model('solution',use_projmat,modality,Nii);    
     show_model('rgb',Nii_y);
 end
 %==========================================================================

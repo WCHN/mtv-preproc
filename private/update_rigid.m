@@ -1,4 +1,4 @@
-function [dat,ll1] = update_rigid(Nii_x,Nii_y,dat,tau,num_workers,p)
+function [dat,ll1] = update_rigid(Nii,dat,tau,num_workers,p)
 % Update q with a Gauss-Newton algorithm
 %
 % Optimise the rigid alignment between observed images and their 
@@ -33,7 +33,7 @@ parfor (c=1:C,num_workers) % Loop over channels
     
     set_boundary_conditions;
     
-    [dat(c),ll1(c)] = update_channel(Nii_x(c),Nii_y(c),dat(c),B,tau{c},speak,nitgn,c);    
+    [dat(c),ll1(c)] = update_channel(Nii.x(c),Nii.y(c),dat(c),B,tau{c},speak,nitgn,c);    
     
 end % End loop over channels
 
@@ -111,7 +111,7 @@ for n=1:N % Loop over observed images (of channel c)
     tauf = tau(n);        % Noise precision
     
     for gnit=1:nitgn % Loop over Gauss-Newton iterations
-        
+               
         oq = dat.A(n).q;                        
         oJ = dat.A(n).J;
         
@@ -132,8 +132,8 @@ for n=1:N % Loop over observed images (of channel c)
         ymu2f = affine_transf(M,yf);
 
         % Build gradient and Hessian
-        g  = zeros([Nq 1], 'single');
-        H  = zeros([Nq Nq],'single');
+        g  = zeros([Nq 1]);
+        H  = zeros([Nq Nq]);
         ll = 0;
         for z=1:dmf(3) % Loop over slices
 
@@ -145,7 +145,10 @@ for n=1:N % Loop over observed images (of channel c)
             dAff = cell(Nq,3);
             for i=1:Nq
                 for d=1:3
-                    tmp       = dRq(d,1,i)*yf(:,:,z,1) + dRq(d,2,i)*yf(:,:,z,2) + dRq(d,3,i)*yf(:,:,z,3) + dRq(d,4,i);
+                    tmp       = dRq(d,1,i)*double(yf(:,:,z,1)) + ...
+                                dRq(d,2,i)*double(yf(:,:,z,2))  + ...
+                                dRq(d,3,i)*double(yf(:,:,z,3))  + ...
+                                dRq(d,4,i);
                     dAff{i,d} = tmp(:);
                 end
             end
@@ -184,12 +187,15 @@ for n=1:N % Loop over observed images (of channel c)
             end
         end                
 
+        if 0
+            compare_numerical_derivative(g,f{n},mu,dat.A(n),yf,tauf,Mmu,Mf,speak,method);
+        end
+        
         %------------------------------------------------------------------
         % Update q by Gauss-Newton optimisation
         %------------------------------------------------------------------
 
         % Compute update step from gradient and Hessian
-        H      = loaddiag(H);
         Update = H\g;
 
         % Start line-search                       
@@ -248,19 +254,19 @@ end % End loop over observations
 %==========================================================================
     
 %==========================================================================
-function ll = meansq_objfun(f,mu,y,An,tau,speak,method,show_moved)
+function ll = meansq_objfun(f,mu,y,A,tau,speak,method,show_moved)
 if nargin < 8, show_moved = 0; end
 
 dm = size(f);
 dm = [dm 1];
 ll = 0;
 for z=1:dm(3)
-    ll = ll + meansq_objfun_slice(f,mu,y,An,tau,speak,z,method,show_moved);
+    ll = ll + meansq_objfun_slice(f,mu,y,A,tau,speak,z,method,show_moved);
 end
 %==========================================================================
 
 %==========================================================================
-function [ll,g,H] = meansq_objfun_slice(f,mu,y,An,tau,speak,z,method,show_moved)
+function [ll,g,H] = meansq_objfun_slice(f,mu,y,A,tau,speak,z,method,show_moved)
 if nargin < 9, show_moved = 0; end
 
 dm                = size(f); % Observation dimensions
@@ -271,13 +277,13 @@ mu(~isfinite(mu)) = 0;
 dmu = cell(1,3);
 if nargout >= 2
     if strcmp(method,'superres')
-        [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',single(mu),single(y(:,:,z,:)),single(An.J),double(An.win)); 
+        [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',single(mu),single(y(:,:,z,:)),single(A.J),double(A.win)); 
     elseif strcmp(method,'denoise')               
         [mu,dmu{1},dmu{2},dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
     end
 else
     if strcmp(method,'superres')
-        mu = pushpull('pull',single(mu),single(y(:,:,z,:)),single(An.J),double(An.win));    
+        mu = pushpull('pull',single(mu),single(y(:,:,z,:)),single(A.J),double(A.win));    
     elseif strcmp(method,'denoise')
         mu = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
     end
@@ -291,24 +297,30 @@ end
 
 if nargout == 0, return; end
 
+% Double
+mu     = double(mu);
+dmu{1} = double(dmu{1});
+dmu{2} = double(dmu{2});
+dmu{3} = double(dmu{3});
+
 % Compute log-likelihood of slice
 msk  = isfinite(f(:,:,z)) & f(:,:,z) ~= 0;
 msk  = msk(:);
 ftmp = f(:,:,z);
-ll   = -0.5*tau*sum((double(ftmp(msk)) - double(mu(msk))).^2);
+ll   = -0.5*tau*sum((double(ftmp(msk)) - mu(msk)).^2);
 
 if nargout >= 2
     % Compute gradient    
-    g = zeros([dm(1:2),3],'single');
+    g = zeros([dm(1:2),3]);
     
-    diff1        = mu - f(:,:,z);
+    diff1        = mu - double(f(:,:,z));
     for d=1:3
         g(:,:,d) = diff1.*dmu{d};
     end
     
     if nargout >= 3
         % Compute Hessian
-        H = zeros([dm(1:2),6],'single');
+        H = zeros([dm(1:2),6]);
         
         H(:,:,1) = dmu{1}.*dmu{1};
         H(:,:,2) = dmu{2}.*dmu{2};
@@ -378,3 +390,59 @@ else
 end
 drawnow
 %==========================================================================    
+
+%==========================================================================
+function compare_numerical_derivative(g,f,mu,A,y0,tau,Mmu,Mf,speak,method)
+
+% Parameters
+dm   = size(y0);
+B    = get_rigid_basis(dm(3) > 1);               
+oq   = A.q;   
+Nq   = numel(oq);
+vsmu = sqrt(sum(Mmu(1:3,1:3).^2));
+
+% Get deformation
+R = spm_dexpm(oq,B);  
+M = Mmu\R*Mf;       
+y = affine_transf(M,y0);
+
+% Compute f(x)
+fx = meansq_objfun(f,mu,y,A,tau,speak,method);
+fx = -fx; % Because we differentiate the neg ll
+
+%--------------------------------------------------------------------------
+% Check derivatives numerically, by computing (f(x + h) - f(x))/h for
+% various values of h, and by perturbing all individual parameters
+%--------------------------------------------------------------------------
+
+h = 10.^(-16:2:-1); % step-size
+
+for n=1:Nq % Loop over rigid parameters
+    
+    fprintf('---------------------------\n')
+    fprintf(' g(q(%i)) = %7.7f\n',n,g(n));
+    
+    for i=1:numel(h) % Loop over step sizes
+
+        q    = oq;
+        q(n) = q(n) + h(i);
+        A.q  = q;
+                               
+        % Get deformation
+        R = spm_dexpm(q,B);  
+        M = Mmu\R*Mf;       
+        y = affine_transf(M,y0);
+        
+        Mg  = model_slice_gap(M,A.gap,vsmu);    
+        J   = single(reshape(Mg, [1 1 1 3 3]));
+        A.J = J;
+        
+        fxh = meansq_objfun(f,mu,y,A,tau,speak,method);
+        fxh = -fxh; % Because we differentiate the neg ll
+
+        gn = (fxh - fx)/h(i);
+        
+        fprintf('ng(q(%i)) = %7.7f, for h = %g\n',n,gn,h(i));
+    end
+end
+%==========================================================================

@@ -8,7 +8,7 @@ C = numel(dat);
 
 for c=1:C        
     H        = At(A(ones(dat(c).dm,'single'),dat(c)),dat(c));   
-%         H        = max(H(:))*ones(size(H),'single'); % Infinity norm
+%     H        = max(H(:))*ones(size(H),'single'); % Infinity norm
     Nii_H(c) = put_nii(Nii_H(c),H);
 end    
 %==========================================================================

@@ -1,5 +1,5 @@
-function [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_image(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,num_workers,p)
-% Update Nii_y, Nii_u, Nii_w by an ADMM algorithm
+function [Nii,ll1,ll2]= update_image(Nii,dat,tau,rho,lam,num_workers,p)
+% Update Nii.y, Nii.u, Nii.w by an ADMM algorithm
 %
 %_______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -11,12 +11,19 @@ nitgn         = p.Results.IterGaussNewtonImage;
 speak         = p.Results.Verbose; 
 EstimateRigid = p.Results.EstimateRigid;
 
+% Flag saying if we solve using projection matrices (A, At), or not
+use_projmat = ~(strcmpi(method,'denoise') && ~EstimateRigid);
+
+% Get data from Nii struct (otherwise we get parfor errors)
+Nii_x = Nii.x;
+Nii_y = Nii.y;
+Nii_H = Nii.H;
+Nii_w = Nii.w;
+Nii_u = Nii.u;
+
 C  = numel(Nii_x);
 vx = sqrt(sum(dat(1).mat(1:3,1:3).^2));
 dm = dat(1).dm;
-
-% Flag saying if we solve using projection matrices (A, At), or not
-use_projmat = ~(strcmpi(method,'denoise') && ~EstimateRigid);
 
 %------------------------------------------------------------------
 % Proximal operator for u
@@ -158,12 +165,16 @@ parfor (c=1:C,num_workers) % Loop over channels
 
 end % End loop over channels     
 
+Nii.y = Nii_y;
+Nii.w = Nii_w;
+Nii.u = Nii_u;
+
 % Compute log of prior part (part 2)
 ll2 = -sum(sum(sum(sqrt(double(ll2))))); 
 
 if speak >= 2
     % Show MTV prior
-    show_model('solution',use_projmat,modality,Nii_x,Nii_y);
+    show_model('solution',use_projmat,modality,Nii);
     show_model('mtv',mtv_scale);
     show_model('rgb',Nii_y);
 end

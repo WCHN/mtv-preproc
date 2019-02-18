@@ -190,12 +190,15 @@ EstimateRigid = p.Results.EstimateRigid;
 % Preliminaries
 %--------------------------------------------------------------------------
 
+% Struct that will hold model variables
+Nii = struct;
+
 % Get image data
-[Nii_x,C,is3d] = parse_input_data(InputImages,method);
+[Nii,C,is3d] = parse_input_data(Nii,InputImages,method);
 
 if isempty(zeroMissing)    
     % Missing values (NaNs and zeros) will be...
-    if C == 1 && numel(Nii_x{1}) == 1
+    if C == 1 && numel(Nii.x{1}) == 1
         % ...set to zero after algorithm finishes
         zeroMissing = true;
     else
@@ -207,7 +210,7 @@ end
 % Super-resolution voxel-size related
 if isempty(vx_sr)
     % Get voxel-size from input images
-    vx_sr = get_vx_sr(Nii_x);
+    vx_sr = get_vx_sr(Nii.x);
 elseif numel(vx_sr) == 1
     vx_sr = vx_sr*ones(1,3); 
 end
@@ -219,7 +222,7 @@ end
 
 % Make some directories
 if  exist(dir_tmp,'dir') == 7,  rmdir(dir_tmp,'s'); end
-if  do_readwrite || (coreg && (C > 1 || numel(Nii_x{1}) > 1)), mkdir(dir_tmp); end
+if  do_readwrite || (coreg && (C > 1 || numel(Nii.x{1}) > 1)), mkdir(dir_tmp); end
 if ~(exist(dir_out,'dir') == 7),  mkdir(dir_out);  end
 
 % Manage parfor
@@ -228,9 +231,14 @@ if C == 1,             num_workers = 0; end
 if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
 
+if speak >= 3
+    % So that Verbose = 3 works for superres (because Nii_x are copied, then copies are deleted)
+    Nii.x0 = Nii.x; 
+end
+    
 if coreg
-    % Make copies input data and update Nii_x
-    Nii_x = copy_ims(Nii_x,dir_tmp);
+    % Make copies input data and update Nii_x        
+    Nii.x = copy_ims(Nii.x,dir_tmp);
 end
 
 % Flag saying if we solve using projection matrices (A, At), or not
@@ -246,7 +254,7 @@ end
 %--------------------------------------------------------------------------
 
 if coreg && is3d
-    Nii_x = coreg_ims(Nii_x);
+    Nii.x = coreg_ims(Nii.x);
 end
 
 %--------------------------------------------------------------------------
@@ -262,7 +270,7 @@ if strcmpi(method,'denoise')
     if isempty(dec_reg) && EstimateRigid, dec_reg = true; end
     if isempty(dec_reg),                  dec_reg = false; end
     
-    vx = sqrt(sum(Nii_x{1}(1).mat(1:3,1:3).^2));
+    vx = sqrt(sum(Nii.x{1}(1).mat(1:3,1:3).^2));
 elseif strcmpi(method,'superres')
     %---------------------------
     % Super-resolution
@@ -277,40 +285,31 @@ end
 
 % Get recovered images' dimensions and otientation matrices
 if use_projmat
-    [mat,dm] = max_bb_orient(Nii_x,vx);
+    [mat,dm] = max_bb_orient(Nii.x,vx);
 else
-    mat       = Nii_x{1}(1).mat;
-    dm        = Nii_x{1}(1).dat.dim;
+    mat       = Nii.x{1}(1).mat;
+    dm        = Nii.x{1}(1).dat.dim;
     if ~is3d
         dm(3) = 1;
     end
 end
 
 % Initialise dat struct with projection matrices, etc.
-dat = init_dat(method,Nii_x,mat,dm,window,gap,gapunit);    
-    
+dat = init_dat(method,Nii.x,mat,dm,window,gap,gapunit);    
+
+% Allocate auxiliary variables
+Nii = alloc_aux_vars(Nii,do_readwrite,C,dm,mat,dir_tmp);
+
+if use_projmat
+    % Compute approximation to the diagonal of the Hessian 
+    Nii.H = approx_hessian(Nii.H,dat);
+end
+
 %--------------------------------------------------------------------------
 % Estimate model hyper-parameters
 %--------------------------------------------------------------------------
 
-[tau,lam,rho,sched_lam,lam0,Nii_x0] = estimate_model_hyperpars(Nii_x,dec_reg,nit,p);
-
-%--------------------------------------------------------------------------
-% Allocate temporary variables
-%--------------------------------------------------------------------------
-
-[Nii_y,Nii_u,Nii_w,Nii_H] = alloc_aux_vars(do_readwrite,C,dm,mat,dir_tmp);
-
-if use_projmat
-    % Compute approximation to the diagonal of the Hessian 
-    Nii_H = approx_hessian(Nii_H,dat);
-end
-
-%--------------------------------------------------------------------------
-% Create intial estimate of solution (y)
-%--------------------------------------------------------------------------
-
-[Nii_y,ll1,ll2,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,num_workers,p);
+[tau,lam,rho,sched_lam,lam0] = estimate_model_hyperpars(Nii.x,dec_reg,nit,p);
 
 %--------------------------------------------------------------------------
 % Start solving
@@ -325,24 +324,19 @@ if speak >= 1
     tic; 
 end
 
-% Initial objective value
-ll = sum(ll1) + ll2;
-if speak >= 1
-    if ~isempty(Nii_ref)
-        % Reference image(s) given, compute SSIM and PSNR
-    
-        % Observed and reference
-        [psnr1,ssim1] = compute_image_metrics(Nii_x,Nii_ref);
-        fprintf('   | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', 0, 0, 0, 0, psnr1, ssim1); 
-            
-        % Initial solution and reference
-        [psnr1,ssim1] = compute_image_metrics(Nii_y,Nii_ref);
-        fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', 0, ll(end), sum(ll1), ll2, 0, psnr1, ssim1); 
-    else
-        fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', 0, ll(end), sum(ll1), ll2, 0); 
-    end
+if ~isempty(Nii_ref)
+    % Reference image(s) given, compute SSIM and PSNR
+
+    % Observed and reference
+    [psnr1,ssim1] = compute_image_metrics(Nii.x,Nii_ref);
+    fprintf('   | ll1=%10.1f, ll2=%10.1f, ll=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', 0, 0, 0, 0, psnr1, ssim1); 
+
+    % Initial solution and reference
+    [psnr1,ssim1] = compute_image_metrics(Nii.y,Nii_ref);
+    fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', 0, 0, 0, 0, psnr1, ssim1); 
 end
 
+ll = -Inf;
 for it=1:nit % Start main loop
         
     if dec_reg
@@ -351,13 +345,13 @@ for it=1:nit % Start main loop
     end
     
     %----------------------------------------------------------------------
-    % Image, ADMM
-    %----------------------------------------------------------------------
+    % ADMM to update image
+    %----------------------------------------------------------------------    
     
     for ity=1:nity % Start y loop
         
         % Update Nii_y, Nii_w, Nii_u
-        [Nii_y,Nii_u,Nii_w,ll1,ll2]= update_image(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,num_workers,p);
+        [Nii,ll1,ll2]= update_image(Nii,dat,tau,rho,lam,num_workers,p);
 
         % Compute log-posterior (objective value)        
         ll   = [ll, sum(ll1) + ll2];
@@ -368,7 +362,7 @@ for it=1:nit % Start main loop
 
             if ~isempty(Nii_ref)
                 % Reference image(s) given, compute SSIM and PSNR
-                [psnr1,ssim1] = compute_image_metrics(Nii_y,Nii_ref);
+                [psnr1,ssim1] = compute_image_metrics(Nii.y,Nii_ref);
                 
                 fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', it, ll(end), sum(ll1), ll2, gain, psnr1, ssim1); 
             else
@@ -379,6 +373,12 @@ for it=1:nit % Start main loop
                 show_model('ll',ll);                
             end
         end   
+        
+        if  tol > 0 && ity > 1 && ...
+           (gain < 1e-3 && sched_lam(min(it,numel(sched_lam))) ~= 1 || ...
+            gain < tol  && sched_lam(min(it,numel(sched_lam))) == 1)
+            break
+        end
         
     end % End y loop
     
@@ -391,43 +391,22 @@ for it=1:nit % Start main loop
     if EstimateRigid
         
         %------------------------------------------------------------------
-        % Rigid alignment, Gauss-Newton
+        % Gauss-Newton to update rigid alignment
         %------------------------------------------------------------------
         
-        % Update q
-        [dat,ll1] = update_rigid(Nii_x,Nii_y,dat,tau,num_workers,p);                
+        %offset = {[-2.75 1.5 -2]',[1.75 -1.5 2]',[-2 -2.5 1.5]'};
+        %for c=1:C
+        %    dat(c).A(1).mat(1:3,4) = dat(c).A(1).mat(1:3,4) + offset{c};
+        %end
         
-        % Compute log-posterior (objective value)        
-        ll   = [ll, sum(ll1) + ll2];
-        gain = get_gain(ll);
-    
-        if speak >= 1
-            % Some verbose    
-            fprintf('   | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', ll(end), sum(ll1), ll2, gain); 
-            
-            if speak >= 2
-                show_model('ll',ll);
-            end
-        end                 
+        % Update q
+        dat = update_rigid(Nii,dat,tau,num_workers,p);                            
         
         % Update approximation to the diagonal of the Hessian 
-        Nii_H = approx_hessian(Nii_H,dat);
+        Nii.H = approx_hessian(Nii.H,dat);
         
         % Update Nii_y
-        [Nii_y,ll1,ll2]= update_y(Nii_x,Nii_y,Nii_u,Nii_w,Nii_H,dat,tau,rho,lam,num_workers,p);
-        
-        % Compute log-posterior (objective value)        
-        ll   = [ll, sum(ll1) + ll2];
-        gain = get_gain(ll);
-    
-        if speak >= 1
-            % Some verbose    
-            fprintf('   | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', ll(end), sum(ll1), ll2, gain); 
-            
-            if speak >= 2
-                show_model('ll',ll);
-            end
-        end  
+        Nii = update_y(Nii,dat,tau,rho,lam,num_workers,p);
     end
  
 end % End main loop
@@ -442,24 +421,20 @@ if strcmpi(method,'superres'), prefix = 'sr';
 else,                          prefix = 'den';
 end
    
-Nii = nifti;
+Nii_out = nifti;
 for c=1:C
     % Set output filename
-    [~,nam,ext] = fileparts(Nii_x{c}(1).dat.fname);
+    [~,nam,ext] = fileparts(Nii.x{c}(1).dat.fname);
     nfname      = fullfile(dir_out,[prefix '_' nam ext]);
     
     % Get output image data
-    y = get_nii(Nii_y(c));  
-
-    if zeroMissing
-        y(~msk{c}) = 0; % 'Re-apply' missing values        
-    end
+    y = get_nii(Nii.y(c));  
     
     % Write to NIfTI
     if ~is3d
-        mat(3,4) = Nii_x{c}(1).mat(3,4);
+        mat(3,4) = Nii.x{c}(1).mat(3,4);
     end
-    Nii(c) = create_nii(nfname,y,mat,[spm_type('float32') spm_platform('bigend')],'MTV recovered');
+    Nii_out(c) = create_nii(nfname,y,mat,[spm_type('float32') spm_platform('bigend')],'MTV recovered');
 end
 
 %--------------------------------------------------------------------------
@@ -470,15 +445,15 @@ if speak >= 3
     fnames = cell(1,2*C);
     cnt    = 1;
     for c=1:2:2*C    
-        fnames{c}     = Nii_x0{cnt}(1).dat.fname;    
-        fnames{c + 1} = Nii(cnt).dat.fname;
+        fnames{c}     = Nii.x0{cnt}(1).dat.fname;    
+        fnames{c + 1} = Nii_out(cnt).dat.fname;
         cnt           = cnt + 1;
     end
 
     spm_check_registration(char(fnames))
 end
 
-if do_clean && (do_readwrite || (coreg && (C > 1 || numel(Nii_x{1}) > 1)))
+if do_clean && (do_readwrite || (coreg && (C > 1 || numel(Nii.x{1}) > 1)))
     % Clean-up temporary files
     rmdir(dir_tmp,'s');
 end

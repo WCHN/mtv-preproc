@@ -25,18 +25,18 @@ end
 %==========================================================================
 
 %==========================================================================
-function show_solution(use_projmat,modality,Nii_x,Nii_y)
+function show_solution(use_projmat,modality,Nii)
 
 figname          = '(SPM) MTV solution';
 fig              = findobj('Type', 'Figure', 'Name', figname);
 if isempty(fig), fig = figure('Name', figname, 'NumberTitle', 'off'); end
 set(0, 'CurrentFigure', fig);  
 
-C = numel(Nii_x);
+C = numel(Nii.x);
 
 if use_projmat
      for c=1:C
-        img = single(Nii_y(c).dat(:,:,:));        
+        img = single(Nii.y(c).dat(:,:,:));        
         dm  = size(img);
         dm  = [dm 1];
         ix  = floor(dm./2);
@@ -63,12 +63,12 @@ if use_projmat
 else
     Cc = 2*C;
     for c=1:C
-        img0 = single(Nii_x{c}.dat(:,:,:));        
+        img0 = single(Nii.x{c}.dat(:,:,:));        
         dm   = size(img0);
         dm   = [dm 1];
         ix0  = floor(dm./2);
         
-        img1 = single(Nii_y(c).dat(:,:,:));      
+        img1 = single(Nii.y(c).dat(:,:,:));      
         dm   = size(img1);
         dm   = [dm 1];
         ix1  = floor(dm./2);
@@ -141,23 +141,23 @@ drawnow;
 %==========================================================================
 
 %==========================================================================
-function show_rgb(Nii_y)
+function show_rgb(Nii)
 
 figname          = '(SPM) RGB';
 fig              = findobj('Type', 'Figure', 'Name', figname);
 if isempty(fig), fig = figure('Name', figname, 'NumberTitle', 'off'); end
 set(0, 'CurrentFigure', fig);  
 
-C    = numel(Nii_y);
-dm   = size(Nii_y(1).dat(:,:,:));
+C    = numel(Nii);
+dm   = size(Nii(1).dat(:,:,:));
 is3d = numel(dm) == 3;
 
-Gmag = imgradient3(single(Nii_y(1).dat(:,:,:)));
+Gmag = imgradient3(single(Nii(1).dat(:,:,:)));
 for c=2:C
     if is3d
-        Gmag = cat(4,Gmag,imgradient3(single(Nii_y(c).dat(:,:,:))));
+        Gmag = cat(4,Gmag,imgradient3(single(Nii(c).dat(:,:,:))));
     else
-        Gmag = cat(3,Gmag,imgradient3(single(Nii_y(c).dat(:,:,:))));
+        Gmag = cat(3,Gmag,imgradient3(single(Nii(c).dat(:,:,:))));
     end
 end
 

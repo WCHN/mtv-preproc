@@ -53,7 +53,7 @@ for n=1:N % Loop over LR images
     dat.A(n).dm  = dmf;
     dat.A(n).win = window{n};
     dat.A(n).gap = gap{n};
-    dat.A(n).q   = zeros([Nq 1],'single'); 
+    dat.A(n).q   = zeros([Nq 1]); 
     
     R = spm_dexpm(dat.A(n).q,B); % Rigid matrix
     M = Mmu\R*Mf;

@@ -1,4 +1,4 @@
-function [tau,lam,rho,sched_lam,lam0,Nii_x0] = estimate_model_hyperpars(Nii_x,dec_reg,nit,p)
+function [tau,lam,rho,sched_lam,lam0] = estimate_model_hyperpars(Nii_x,dec_reg,nit,p)
 % Estimate MTV model parameters
 %
 %_______________________________________________________________________
@@ -27,7 +27,6 @@ end
 C = numel(Nii_x);
 
 % For verbose
-Nii_x0 = [];
 if speak >= 2
     if strcmpi(modality,'MRI')
         figname = '(SPM) Rice mixture fits MRI';
@@ -36,12 +35,7 @@ if speak >= 2
     end
     f                = findobj('Type', 'Figure', 'Name', figname);
     if isempty(f), f = figure('Name', figname, 'NumberTitle', 'off'); end
-    set(0, 'CurrentFigure', f);              
-    
-    if speak >= 3
-        % So that Verbose = 3 works for superres (because Nii_x are copied, then copies are deleted)
-        Nii_x0 = Nii_x; 
-    end
+    set(0, 'CurrentFigure', f);                 
 end
 
 % Just for making subplots
@@ -98,7 +92,9 @@ end
 lam0      = lam;
 sched_lam = get_lam_sched;
 if dec_reg
-    lam   = sched_lam(1)*lam;
+    lam       = sched_lam(1)*lam;
+else
+    sched_lam = 1;
 end
 
 if rho == 0
@@ -129,5 +125,5 @@ end
 
 %==========================================================================
 function sched = get_lam_sched
-sched = repelem(fliplr(2.^(0:5)),1,6);
+sched = repelem(fliplr(2.^(0:5)),1,4);
 %==========================================================================

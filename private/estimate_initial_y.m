@@ -1,4 +1,4 @@
-function [Nii_y,ll1,ll2,msk] = estimate_initial_y(Nii_x,Nii_y,Nii_H,dat,tau,rho,lam,num_workers,p)
+function [Nii,ll1,ll2,msk] = estimate_initial_y(Nii,dat,tau,rho,lam,num_workers,p)
 % Compute initial estimate of recovered image(s)
 %
 %_______________________________________________________________________
@@ -13,6 +13,11 @@ EstimateRigid = p.Results.EstimateRigid;
 
 % Flag saying if we solve using projection matrices (A, At), or not
 use_projmat = ~(strcmpi(method,'denoise') && ~EstimateRigid);
+
+% Get data from Nii struct (otherwise we get parfor errors)
+Nii_x = Nii.x;
+Nii_y = Nii.y;
+Nii_H = Nii.H;
 
 C  = numel(Nii_x);
 vx = sqrt(sum(dat(1).mat(1:3,1:3).^2));
@@ -90,11 +95,13 @@ parfor (c=1:C,num_workers)
     y        = [];
 end
 
+Nii.y = Nii_y;
+
 % Compute log of prior part (part 2)
 ll2 = -sum(sum(sum(sqrt(double(ll2))))); 
 
 if speak >= 2
     % Show initial estimate
-    show_model('solution',use_projmat,modality,Nii_x,Nii_y); 
+    show_model('solution',use_projmat,modality,Nii); 
 end
 %==========================================================================

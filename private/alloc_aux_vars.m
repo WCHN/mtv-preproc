@@ -1,4 +1,4 @@
-function [Nii_y,Nii_u,Nii_w,Nii_H] = alloc_aux_vars(do_readwrite,C,dm,mat,dir_tmp)
+function Nii = alloc_aux_vars(Nii,do_readwrite,C,dm,mat,dir_tmp)
 % Allocate MTV model auxiliary variables
 %
 %_______________________________________________________________________
@@ -6,16 +6,16 @@ function [Nii_y,Nii_u,Nii_w,Nii_H] = alloc_aux_vars(do_readwrite,C,dm,mat,dir_tm
 
 if do_readwrite
     % Read/write temporary variables from disk (stored as NIfTIs)
-    Nii_y = nifti;
-    Nii_u = nifti;
-    Nii_w = nifti;
-    Nii_H = nifti;
+    Nii.y = nifti;
+    Nii.u = nifti;
+    Nii.w = nifti;
+    Nii.H = nifti;
 else
     % Keep temporary variables in memory
-    Nii_y = struct;
-    Nii_u = struct;
-    Nii_w = struct;
-    Nii_H = struct;
+    Nii.y = struct;
+    Nii.u = struct;
+    Nii.w = struct;
+    Nii.H = struct;
 end
 
 for c=1:C
@@ -30,15 +30,15 @@ for c=1:C
         create_nii(fname_w,zeros([dm 3 2],'single'),mat,[spm_type('float32') spm_platform('bigend')],'w');
         create_nii(fname_H,zeros(dm,      'single'),mat,[spm_type('float32') spm_platform('bigend')],'H');
 
-        Nii_y(c) = nifti(fname_y);
-        Nii_u(c) = nifti(fname_u);
-        Nii_w(c) = nifti(fname_w);
-        Nii_H(c) = nifti(fname_H);
+        Nii.y(c) = nifti(fname_y);
+        Nii.u(c) = nifti(fname_u);
+        Nii.w(c) = nifti(fname_w);
+        Nii.H(c) = nifti(fname_H);
     else
-        Nii_y(c).dat = zeros(dm,      'single');
-        Nii_u(c).dat = zeros([dm 3 2],'single');
-        Nii_w(c).dat = zeros([dm 3 2],'single');
-        Nii_H(c).dat = zeros(dm,      'single');
+        Nii.y(c).dat = zeros(dm,      'single');
+        Nii.u(c).dat = zeros([dm 3 2],'single');
+        Nii.w(c).dat = zeros([dm 3 2],'single');
+        Nii.H(c).dat = zeros(dm,      'single');
     end
 end
 %==========================================================================
