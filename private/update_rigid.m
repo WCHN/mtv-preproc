@@ -126,10 +126,10 @@ for n=1:N % Loop over observed images (of channel c)
             dRq(:,:,i) = Mmu\dR(:,:,i)*Mf;
         end
 
-        % Make interpolation grids: yf - image, ymu - template-2-image
-        M     = Mmu\R*Mf;
-        yf    = get_id(dmf);        
-        ymu2f = affine_transf(M,yf);
+        % Make interpolation grids
+        M = Mmu\R*Mf;
+        x = get_id(dmf);        
+        y = affine_transf(M,x);
 
         % Build gradient and Hessian
         g  = zeros([Nq 1]);
@@ -138,16 +138,16 @@ for n=1:N % Loop over observed images (of channel c)
         for z=1:dmf(3) % Loop over slices
 
             % Compute matching-term part (log likelihood)
-            [llz,gz,Hz] = meansq_objfun_slice(f{n},mu,ymu2f,dat.A(n),tauf,speak,z,method);
+            [llz,gz,Hz] = meansq_objfun_slice(f{n},mu,y,dat.A(n),tauf,speak,z,method);
             ll          = ll + llz;           
 
             % Add dRq to gradients
             dAff = cell(Nq,3);
             for i=1:Nq
                 for d=1:3
-                    tmp       = dRq(d,1,i)*double(yf(:,:,z,1)) + ...
-                                dRq(d,2,i)*double(yf(:,:,z,2))  + ...
-                                dRq(d,3,i)*double(yf(:,:,z,3))  + ...
+                    tmp       = dRq(d,1,i)*double(x(:,:,z,1)) + ...
+                                dRq(d,2,i)*double(x(:,:,z,2)) + ...
+                                dRq(d,3,i)*double(x(:,:,z,3)) + ...
                                 dRq(d,4,i);
                     dAff{i,d} = tmp(:);
                 end
@@ -188,7 +188,7 @@ for n=1:N % Loop over observed images (of channel c)
         end                
 
         if 0
-            compare_numerical_derivative(g,f{n},mu,dat.A(n),yf,tauf,Mmu,Mf,speak,method);
+            compare_numerical_derivative(g,f{n},mu,dat.A(n),x,tauf,Mmu,Mf,speak,method);
         end
         
         %------------------------------------------------------------------
@@ -217,22 +217,16 @@ for n=1:N % Loop over observed images (of channel c)
             dat.A(n).J = J;
 
             % Compute new log-likelihood
-            ymu2f = affine_transf(M,yf);
-            ll    = meansq_objfun(f{n},mu,ymu2f,dat.A(n),tauf,speak,method,true);
+            y  = affine_transf(M,x);
+            ll = meansq_objfun(f{n},mu,y,dat.A(n),tauf,speak,method,true);
 
             if ll > oll
                 if speak >= 1
                     fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%g | :o) | q=%s\n', c, n, gnit, linesearch, ll, sprintf(' %2.3f', q)); 
                 end
-
-                armijo = min(1.2*armijo,1);
-
-                break;
-            else
-                if speak >= 1
-                    fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%g | :''(\n', c, n, gnit, linesearch, ll); 
-                end
                 
+                break;
+            else                
                 % Revert to previous values in dat struct
                 dat.A(n).q = oq;        
                 dat.A(n).J = oJ;
@@ -244,6 +238,10 @@ for n=1:N % Loop over observed images (of channel c)
         if ll <= oll
             % Use old log-likelihood
             ll = oll;
+            
+            if speak >= 1
+                fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%g | :''(\n', c, n, gnit, linesearch, ll); 
+            end
         end
         
     end % End loop over Gauss-Newton iterations
@@ -341,21 +339,21 @@ end
 %==========================================================================
 
 %==========================================================================
-function y = affine_transf(Affine,y)
-dm = size(y);
-y  = cat(4, Affine(1,1)*y(:,:,:,1) + Affine(1,2)*y(:,:,:,2) + Affine(1,3)*y(:,:,:,3) + Affine(1,4),...
-            Affine(2,1)*y(:,:,:,1) + Affine(2,2)*y(:,:,:,2) + Affine(2,3)*y(:,:,:,3) + Affine(2,4),...
-            Affine(3,1)*y(:,:,:,1) + Affine(3,2)*y(:,:,:,2) + Affine(3,3)*y(:,:,:,3) + Affine(3,4));
+function y = affine_transf(Affine,x)
+dm = size(x);
+y  = cat(4, Affine(1,1)*x(:,:,:,1) + Affine(1,2)*x(:,:,:,2) + Affine(1,3)*x(:,:,:,3) + Affine(1,4),...
+            Affine(2,1)*x(:,:,:,1) + Affine(2,2)*x(:,:,:,2) + Affine(2,3)*x(:,:,:,3) + Affine(2,4),...
+            Affine(3,1)*x(:,:,:,1) + Affine(3,2)*x(:,:,:,2) + Affine(3,3)*x(:,:,:,3) + Affine(3,4));
 if dm(3) == 1
     y(:,:,:,end) = 1;
 end        
 %==========================================================================            
 
 %==========================================================================
-function id = get_id(dm)
-id        = cell(3,1);
-[id{1:3}] = ndgrid(single(1:dm(1)),single(1:dm(2)),single(1:dm(3)));
-id        = cat(4,id{:});
+function x = get_id(dm)
+x        = cell(3,1);
+[x{1:3}] = ndgrid(single(1:dm(1)),single(1:dm(2)),single(1:dm(3)));
+x        = cat(4,x{:});
 %==========================================================================
 
 %==========================================================================
@@ -392,30 +390,33 @@ drawnow
 %==========================================================================    
 
 %==========================================================================
-function compare_numerical_derivative(g,f,mu,A,y0,tau,Mmu,Mf,speak,method)
+function compare_numerical_derivative(g,f,mu,A,x,tau,Mmu,Mf,speak,method)
 
 % Parameters
-dm   = size(y0);
+dm   = size(x);
 B    = get_rigid_basis(dm(3) > 1);               
 oq   = A.q;   
 Nq   = numel(oq);
 vsmu = sqrt(sum(Mmu(1:3,1:3).^2));
 
+% Modulate gradient w tau
+g = tau*g;
+
 % Get deformation
-R = spm_dexpm(oq,B);  
-M = Mmu\R*Mf;       
-y = affine_transf(M,y0);
+% R = spm_dexpm(oq,B);  
+% M = Mmu\R*Mf;       
+% y = affine_transf(M,x);
 
 % Compute f(x)
-fx = meansq_objfun(f,mu,y,A,tau,speak,method);
-fx = -fx; % Because we differentiate the neg ll
+% fx = meansq_objfun(f,mu,y,A,tau,speak,method);
+% fx = -fx; % Because we differentiate the neg ll
 
 %--------------------------------------------------------------------------
 % Check derivatives numerically, by computing (f(x + h) - f(x))/h for
 % various values of h, and by perturbing all individual parameters
 %--------------------------------------------------------------------------
 
-h = 10.^(-16:2:-1); % step-size
+h = 10.^(-7:1:-1); % step-size
 
 for n=1:Nq % Loop over rigid parameters
     
@@ -431,16 +432,32 @@ for n=1:Nq % Loop over rigid parameters
         % Get deformation
         R = spm_dexpm(q,B);  
         M = Mmu\R*Mf;       
-        y = affine_transf(M,y0);
+        y = affine_transf(M,x);
         
         Mg  = model_slice_gap(M,A.gap,vsmu);    
         J   = single(reshape(Mg, [1 1 1 3 3]));
         A.J = J;
         
-        fxh = meansq_objfun(f,mu,y,A,tau,speak,method);
-        fxh = -fxh; % Because we differentiate the neg ll
+        fxph = meansq_objfun(f,mu,y,A,tau,speak,method);
+        fxph = -fxph; % Because we differentiate the neg ll
 
-        gn = (fxh - fx)/h(i);
+        q    = oq;
+        q(n) = q(n) - h(i);
+        A.q  = q;
+                               
+        % Get deformation
+        R = spm_dexpm(q,B);  
+        M = Mmu\R*Mf;       
+        y = affine_transf(M,x);
+        
+        Mg  = model_slice_gap(M,A.gap,vsmu);    
+        J   = single(reshape(Mg, [1 1 1 3 3]));
+        A.J = J;
+        
+        fxmh = meansq_objfun(f,mu,y,A,tau,speak,method);
+        fxmh = -fxmh; % Because we differentiate the neg ll
+        
+        gn = (fxph - fxmh)/(2*h(i));
         
         fprintf('ng(q(%i)) = %7.7f, for h = %g\n',n,gn,h(i));
     end
