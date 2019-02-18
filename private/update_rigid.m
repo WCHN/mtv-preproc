@@ -233,10 +233,10 @@ for n=1:N % Loop over observed images (of channel c)
             ll = oll;
             
             if speak >= 1
-                fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f | a=%1.7f, q=%s | :''(\n', c, n, gnit, linesearch, ll, armijo(n), sprintf(' %2.3f', dat.A(n).q)); 
+                fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f | a=%7.5f, q=%s | :''(\n', c, n, gnit, linesearch, ll, armijo(n), sprintf(' %5.2f', dat.A(n).q)); 
             end
         elseif speak >= 1
-            fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f | a=%1.7f, q=%s | :o)\n', c, n, gnit, linesearch, ll, armijo(n), sprintf(' %2.3f', dat.A(n).q)); 
+            fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f | a=%7.5f, q=%s | :o)\n', c, n, gnit, linesearch, ll, armijo(n), sprintf(' %5.2f', dat.A(n).q)); 
         end
         
     end % End loop over Gauss-Newton iterations
@@ -372,14 +372,14 @@ set(0, 'CurrentFigure', fig);
 mxf = max(f(:));
 if ~show_moved
 %     clf(fig)
-    subplot(2,3,1); imagesc(f', [0 mxf]); axis xy off; title('f');
-    subplot(2,3,2); imagesc(mu',[0 mxf]); axis xy off; title('mu');
-    subplot(2,3,3); imagesc(mu',[0 mxf]); axis xy off; title('nmu');
-    subplot(2,3,4); imagesc(dmu{1}'); axis xy off; title('dmux');
-    subplot(2,3,5); imagesc(dmu{2}'); axis xy off; title('dmuy');
-    subplot(2,3,6); imagesc(dmu{3}'); axis xy off; title('dmuz');
+    subplot(2,3,1); imagesc(f', [0 mxf]); axis xy off; title('f'); colorbar
+    subplot(2,3,2); imagesc(mu',[0 mxf]); axis xy off; title('mu'); colorbar
+    subplot(2,3,3); imagesc(mu',[0 mxf]); axis xy off; title('nmu'); colorbar
+    subplot(2,3,4); imagesc(dmu{1}'); axis xy off; title('dmux'); colorbar
+    subplot(2,3,5); imagesc(dmu{2}'); axis xy off; title('dmuy'); colorbar
+    subplot(2,3,6); imagesc(dmu{3}'); axis xy off; title('dmuz'); colorbar
 else
-    subplot(2,3,3); imagesc(mu',[0 mxf]); axis xy off; title('nmu');
+    subplot(2,3,3); imagesc(mu',[0 mxf]); axis xy off; title('nmu'); colorbar
 end
 drawnow
 %==========================================================================    
