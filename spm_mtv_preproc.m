@@ -305,6 +305,9 @@ if use_projmat
     Nii.H = approx_hessian(Nii.H,dat);
 end
 
+% Rigid optimisation line-search parameter
+armijo = get_armijo(dat);
+
 %--------------------------------------------------------------------------
 % Estimate model hyper-parameters
 %--------------------------------------------------------------------------
@@ -341,7 +344,15 @@ for it=1:nit % Start main loop
         
     if dec_reg
         % Decrease regularisation with iteration number
-        lam = sched_lam(min(it,numel(sched_lam)))*lam0;    
+        if it > 1
+            osched = sched_lam(min(it - 1,numel(sched_lam)));
+        end
+        sched  = sched_lam(min(it,numel(sched_lam)));
+        lam    = sched*lam0;    
+        if it > 1 && osched ~= sched
+            % Regularisation changed, reset rigid armijo to one
+            armijo = get_armijo(dat);     
+        end
     end
     
     %----------------------------------------------------------------------
@@ -375,8 +386,8 @@ for it=1:nit % Start main loop
         end   
         
         if  tol > 0 && ity > 1 && ...
-           (gain < 1e-3 && sched_lam(min(it,numel(sched_lam))) ~= 1 || ...
-            gain < tol  && sched_lam(min(it,numel(sched_lam))) == 1)
+           (gain < 1e-3 && sched ~= 1 || ...
+            gain < tol  && sched == 1)
             break
         end
         
@@ -400,7 +411,7 @@ for it=1:nit % Start main loop
         %end
         
         % Update q
-        dat = update_rigid(Nii,dat,tau,num_workers,p);                            
+        [dat,armijo] = update_rigid(Nii,dat,tau,armijo,num_workers,p);                            
         
         % Update approximation to the diagonal of the Hessian 
         Nii.H = approx_hessian(Nii.H,dat);

@@ -1,4 +1,4 @@
-function [dat,ll1] = update_rigid(Nii,dat,tau,num_workers,p)
+function [dat,armijo,ll1] = update_rigid(Nii,dat,tau,armijo,num_workers,p)
 % Update q with a Gauss-Newton algorithm
 %
 % Optimise the rigid alignment between observed images and their 
@@ -33,7 +33,7 @@ parfor (c=1:C,num_workers) % Loop over channels
     
     set_boundary_conditions;
     
-    [dat(c),ll1(c)] = update_channel(Nii.x(c),Nii.y(c),dat(c),B,tau{c},speak,nitgn,c);    
+    [dat(c),ll1(c),armijo{c}] = update_channel(Nii.x(c),Nii.y(c),dat(c),B,tau{c},speak,nitgn,c,armijo{c});    
     
 end % End loop over channels
 
@@ -84,7 +84,7 @@ end
 %==========================================================================
 
 %==========================================================================
-function [dat,sll] = update_channel(Nii_x,Nii_y,dat,B,tau,speak,nitgn,c)
+function [dat,sll,armijo] = update_channel(Nii_x,Nii_y,dat,B,tau,speak,nitgn,c,armijo)
 
 % Parameters
 Nq          = size(B,3);             % Number of registration parameters
@@ -176,10 +176,6 @@ for n=1:N % Loop over observed images (of channel c)
 
         end % End loop over slices
 
-        if speak >= 1
-            fprintf('   | c=%i, n=%i, gn=%i, ls=0 | ll=%g\n', c, n, gnit, ll); 
-        end
-
         % Fill in missing triangle
         for i1=1:Nq
             for i2=1:Nq
@@ -199,12 +195,11 @@ for n=1:N % Loop over observed images (of channel c)
         Update = H\g;
 
         % Start line-search                       
-        oll    = ll;        
-        armijo = 1;
+        oll = ll;        
         for linesearch=1:nlinesearch
 
             % Take step
-            q = oq - armijo*Update;
+            q = oq - armijo(n)*Update;
 
             % Compute new parameters
             R  = spm_dexpm(q,B);
@@ -221,17 +216,15 @@ for n=1:N % Loop over observed images (of channel c)
             ll = meansq_objfun(f{n},mu,y,dat.A(n),tauf,speak,method,true);
 
             if ll > oll
-                if speak >= 1
-                    fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%g | :o) | q=%s\n', c, n, gnit, linesearch, ll, sprintf(' %2.3f', q)); 
-                end
-                
+                armijo(n) = 1.25*armijo(n);
+
                 break;
             else                
                 % Revert to previous values in dat struct
                 dat.A(n).q = oq;        
                 dat.A(n).J = oJ;
                 
-                armijo = 0.5*armijo;
+                armijo(n) = 0.5*armijo(n);
             end
         end
 
@@ -240,8 +233,10 @@ for n=1:N % Loop over observed images (of channel c)
             ll = oll;
             
             if speak >= 1
-                fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%g | :''(\n', c, n, gnit, linesearch, ll); 
+                fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f | a=%1.7f, q=%s | :''(\n', c, n, gnit, linesearch, ll, armijo(n), sprintf(' %2.3f', dat.A(n).q)); 
             end
+        elseif speak >= 1
+            fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f | a=%1.7f, q=%s | :o)\n', c, n, gnit, linesearch, ll, armijo(n), sprintf(' %2.3f', dat.A(n).q)); 
         end
         
     end % End loop over Gauss-Newton iterations
@@ -401,15 +396,6 @@ vsmu = sqrt(sum(Mmu(1:3,1:3).^2));
 
 % Modulate gradient w tau
 g = tau*g;
-
-% Get deformation
-% R = spm_dexpm(oq,B);  
-% M = Mmu\R*Mf;       
-% y = affine_transf(M,x);
-
-% Compute f(x)
-% fx = meansq_objfun(f,mu,y,A,tau,speak,method);
-% fx = -fx; % Because we differentiate the neg ll
 
 %--------------------------------------------------------------------------
 % Check derivatives numerically, by computing (f(x + h) - f(x))/h for

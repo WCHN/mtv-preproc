@@ -9,8 +9,8 @@ DirRef = './ReferenceData/BrainWeb';
 DirSim = './SimulatedData/BrainWeb';
 
 % Translate images a bit
-% offset = {[-2.75 1.5 -2]',[1.75 -1.5 2]',[-2 -2.5 1.5]'};
-offset = {[-1.75 1.5 -2]',[1.75 -1.5 1]',[-1 -1.5 1.5]'};
+offset = {[-2.75 1.5 -2]',[1.75 -1.5 2]',[-2 -2.5 1.5]'};
+% offset = {[-1.75 1.5 -2]',[1.75 -1.5 1]',[-1 -1.5 1.5]'};
 
 % Create output directory
 DirSim3D = fullfile(DirSim,'3D');

@@ -1,6 +1,6 @@
 clear;
 
-dir_data = './SimulatedData/BrainWeb/3D';
+dir_data = './SimulatedData/BrainWeb/2D';
 Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
 % Parameters
