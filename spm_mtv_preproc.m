@@ -412,9 +412,6 @@ for it=1:nit % Start main loop
         
         % Update approximation to the diagonal of the Hessian 
         Nii.H        = approx_hessian(Nii.H,dat);
-        
-        % Update Nii_y
-        Nii          = update_y(Nii,dat,tau,rho,lam,num_workers,p);
     end
  
 end % End main loop

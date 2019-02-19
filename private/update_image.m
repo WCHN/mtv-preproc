@@ -25,39 +25,11 @@ C  = numel(Nii_x);
 vx = sqrt(sum(dat(1).mat(1:3,1:3).^2));
 dm = dat(1).dm;
 
-%------------------------------------------------------------------
-% Proximal operator for u
-% Here we solve for the MTV term of the objective function using
-% vectorial soft thresholding 
-%------------------------------------------------------------------
-
-unorm = 0;    
-% for c=1:C, fprintf('OBS! for c=1:C\n')
-parfor (c=1:C,num_workers) % Loop over channelsi
-
-    set_boundary_conditions;
-    
-    y = get_nii(Nii_y(c));        
-    G = lam(c)*imgrad(y,vx);
-    y = [];
-
-    w = get_nii(Nii_w(c));        
-    u = G + w/rho;
-    G = [];
-    w = [];
-
-    Nii_u(c) = put_nii(Nii_u(c),u);
-
-    unorm = unorm + sum(sum(u.^2,4),5);
-    u     = [];
-end % End loop over channels
-
-unorm     = sqrt(unorm);
-mtv_scale = max(unorm - 1/rho,0)./(unorm + eps);
-clear unorm
+%--------------------------------------------------------------------------
+% First update y
+%--------------------------------------------------------------------------
 
 ll1 = zeros(1,C);
-ll2 = 0;
 % for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers) % Loop over channels
 
@@ -65,21 +37,8 @@ parfor (c=1:C,num_workers) % Loop over channels
 
     u = get_nii(Nii_u(c));   
     w = get_nii(Nii_w(c));   
-
-    %------------------------------------------------------------------
-    % Proximal operator for u (continued)
-    % Here we multiply each contrast image with the same scaling
-    % matrix, this is a key addition of using MTV
-    %------------------------------------------------------------------
-
-    u = bsxfun(@times,u,mtv_scale);
-
-    %------------------------------------------------------------------
-    % Proximal operator for y        
-    %------------------------------------------------------------------
-
     x = get_nii(Nii_x(c)); % Get observed image
-    y = get_nii(Nii_y(c)); % Get solution
+    y = get_nii(Nii_y(c)); % Get solution        
 
     if use_projmat
         % We use the projection matrices (A, At)
@@ -127,16 +86,79 @@ parfor (c=1:C,num_workers) % Loop over channels
         y   = spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
         lhs = [];
         rhs = [];        
-    end
+    end    
     
     if strcmpi(modality,'MRI')
         % Ensure non-negativity (ad-hoc)
         y(y < 0) = 0;
-    end 
-
-    % Compute log of likelihood part    
+    end    
+    
+    % Compute log of likelihood    
     ll1(c) = get_ll1(use_projmat,y,x,tau{c},dat(c));
     x      = [];
+    
+    Nii_y(c) = put_nii(Nii_y(c),y);
+    y        = [];    
+    
+end % End loop over channels     
+
+%--------------------------------------------------------------------------
+% Then compute MTV
+%--------------------------------------------------------------------------
+
+ll2   = 0;
+unorm = 0;    
+% for c=1:C, fprintf('OBS! for c=1:C\n')
+parfor (c=1:C,num_workers) % Loop over channelsi
+
+    set_boundary_conditions;
+    
+    y = get_nii(Nii_y(c));        
+    G = lam(c)*imgrad(y,vx);
+    y = [];
+
+    % Compute log of prior (part 1)
+    ll2 = ll2 + sum(sum(G.^2,4),5);                  
+    
+    w = get_nii(Nii_w(c));        
+    u = G + w/rho;
+    G = [];
+    w = [];
+
+    Nii_u(c) = put_nii(Nii_u(c),u);
+
+    unorm = unorm + sum(sum(u.^2,4),5);
+    u     = [];
+    
+end % End loop over channels
+
+unorm     = sqrt(unorm);
+mtv_scale = max(unorm - 1/rho,0)./(unorm + eps);
+clear unorm
+ 
+% Compute log of prior (part 2)
+ll2 = -sum(sum(sum(sqrt(double(ll2))))); 
+
+%--------------------------------------------------------------------------
+% Update u and w
+%--------------------------------------------------------------------------
+
+% for c=1:C, fprintf('OBS! for c=1:C\n')
+parfor (c=1:C,num_workers) % Loop over channels
+
+    set_boundary_conditions;
+
+    u = get_nii(Nii_u(c));   
+    w = get_nii(Nii_w(c));   
+    y = get_nii(Nii_y(c)); % Get solution
+    
+    %------------------------------------------------------------------
+    % Update proximal operator for u
+    % Here we multiply each contrast image with the same scaling
+    % matrix, this is a key addition of using MTV
+    %------------------------------------------------------------------
+
+    u = bsxfun(@times,u,mtv_scale);
 
     %------------------------------------------------------------------
     % Solve for w
@@ -144,33 +166,20 @@ parfor (c=1:C,num_workers) % Loop over channels
     %------------------------------------------------------------------
 
     G = lam(c)*imgrad(y,vx);
-
-    Nii_y(c) = put_nii(Nii_y(c),y);
-    y        = [];
-
     w = w + rho*(G - u);        
+    G = [];
     
     Nii_u(c) = put_nii(Nii_u(c),u);
     u        = [];
 
     Nii_w(c) = put_nii(Nii_w(c),w);
-    w        = [];
-    
-    %------------------------------------------------------------------
-    % Compute log of prior part (part 1)
-    %------------------------------------------------------------------
-    
-    ll2 = ll2 + sum(sum(G.^2,4),5);
-    G   = [];                
+    w        = [];               
 
 end % End loop over channels     
 
 Nii.y = Nii_y;
 Nii.w = Nii_w;
 Nii.u = Nii_u;
-
-% Compute log of prior part (part 2)
-ll2 = -sum(sum(sum(sqrt(double(ll2))))); 
 
 if speak >= 2
     % Show MTV prior
