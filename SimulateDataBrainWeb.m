@@ -8,8 +8,11 @@ function SimulateDataBrainWeb
 DirRef = './ReferenceData/BrainWeb';
 DirSim = './SimulatedData/BrainWeb';
 
+ExtractSlab = true;
+SlabSize    = 5;
+
 % Translate images a bit
-offset = {[-2.75 1.5 -2]',[1.75 -1.5 2]',[-2 -2.5 1.5]'};
+offset = {[-2.75 1.5 -2]',[1.75 -1.5 2]',[-2 -2.5 1]'};
 % offset = {[-1.75 1.5 -2]',[1.75 -1.5 1]',[-1 -1.5 1.5]'};
 
 % Create output directory
@@ -41,8 +44,7 @@ for c=1:C % Loop over channels
     [~,nam,ext]     = fileparts(fname);  
     
     % Save thick-sliced data        
-    nfname          = fullfile(DirSim3D,[nam ext]);
-    fnames{end + 1} = nfname;
+    nfname          = fullfile(DirSim3D,[nam ext]);    
 
     if exist('offset','var')
         % Rigidly realign the image a little bit (randomly)
@@ -55,9 +57,19 @@ for c=1:C % Loop over channels
     create_nii(nfname,img,mat,[spm_type('float32') spm_platform('bigend')],'Simulated (3D)');
 
     % 2D
-    nfname   = fullfile(DirSim2D,[nam ext]);
+    nfname2d = fullfile(DirSim2D,[nam ext]);
     mat(3,4) = 0;
-    create_nii(nfname,img(:,:,floor(dm(3)/2)),mat,[spm_type('float32') spm_platform('bigend')],'Simulated (2D)');
+    create_nii(nfname2d,img(:,:,floor(dm(3)/2)),mat,[spm_type('float32') spm_platform('bigend')],'Simulated (2D)');
+    
+    if ExtractSlab
+        z      = round(dm(3)/2);
+        ofname = nfname;
+        bb     = [-Inf Inf; -Inf Inf; (z - SlabSize) (z + SlabSize);]';
+        nfname = subvol(spm_vol(nfname),bb);
+        delete(ofname);
+    end
+    
+    fnames{end + 1} = nfname;
 end
 
 spm_check_registration(char(fnames))

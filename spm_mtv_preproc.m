@@ -351,8 +351,10 @@ for it=1:nit % Start main loop
         lam    = sched*lam0;    
         if it > 1 && osched ~= sched
             % Regularisation changed, reset rigid armijo to one
-            armijo = get_armijo(dat);     
+            armijo = get_armijo(dat);             
         end
+    else
+        sched = 1;
     end
     
     %----------------------------------------------------------------------
@@ -404,20 +406,15 @@ for it=1:nit % Start main loop
         %------------------------------------------------------------------
         % Gauss-Newton to update rigid alignment
         %------------------------------------------------------------------
-        
-        %offset = {[-2.75 1.5 -2]',[1.75 -1.5 2]',[-2 -2.5 1.5]'};
-        %for c=1:C
-        %    dat(c).A(1).mat(1:3,4) = dat(c).A(1).mat(1:3,4) + offset{c};
-        %end
-        
+                
         % Update q
         [dat,armijo] = update_rigid(Nii,dat,tau,armijo,num_workers,p);                            
         
         % Update approximation to the diagonal of the Hessian 
-        Nii.H = approx_hessian(Nii.H,dat);
+        Nii.H        = approx_hessian(Nii.H,dat);
         
         % Update Nii_y
-        Nii = update_y(Nii,dat,tau,rho,lam,num_workers,p);
+        Nii          = update_y(Nii,dat,tau,rho,lam,num_workers,p);
     end
  
 end % End main loop

@@ -161,9 +161,14 @@ for c=2:C
     end
 end
 
-% Make max value <= 1
-Gmag = Gmag/max(Gmag(:));
-% Gmag = bsxfun(@rdivide,Gmag,sum(Gmag,3));
+% Make max value for each channel <= 1
+for c=1:C
+    if is3d
+        Gmag(:,:,:,c) = Gmag(:,:,:,c)/max(reshape(Gmag(:,:,:,c),[],1));
+    else
+        Gmag(:,:,c) = Gmag(:,:,c)/max(reshape(Gmag(:,:,c),[],1));
+    end
+end
 
 imagesc3d(Gmag); axis off image xy;
 title('RGB')

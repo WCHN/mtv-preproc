@@ -35,13 +35,12 @@ parfor (c=1:C,num_workers) % Loop over channels
 
     u = get_nii(Nii_u(c));   
     w = get_nii(Nii_w(c));   
-
-    %------------------------------------------------------------------
-    % Proximal operator for y        
-    %------------------------------------------------------------------
-
     x = get_nii(Nii_x(c)); % Get observed image
     y = get_nii(Nii_y(c)); % Get solution
+    
+    %------------------------------------------------------------------
+    % Proximal operator for y        
+    %------------------------------------------------------------------   
 
     if use_projmat
         % We use the projection matrices (A, At)

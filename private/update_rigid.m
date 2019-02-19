@@ -216,7 +216,7 @@ for n=1:N % Loop over observed images (of channel c)
             ll = meansq_objfun(f{n},mu,y,dat.A(n),tauf,speak,method,true);
 
             if ll > oll
-                armijo(n) = 1.25*armijo(n);
+                armijo(n) = min(1.2*armijo(n),1);
 
                 break;
             else                
@@ -272,13 +272,15 @@ if nargout >= 2
     if strcmp(method,'superres')
         [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',single(mu),single(y(:,:,z,:)),single(A.J),double(A.win)); 
     elseif strcmp(method,'denoise')               
-        [mu,dmu{1},dmu{2},dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
+        [~,dmu{1},dmu{2},dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
+        mu                       = spm_diffeo('pull',mu,y(:,:,z,:));
     end
 else
     if strcmp(method,'superres')
         mu = pushpull('pull',single(mu),single(y(:,:,z,:)),single(A.J),double(A.win));    
     elseif strcmp(method,'denoise')
-        mu = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
+%         mu = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
+        mu = spm_diffeo('pull',mu,y(:,:,z,:));
     end
 end
 mu(~isfinite(mu)) = 0; 
