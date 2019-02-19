@@ -93,12 +93,12 @@ parfor (c=1:C,num_workers) % Loop over channels
         y(y < 0) = 0;
     end    
     
+    Nii_y(c) = put_nii(Nii_y(c),y);
+    
     % Compute log of likelihood    
     ll1(c) = get_ll1(use_projmat,y,x,tau{c},dat(c));
+    y      = [];    
     x      = [];
-    
-    Nii_y(c) = put_nii(Nii_y(c),y);
-    y        = [];    
     
 end % End loop over channels     
 
@@ -108,21 +108,21 @@ end % End loop over channels
 
 ll2   = 0;
 unorm = 0;    
+G     = cell(1,C);
 % for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers) % Loop over channelsi
 
     set_boundary_conditions;
     
-    y = get_nii(Nii_y(c));        
-    G = lam(c)*imgrad(y,vx);
-    y = [];
+    y    = get_nii(Nii_y(c));        
+    G{c} = lam(c)*imgrad(y,vx);
+    y    = [];
 
     % Compute log of prior (part 1)
-    ll2 = ll2 + sum(sum(G.^2,4),5);                  
+    ll2 = ll2 + sum(sum(G{c}.^2,4),5);                  
     
     w = get_nii(Nii_w(c));        
-    u = G + w/rho;
-    G = [];
+    u = G{c} + w/rho;    
     w = [];
 
     Nii_u(c) = put_nii(Nii_u(c),u);
@@ -149,8 +149,7 @@ parfor (c=1:C,num_workers) % Loop over channels
     set_boundary_conditions;
 
     u = get_nii(Nii_u(c));   
-    w = get_nii(Nii_w(c));   
-    y = get_nii(Nii_y(c)); % Get solution
+    w = get_nii(Nii_w(c));       
     
     %------------------------------------------------------------------
     % Update proximal operator for u
@@ -158,23 +157,20 @@ parfor (c=1:C,num_workers) % Loop over channels
     % matrix, this is a key addition of using MTV
     %------------------------------------------------------------------
 
-    u = bsxfun(@times,u,mtv_scale);
-
+    u        = bsxfun(@times,u,mtv_scale);
+    Nii_u(c) = put_nii(Nii_u(c),u);
+    
     %------------------------------------------------------------------
     % Solve for w
     % Here we update the Lagrange variable
     %------------------------------------------------------------------
-
-    G = lam(c)*imgrad(y,vx);
-    w = w + rho*(G - u);        
-    G = [];
     
-    Nii_u(c) = put_nii(Nii_u(c),u);
-    u        = [];
-
+    w        = w + rho*(G{c} - u);   
+    G{c}     = [];        
+    u        = [];   
     Nii_w(c) = put_nii(Nii_w(c),w);
-    w        = [];               
-
+    w        = [];   
+                   
 end % End loop over channels     
 
 Nii.y = Nii_y;
