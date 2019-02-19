@@ -174,7 +174,7 @@ for n=1:N % Loop over observed images (of channel c)
 
         % Fill in missing triangle
         for i1=1:Nq
-            for i2=1:Nq
+            for i2=(i1+1):Nq
                 H(i2,i1) = H(i1,i2);
             end
         end                
