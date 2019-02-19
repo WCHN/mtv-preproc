@@ -340,6 +340,7 @@ if ~isempty(Nii_ref)
 end
 
 ll = -Inf;
+llpart = 1;
 for it=1:nit % Start main loop
         
     if dec_reg
@@ -368,6 +369,7 @@ for it=1:nit % Start main loop
 
         % Compute log-posterior (objective value)        
         ll   = [ll, sum(ll1) + ll2];
+        llpart = [llpart 1];
         gain = get_gain(ll);
 
         if speak >= 1 || ~isempty(Nii_ref)
@@ -383,7 +385,7 @@ for it=1:nit % Start main loop
             end
 
             if speak >= 2
-                show_model('ll',ll);                
+                show_model('ll',ll,llpart);                
             end
         end   
         
@@ -408,7 +410,12 @@ for it=1:nit % Start main loop
         %------------------------------------------------------------------
                 
         % Update q
-        [dat,armijo] = update_rigid(Nii,dat,tau,armijo,num_workers,p);                            
+        [dat,armijo,ll1] = update_rigid(Nii,dat,tau,armijo,num_workers,p);                            
+        ll = [ll, sum(ll1) + ll2];
+        llpart = [llpart 2];
+        if speak >= 2
+            show_model('ll',ll,llpart);                
+        end
         
         % Update approximation to the diagonal of the Hessian 
         Nii.H        = approx_hessian(Nii.H,dat);

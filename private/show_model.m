@@ -113,14 +113,31 @@ drawnow;
 %==========================================================================
 
 %==========================================================================
-function show_ll(ll)
+function show_ll(ll,llpart)
 
 figname          = '(SPM) MTV log-likelihood';
 fig              = findobj('Type', 'Figure', 'Name', figname);
 if isempty(fig), fig = figure('Name', figname, 'NumberTitle', 'off'); end
 set(0, 'CurrentFigure', fig);  
 
-plot(ll,'r-','LineWidth',2); grid on
+idx = 0:(numel(ll)-1);
+color = {'r' 'b'};
+
+if nargin > 1 && ~isempty(llpart)
+    for i=unique(llpart)
+        subll = ll;
+        subll(llpart ~= i) = NaN;
+        prev = find(llpart == i)-1;
+        prev = prev(prev>0);
+        subll(prev) = ll(prev);
+        plot(idx,subll,[color{i} '-'],'LineWidth',2);
+        hold on
+    end
+    hold off
+else
+    plot(ll,'r-','LineWidth',2);
+end
+grid on
 title('log-likelihood')
 
 drawnow;
