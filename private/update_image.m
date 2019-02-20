@@ -106,7 +106,6 @@ end % End loop over channels
 % Then compute MTV
 %--------------------------------------------------------------------------
 
-ll2   = 0;
 unorm = 0;    
 G     = cell(1,C);
 % for c=1:C, fprintf('OBS! for c=1:C\n')
@@ -116,10 +115,7 @@ parfor (c=1:C,num_workers) % Loop over channelsi
     
     y    = get_nii(Nii_y(c));        
     G{c} = lam(c)*imgrad(y,vx);
-    y    = [];
-
-    % Compute log of prior (part 1)
-    ll2 = ll2 + sum(sum(G{c}.^2,4),5);                  
+    y    = [];            
     
     w = get_nii(Nii_w(c));        
     u = G{c} + w/rho;    
@@ -135,14 +131,13 @@ end % End loop over channels
 unorm     = sqrt(unorm);
 mtv_scale = max(unorm - 1/rho,0)./(unorm + eps);
 clear unorm
- 
-% Compute log of prior (part 2)
-ll2 = -sum(sum(sum(sqrt(double(ll2))))); 
 
 %--------------------------------------------------------------------------
 % Update u and w
 %--------------------------------------------------------------------------
 
+ll2 = 0;
+u2  = single(0);
 % for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers) % Loop over channels
 
@@ -159,19 +154,31 @@ parfor (c=1:C,num_workers) % Loop over channels
 
     u        = bsxfun(@times,u,mtv_scale);
     Nii_u(c) = put_nii(Nii_u(c),u);
+    u2       = u2 + sum(sum(u.^2,4),5);
     
     %------------------------------------------------------------------
     % Solve for w
     % Here we update the Lagrange variable
     %------------------------------------------------------------------
     
-    w        = w + rho*(G{c} - u);   
-    G{c}     = [];        
-    u        = [];   
+    a        = u - G{c};
+    u        = [];
+    G{c}     = [];
+    w        = w - rho*a;  
     Nii_w(c) = put_nii(Nii_w(c),w);
-    w        = [];   
-                   
+    
+    %------------------------------------------------------------------
+    % Update augmented lagrangian part of the log-likelihood
+    %------------------------------------------------------------------
+    
+    ll2  = ll2 - a(:)'*(0.5*rho*a(:)-w(:));
+    a    = [];
+    w    = [];
+    
 end % End loop over channels     
+
+ll2 = ll2 - sum(sum(sum(sqrt(u2))));
+clear u2
 
 Nii.y = Nii_y;
 Nii.w = Nii_w;
