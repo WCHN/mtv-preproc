@@ -55,8 +55,10 @@ for n=1:N % Loop over LR images
     dat.A(n).gap = gap{n};
     dat.A(n).q   = zeros([Nq 1]); 
     
-    R = spm_dexpm(dat.A(n).q,B); % Rigid matrix
-    M = Mmu\R*Mf;
+    R          = spm_dexpm(dat.A(n).q,B); % Rigid matrix
+    dat.A(n).R = R;
+    M          = Mmu\R*Mf;
+    
 %     R          = (M(1:3,1:3)/diag(sqrt(sum(M(1:3,1:3).^2))))';
 %     dat.A(n).S = blur_fun(dm,R,sqrt(sum(M(1:3,1:3).^2)));
 %     dat.A(n).S = blur_function(dm,M);

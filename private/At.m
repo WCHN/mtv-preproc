@@ -5,23 +5,18 @@ function Y = At(X,dat,tau)
 
 if nargin < 3, tau = ones(1,dat.N); end
     
-% Get rigid basis
-is3d = dat.dm(3) > 1;
-B    = get_rigid_basis(is3d);
-
 Y = single(0);   
 for n=1:dat.N      
-    R = spm_dexpm(dat.A(n).q,B);
+    R = dat.A(n).R;
     T = dat.mat\R*dat.A(n).mat;
     y = apply_affine(T,dat.A(n).dm);
     
     if strcmp(dat.method,'superres')
-        tmp = pushpull('push',single(X{n}),single(y),single(dat.A(n).J),double(dat.A(n).win),double(dat.dm));     
+        tmp = pushpull('push',X{n},y,single(dat.A(n).J),double(dat.A(n).win),double(dat.dm));     
     elseif strcmp(dat.method,'denoise')
-        tmp = spm_diffeo('push',single(X{n}),single(y),dat.dm);
+        tmp = spm_diffeo('push',X{n},y,dat.dm);
     end
     clear y
-    tmp(~isfinite(tmp)) = 0;
      
     Y = Y + tau(n).*tmp;           
 end

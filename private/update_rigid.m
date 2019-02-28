@@ -78,6 +78,7 @@ if meancrct
             % Update dat struct
             dat(c).A(n).q = q;        
             dat(c).A(n).J = J;
+            dat(c).A(n).R = R;
         end  
     end
 end
@@ -114,6 +115,7 @@ for n=1:N % Loop over observed images (of channel c)
                
         oq = dat.A(n).q;                        
         oJ = dat.A(n).J;
+        oR = dat.A(n).R;
         
         %------------------------------------------------------------------
         % Compute gradient and Hessian (slice-wise)
@@ -210,6 +212,7 @@ for n=1:N % Loop over observed images (of channel c)
             % Update dat struct
             dat.A(n).q = q;        
             dat.A(n).J = J;
+            dat.A(n).R = R;
 
             % Compute new log-likelihood
             y  = affine_transf(M,x);
@@ -223,6 +226,7 @@ for n=1:N % Loop over observed images (of channel c)
                 % Revert to previous values in dat struct
                 dat.A(n).q = oq;        
                 dat.A(n).J = oJ;
+                dat.A(n).R = oR;
                 
                 armijo(n) = 0.5*armijo(n);
             end
