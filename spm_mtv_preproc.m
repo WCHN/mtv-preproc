@@ -32,7 +32,9 @@ function Nii = spm_mtv_preproc(varargin)
 % RegDenoisingCT       - Regularisation used for CT super-resolution [0.06]
 % WorkersParfor        - Maximum number of parfor workers [Inf]
 % TemporaryDirectory   - Directory for temporary files ['./tmp']
-% OutputDirectory      - Directory for denoised images ['./out']
+% OutputDirectory      - Directory for denoised images. If none given,
+%                        writes results to same folder as input (prefixed 
+%                        either den or sr) ['']
 % Method               - Does either denoising ('denoise') or 
 %                        super-resolution ('superres') ['denoise']
 % Verbose              - Verbosity level: 
@@ -148,7 +150,7 @@ p.addParameter('RegSuperresCT', 0.06, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegDenoisingCT', 0.06, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('TemporaryDirectory', 'Temp', @ischar);
-p.addParameter('OutputDirectory', 'Output', @ischar);
+p.addParameter('OutputDirectory', '', @ischar);
 p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') || strcmpi(in,'superres'))));
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
@@ -440,8 +442,12 @@ end
 Nii_out = nifti;
 for c=1:C
     % Set output filename
-    [~,nam,ext] = fileparts(Nii.x{c}(1).dat.fname);
-    nfname      = fullfile(dir_out,[prefix '_' nam ext]);
+    [pth,nam,ext] = fileparts(Nii.x{c}(1).dat.fname);
+    if isempty(dir_out)
+        nfname    = fullfile(pth,[prefix '_' nam ext]);
+    else
+        nfname    = fullfile(dir_out,[prefix '_' nam ext]);
+    end
     
     % Get output image data
     y = get_nii(Nii.y(c));  
