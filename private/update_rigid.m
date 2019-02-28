@@ -196,8 +196,9 @@ for n=1:N % Loop over observed images (of channel c)
         % Compute update step from gradient and Hessian
         Update = H\g;
 
-        % Start line-search                       
-        oll = ll;        
+        % Start line-search    
+%         armijo(n) = 1;
+        oll       = ll;        
         for linesearch=1:nlinesearch
 
             % Take step
@@ -230,7 +231,7 @@ for n=1:N % Loop over observed images (of channel c)
                 
                 armijo(n) = 0.5*armijo(n);
             end
-        end
+        end % End loop over line-search
 
         if ll <= oll
             % Use old log-likelihood

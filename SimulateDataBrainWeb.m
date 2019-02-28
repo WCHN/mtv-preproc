@@ -8,11 +8,14 @@ function SimulateDataBrainWeb
 DirRef = './ReferenceData/BrainWeb';
 DirSim = './SimulatedData/BrainWeb';
 
-ExtractSlab = true;
-SlabSize    = 5;
+ExtractSlab3d = true;
+SlabSize3d    = 5;
+Crop2d        = false;
+CropSize2d    = 20;
 
 % Translate images a bit
-offset = {[-2.75 1.5 -2]',[1.75 -1.5 2]',[-2 -2.5 1]'};
+% offset = {[-4.75 4.5 -2]',[2.75 -3.75 2]',[-2.25 -5.5 1.5]'};
+offset = {[-2.75 1.5 -1.75]',[1.75 -2.75 2.25]',[-2.25 -3.0 1.25]'};
 % offset = {[-1.75 1.5 -2]',[1.75 -1.5 1]',[-1 -1.5 1.5]'};
 
 % Create output directory
@@ -61,10 +64,18 @@ for c=1:C % Loop over channels
     mat(3,4) = 0;
     create_nii(nfname2d,img(:,:,floor(dm(3)/2)),mat,[spm_type('float32') spm_platform('bigend')],'Simulated (2D)');
     
-    if ExtractSlab
+    if Crop2d
+        y        = round(dm(2)/2);
+        ofname2d = nfname2d;
+        bb       = [1 + CropSize2d dm(1) - CropSize2d; 1 + CropSize2d dm(2) - CropSize2d; -Inf Inf]';
+        nfname2d = subvol(spm_vol(nfname2d),bb);
+        delete(ofname2d);
+    end
+    
+    if ExtractSlab3d
         z      = round(dm(3)/2);
         ofname = nfname;
-        bb     = [-Inf Inf; -Inf Inf; (z - SlabSize) (z + SlabSize);]';
+        bb     = [-Inf Inf; -Inf Inf; (z - SlabSize3d) (z + SlabSize3d);]';
         nfname = subvol(spm_vol(nfname),bb);
         delete(ofname);
     end

@@ -227,9 +227,15 @@ if vx_sr(1) < 0.9
 end
 
 % Make some directories
-if  exist(dir_tmp,'dir') == 7,  rmdir(dir_tmp,'s'); end
-if  do_readwrite || (coreg && (C > 1 || numel(Nii.x{1}) > 1)), mkdir(dir_tmp); end
-if ~(exist(dir_out,'dir') == 7),  mkdir(dir_out);  end
+if  exist(dir_tmp,'dir') == 7  
+    rmdir(dir_tmp,'s'); 
+end
+if  do_readwrite || (coreg && (C > 1 || numel(Nii.x{1}) > 1))
+    mkdir(dir_tmp); 
+end
+if ~isempty(dir_out) && ~(exist(dir_out,'dir') == 7)  
+    mkdir(dir_out);  
+end
 
 % Manage parfor
 num_workers                        = min(C,num_workers);
@@ -374,9 +380,9 @@ for it=1:nit % Start main loop
         [Nii,ll1,ll2]= update_image(Nii,dat,tau,rho,lam,num_workers,p);
 
         % Compute log-posterior (objective value)        
-        ll   = [ll, sum(ll1) + ll2];
+        ll     = [ll, sum(ll1) + ll2];
         llpart = [llpart 1];
-        gain = get_gain(ll);
+        gain   = get_gain(ll);
 
         if speak >= 1 || ~isempty(Nii_ref)
             % Some verbose    
@@ -417,14 +423,21 @@ for it=1:nit % Start main loop
                 
         % Update q
         [dat,armijo,ll1] = update_rigid(Nii,dat,tau,armijo,num_workers,p);                            
-        ll = [ll, sum(ll1) + ll2];
+        
+        % Compute log-posterior (objective value)             
+        ll     = [ll, sum(ll1) + ll2];
         llpart = [llpart 2];
-        if speak >= 2
-            show_model('ll',ll,llpart);                
+        gain   = get_gain(ll);
+        
+        if speak >= 1
+            fprintf('   | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', ll(end), sum(ll1), ll2, gain); 
+            if speak >= 2
+                show_model('ll',ll,llpart);                
+            end
         end
         
         % Update approximation to the diagonal of the Hessian 
-        Nii.H        = approx_hessian(Nii.H,dat);
+        Nii.H = approx_hessian(Nii.H,dat);
     end
  
 end % End main loop

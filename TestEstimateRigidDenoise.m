@@ -1,6 +1,6 @@
 clear;
 
-dir_data = './SimulatedData/BrainWeb/3D';
+dir_data = './SimulatedData/BrainWeb/2D';
 Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
 % Parameters
@@ -12,6 +12,7 @@ CoRegister           = false;
 
 DecreasingReg        = true;
 EstimateRigid        = true;
+PaddingBB            = 5;
 
 ADMMStepSize         = 0;
 IterMax              = 30;
@@ -32,4 +33,4 @@ Nii_den = spm_mtv_preproc('InputImages',Nii,'Verbose',Verbose, ...
                           'RegScaleDenoisingMRI',RegScaleDenoisingMRI, ...
                           'IterGaussNewtonRigid',IterGaussNewtonRigid, ...
                           'IterGaussNewtonImage',IterGaussNewtonImage, ...
-                          'DecreasingReg',DecreasingReg);
+                          'DecreasingReg',DecreasingReg,'PaddingBB',PaddingBB);
