@@ -79,6 +79,8 @@ function Nii = spm_mtv_preproc(varargin)
 %                        [false]
 % MeanCorrectRigid     - Mean correct the rigid-body transform parameters 
 %                        q [false]
+% PaddingBB            - Pad bounding box with extra zeros in each
+%                        direction [0]
 %
 % OUTPUT
 % ------
@@ -164,6 +166,7 @@ p.addParameter('SliceGap', 0, @(in) (isnumeric(in) || iscell(in)));
 p.addParameter('SliceGapUnit', '%', @(in) (ischar(in) && (strcmp(in,'%') || strcmp(in,'mm'))));
 p.addParameter('EstimateRigid', false, @islogical);
 p.addParameter('MeanCorrectRigid', true, @islogical);
+p.addParameter('PaddingBB', 0, @isnumeric);
 p.parse(varargin{:});
 InputImages   = p.Results.InputImages;
 nit           = p.Results.IterMax;
@@ -185,6 +188,7 @@ window        = p.Results.SliceProfile;
 gap           = p.Results.SliceGap;
 gapunit       = p.Results.SliceGapUnit;
 EstimateRigid = p.Results.EstimateRigid;
+bb_padding    = p.Results.PaddingBB;
 
 %--------------------------------------------------------------------------
 % Preliminaries
@@ -285,7 +289,7 @@ end
 
 % Get recovered images' dimensions and otientation matrices
 if use_projmat
-    [mat,dm] = max_bb_orient(Nii.x,vx);
+    [mat,dm]  = max_bb_orient(Nii.x,vx,bb_padding);    
 else
     mat       = Nii.x{1}(1).mat;
     dm        = Nii.x{1}(1).dat.dim;
