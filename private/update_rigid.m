@@ -185,8 +185,11 @@ for n=1:N % Loop over observed images (of channel c)
             end
         end                
 
+        % Regularise diagonal of Hessian a little bit        
+        H = H + 1e-5*max(diag(H))*eye(size(H));
+        
         if 0
-            compare_numerical_derivative(g,f{n},mu,dat.A(n),x,tauf,Mmu,Mf,speak,method);
+            compare_numerical_derivatives(g,H,f{n},mu,dat.A(n),x,tauf,Mmu,Mf,speak,method);
         end
         
         %------------------------------------------------------------------
@@ -267,28 +270,26 @@ end
 function [ll,g,H] = meansq_objfun_slice(f,mu,y,A,tau,speak,z,method,show_moved)
 if nargin < 9, show_moved = 0; end
 
-dm                = size(f); % Observation dimensions
-dm                = [dm 1];
-mu(~isfinite(mu)) = 0; 
+dm = size(f); % Observation dimensions
+dm = [dm 1];
 
 % Move template to image space
 dmu = cell(1,3);
 if nargout >= 2
     if strcmp(method,'superres')
-        [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',single(mu),single(y(:,:,z,:)),single(A.J),double(A.win)); 
+        [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',mu,y(:,:,z,:),single(A.J),double(A.win)); 
     elseif strcmp(method,'denoise')               
-        [~,dmu{1},dmu{2},dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
-        mu                       = spm_diffeo('pull',mu,y(:,:,z,:));
+        [mu,dmu{1},dmu{2},dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
+%         mu                       = spm_diffeo('pull',mu,y(:,:,z,:));
     end
 else
     if strcmp(method,'superres')
-        mu = pushpull('pull',single(mu),single(y(:,:,z,:)),single(A.J),double(A.win));    
+        mu = pushpull('pull',mu,y(:,:,z,:),single(A.J),double(A.win));    
     elseif strcmp(method,'denoise')
-%         mu = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
-        mu = spm_diffeo('pull',mu,y(:,:,z,:));
+        mu = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
+%         mu = spm_diffeo('pull',mu,y(:,:,z,:));
     end
 end
-mu(~isfinite(mu)) = 0; 
 
 if speak >= 2 && z == floor((dm(3) + 1)/2)     
     % Some verbose    
@@ -392,7 +393,7 @@ drawnow
 %==========================================================================    
 
 %==========================================================================
-function compare_numerical_derivative(g,f,mu,A,x,tau,Mmu,Mf,speak,method)
+function compare_numerical_derivatives(g,H,f,mu,A,x,tau,Mmu,Mf,speak,method)
 
 % Parameters
 dm   = size(x);
@@ -402,22 +403,32 @@ Nq   = numel(oq);
 vsmu = sqrt(sum(Mmu(1:3,1:3).^2));
 
 % Modulate gradient w tau
-g = tau*g;
+g = -tau*g;
+
+% Function value
+R  = spm_dexpm(oq,B);  
+M  = Mmu\R*Mf;       
+y  = affine_transf(M,x);
+fx = meansq_objfun(f,mu,y,A,tau,speak,method);
+
+% Step-size
+h = 10.^(-8:1:-1);
 
 %--------------------------------------------------------------------------
-% Check derivatives numerically, by computing (f(x + h) - f(x))/h for
-% various values of h, and by perturbing all individual parameters
+% Check gradient and Hessian (diagonal) numerically
+% Hessian -> https://math.stackexchange.com/questions/1809060/proof-of-the-second-symmetric-derivative
 %--------------------------------------------------------------------------
 
-h = 10.^(-7:1:-1); % step-size
+fprintf('---------------------------\n')
+fprintf('Check gradient (com_g vs num_g) and Hessian (com_H vs num_H),\n')
+fprintf('for a range of parameter increments (h):\n')
 
-for n=1:Nq % Loop over rigid parameters
-    
-    fprintf('---------------------------\n')
-    fprintf(' g(q(%i)) = %7.7f\n',n,g(n));
+for n=1:Nq % Loop over rigid parameters            
     
     for i=1:numel(h) % Loop over step sizes
 
+        fprintf('         h = %g\n',h(i));
+        
         q    = oq;
         q(n) = q(n) + h(i);
         A.q  = q;
@@ -432,7 +443,6 @@ for n=1:Nq % Loop over rigid parameters
         A.J = J;
         
         fxph = meansq_objfun(f,mu,y,A,tau,speak,method);
-        fxph = -fxph; % Because we differentiate the neg ll
 
         q    = oq;
         q(n) = q(n) - h(i);
@@ -448,11 +458,20 @@ for n=1:Nq % Loop over rigid parameters
         A.J = J;
         
         fxmh = meansq_objfun(f,mu,y,A,tau,speak,method);
-        fxmh = -fxmh; % Because we differentiate the neg ll
         
-        gn = (fxph - fxmh)/(2*h(i));
+        % Gradient
+        num_g = (fxph - fxmh)/(2*h(i));
         
-        fprintf('ng(q(%i)) = %7.7f, for h = %g\n',n,gn,h(i));
+        fprintf('com_g(%i)   = %g\n',n,g(n));    
+        fprintf('num_g(%i)   = %g\n',n,num_g);
+        
+%         % Hessian
+%         num_H = (fxph + fxmh - 2*fx)/(h(i)^2);
+%     
+%         fprintf('com_H(%i,%i) = %g\n',n,n,H(n,n));
+%         fprintf('num_H(%i,%i) = %g\n',n,n,num_H);
     end
+    
+    fprintf('---------------------------\n')
 end
 %==========================================================================
