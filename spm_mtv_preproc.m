@@ -242,7 +242,7 @@ if speak >= 3
     Nii.x0 = Nii.x; 
 end
     
-if coreg
+if coreg && (C > 1 || numel(Nii.x{1}) > 1)
     % Make copies input data and update Nii_x        
     Nii.x = copy_ims(Nii.x,dir_tmp);
 end
