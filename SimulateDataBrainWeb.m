@@ -10,12 +10,13 @@ DirSim = './SimulatedData/BrainWeb';
 
 ExtractSlab3d = true;
 SlabSize3d    = 5;
+Plane2d       = 1;     % 1 - Sagittal, 2 - Coronal, 3 - Axial
 Crop2d        = false;
 CropSize2d    = 20;
 
 % Translate images a bit
+offset = {[-2.75 2.5 -1.75]',[2.25 -1.75 2.25]',[-2.25 -3.0 2.5]'};
 % offset = {[-4.75 4.5 -2]',[2.75 -3.75 2]',[-2.25 -5.5 1.5]'};
-offset = {[-2.75 1.5 -1.75]',[1.75 -2.75 2.25]',[-2.25 -3.0 1.25]'};
 % offset = {[-1.75 1.5 -2]',[1.75 -1.5 1]',[-1 -1.5 1.5]'};
 
 % Create output directory
@@ -38,32 +39,31 @@ C       = numel(Nii_ref);
 fnames = {};
 for c=1:C % Loop over channels
 
-    fname = Nii_ref(c).dat.fname;
-    mat   = Nii_ref(c).mat;
-    img   = Nii_ref(c).dat(:,:,:);
-    dm    = size(img);
-    
+    fname           = Nii_ref(c).dat.fname;
     fnames{end + 1} = fname;
     [~,nam,ext]     = fileparts(fname);  
     
-    % Save thick-sliced data        
-    nfname          = fullfile(DirSim3D,[nam ext]);    
-
+    mat   = Nii_ref(c).mat;
+    img   = Nii_ref(c).dat(:,:,:);
+    dm    = size(img);    
+    
     if exist('offset','var')
         % Rigidly realign the image a little bit (randomly)
         mat(1:3,4) = mat(1:3,4) + offset{c};
     end
-    
+
+    %---------------------
     % Write to NIfTI
-    
+    %---------------------
+        
     % 3D
+    nfname = fullfile(DirSim3D,[nam ext]); 
     create_nii(nfname,img,mat,[spm_type('float32') spm_platform('bigend')],'Simulated (3D)');
 
     % 2D
-    nfname2d = fullfile(DirSim2D,[nam ext]);
-    mat(3,4) = 0;
-    create_nii(nfname2d,img(:,:,floor(dm(3)/2)),mat,[spm_type('float32') spm_platform('bigend')],'Simulated (2D)');
-    
+    fname2d = extract_slice(nfname,Plane2d);
+    movefile(fname2d,DirSim2D);
+        
     if Crop2d
         y        = round(dm(2)/2);
         ofname2d = nfname2d;
@@ -71,7 +71,7 @@ for c=1:C % Loop over channels
         nfname2d = subvol(spm_vol(nfname2d),bb);
         delete(ofname2d);
     end
-    
+        
     if ExtractSlab3d
         z      = round(dm(3)/2);
         ofname = nfname;
