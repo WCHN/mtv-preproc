@@ -52,7 +52,7 @@ parfor (c=1:C,num_workers) % Loop over channels
             for n=1:dat(c).N
                 % Here we discard missing data, for MRI these are
                 % assumed to be zeros and NaNs.
-                msk          = isfinite(x{n}) & x{n} ~= 0;
+                msk          = isfinite(x{n});
                 Ayx{n}       = Ayx{n} - x{n};
                 Ayx{n}(~msk) = 0;
             end                  

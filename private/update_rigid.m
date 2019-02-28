@@ -303,7 +303,7 @@ dmu{2} = double(dmu{2});
 dmu{3} = double(dmu{3});
 
 % Compute log-likelihood of slice
-msk  = isfinite(f(:,:,z)) & f(:,:,z) ~= 0;
+msk  = isfinite(f(:,:,z));% & isfinite(mu);
 msk  = msk(:);
 ftmp = f(:,:,z);
 ll   = -0.5*tau*sum((double(ftmp(msk)) - mu(msk)).^2);
