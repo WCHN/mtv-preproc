@@ -9,14 +9,11 @@ if use_projmat
     Ay = A(y,dat);
     ll = 0;
     for n=1:dat.N
-        msk = isfinite(x{n});
-        msk = msk(:);
+        msk = get_msk(x{n},Ay{n});
         ll  = ll - 0.5*tau(n)*sum((double(x{n}(msk)) - double(Ay{n}(msk))).^2);
     end
 else
     % We do not use the projection matrices (A, At)
-    msk = isfinite(x{1});
-    msk = msk(:);
-    ll  = -0.5*tau*sum((double(x{1}(msk)) - double(y(msk))).^2);
+    ll  = -0.5*tau*sum((double(x{1}(:)) - double(y(:))).^2);
 end   
 %==========================================================================
