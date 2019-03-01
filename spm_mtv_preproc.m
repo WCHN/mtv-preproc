@@ -308,7 +308,7 @@ armijo = get_armijo(dat);
 % Estimate model hyper-parameters
 %--------------------------------------------------------------------------
 
-[tau,lam,rho,sched_lam,lam0] = estimate_model_hyperpars(Nii.x,dec_reg,nit,p);
+[tau,lam,rho,sched_lam,lam0] = estimate_model_hyperpars(Nii.x,dec_reg,vx,p);
 
 %--------------------------------------------------------------------------
 % Start solving

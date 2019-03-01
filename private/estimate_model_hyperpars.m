@@ -1,4 +1,4 @@
-function [tau,lam,rho,sched_lam,lam0] = estimate_model_hyperpars(Nii_x,dec_reg,nit,p)
+function [tau,lam,rho,sched_lam,lam0] = estimate_model_hyperpars(Nii_x,dec_reg,vx,p)
 % Estimate MTV model parameters
 %
 %_______________________________________________________________________
@@ -85,8 +85,8 @@ for c=1:C
     tau{c} = 1./(sd{c}.^2);
 end
 
-% % Make lambda the same over all channels
-% lam = mean(lam)*ones(1,C);
+% Incorporate template voxel size into regularisation
+lam = (prod(vx))^(1/3)*lam;
 
 % For decreasing regularisation with iteration number
 lam0      = lam;
@@ -107,7 +107,6 @@ if rho == 0
         end
     end
     rho = sqrt(mean(atau))/mean(lam0);        
-%     rho = mean(lam0); % From: 'An ADMM Algorithm for a Class of Total Variation Regularized Estimation Problems'
 end
 
 if speak  >= 1
