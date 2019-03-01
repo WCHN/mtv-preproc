@@ -319,7 +319,9 @@ dmu{3} = double(dmu{3});
 % Compute log-likelihood of slice
 msk  = get_msk(f(:,:,z),mu);
 ftmp = f(:,:,z);
-ll   = -0.5*tau*sum((double(ftmp(msk)) - mu(msk)).^2);
+% ll   = -0.5*tau*sum((double(ftmp(msk)) - mu(msk)).^2);
+ll   = -0.5*tau*sum(double(mu(msk).^2 - 2*mu(msk).*ftmp(msk)));
+msk  = reshape(msk, dm(1:2));
 
 nm = sum(msk);
 
@@ -329,19 +331,19 @@ if nargout >= 3
     
     diff1        = mu - double(f(:,:,z));
     for d=1:3
-        g(:,:,d) = diff1.*dmu{d};
+        g(:,:,d) = diff1.*dmu{d}.*msk;
     end
     
     if nargout >= 4
         % Compute Hessian
         H = zeros([dm(1:2),6]);
         
-        H(:,:,1) = dmu{1}.*dmu{1};
-        H(:,:,2) = dmu{2}.*dmu{2};
-        H(:,:,3) = dmu{3}.*dmu{3};
-        H(:,:,4) = dmu{1}.*dmu{2};
-        H(:,:,5) = dmu{1}.*dmu{3};
-        H(:,:,6) = dmu{2}.*dmu{3};                
+        H(:,:,1) = dmu{1}.*dmu{1}.*msk;
+        H(:,:,2) = dmu{2}.*dmu{2}.*msk;
+        H(:,:,3) = dmu{3}.*dmu{3}.*msk;
+        H(:,:,4) = dmu{1}.*dmu{2}.*msk;
+        H(:,:,5) = dmu{1}.*dmu{3}.*msk;
+        H(:,:,6) = dmu{2}.*dmu{3}.*msk;             
     end
 end
 

@@ -122,7 +122,7 @@ if speak  >= 1
     for c=1:C        
         N = numel(Nii_x{c});
         for n=1:N
-            fprintf('c=%i | n=%i | sd=%f, mu=%f | tau=%f, lam=%f, rho=%f\n', c, n, sd{c}(n), mu(c), tau{c}(n), lam(c), rho);
+            fprintf('c=%1i | n=%1i | sd=%10.4f, mu=%10.4f | tau=%10.4e, lam=%10.4e, rho=%10.4g\n', c, n, sd{c}(n), mu(c), tau{c}(n), lam(c), rho);
         end
     end
     fprintf('\n');
