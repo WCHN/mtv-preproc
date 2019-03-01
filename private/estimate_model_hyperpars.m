@@ -88,6 +88,13 @@ end
 % Incorporate template voxel size into regularisation
 lam = (prod(vx))^(1/3)*lam;
 
+% An attempt to combat the bias-variance trade-off -> scale lambda by the 
+% number of observations of each channel
+for c=1:C
+    N      = numel(tau{c});
+    lam(c) = sqrt(N)*lam(c);
+end
+
 % For decreasing regularisation with iteration number
 lam0      = lam;
 sched_lam = get_lam_sched;
