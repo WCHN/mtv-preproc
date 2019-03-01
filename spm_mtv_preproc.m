@@ -274,36 +274,20 @@ end
 %--------------------------------------------------------------------------
 
 % Set defaults, such as, voxel size, orientation matrix and image dimensions
-if strcmpi(method,'denoise')
-    %---------------------------
-    % Denoising
-    %---------------------------
-    
-    if isempty(dec_reg) && EstimateRigid, dec_reg = true; end
-    if isempty(dec_reg),                  dec_reg = false; end
-    
-    vx = sqrt(sum(Nii.x{1}(1).mat(1:3,1:3).^2));
-elseif strcmpi(method,'superres')
-    %---------------------------
-    % Super-resolution
-    %---------------------------
-            
-    if isempty(dec_reg), dec_reg = true; end
-    
+if use_projmat
     % For super-resolution, calculate orientation matrix and dimensions 
     % from maximum bounding-box
-    vx = vx_sr;    
-end
-
-% Get recovered images' dimensions and otientation matrices
-if use_projmat
+    vx        = vx_sr;    
     [mat,dm]  = max_bb_orient(Nii.x,vx,bb_padding);    
+    dec_reg   = true; 
 else
     mat       = Nii.x{1}(1).mat;
     dm        = Nii.x{1}(1).dat.dim;
+    vx        = sqrt(sum(mat(1:3,1:3).^2));
     if ~is3d
         dm(3) = 1;
     end
+    dec_reg   = false; 
 end
 
 % Initialise dat struct with projection matrices, etc.
@@ -465,11 +449,14 @@ for c=1:C
     % Get output image data
     y = get_nii(Nii.y(c));  
     
-    % Write to NIfTI
+    omat = mat;        
     if ~is3d
-        mat(3,4) = Nii.x{c}(1).mat(3,4);
+        % If 2d, set z-translation to zero
+        omat(3,4) = 0;
     end
-    Nii_out(c) = create_nii(nfname,y,mat,[spm_type('float32') spm_platform('bigend')],'MTV recovered');
+    
+    % Write to NIfTI
+    Nii_out(c) = create_nii(nfname,y,omat,[spm_type('float32') spm_platform('bigend')],'MTV recovered');
 end
 
 %--------------------------------------------------------------------------
