@@ -134,15 +134,17 @@ for n=1:N % Loop over observed images (of channel c)
         y = affine_transf(M,x);
 
         % Build gradient and Hessian
-        g  = zeros([Nq 1]);
-        H  = zeros([Nq Nq]);
-        ll = 0;
+        g   = zeros([Nq 1]);
+        H   = zeros([Nq Nq]);
+        ll  = 0;
+        onm = 0;
         for z=1:dmf(3) % Loop over slices
 
             % Compute matching-term part (log likelihood)
-            [llz,gz,Hz] = meansq_objfun_slice(f{n},mu,y,dat.A(n),tauf,speak,z,method);
+            [llz,dnm,gz,Hz] = meansq_objfun_slice(f{n},mu,y,dat.A(n),tauf,speak,z,method);
             ll          = ll + llz;           
-
+            onm         = onm + dnm;
+            
             % Add dRq to gradients
             dAff = cell(Nq,3);
             for i=1:Nq
@@ -201,7 +203,8 @@ for n=1:N % Loop over observed images (of channel c)
 
         % Start line-search    
 %         armijo(n) = 1;
-        oll       = ll;        
+        oll       = ll;    
+        onm       = 1;
         for linesearch=1:nlinesearch
 
             % Take step
@@ -219,10 +222,11 @@ for n=1:N % Loop over observed images (of channel c)
             dat.A(n).R = R;
 
             % Compute new log-likelihood
-            y  = affine_transf(M,x);
-            ll = meansq_objfun(f{n},mu,y,dat.A(n),tauf,speak,method,true);
-
-            if ll > oll
+            y       = affine_transf(M,x);
+            [ll,nm] = meansq_objfun(f{n},mu,y,dat.A(n),tauf,speak,method,true);
+            nm      = 1;
+            
+            if ll/nm > oll/onm
                 armijo(n) = min(1.2*armijo(n),1);
 
                 break;
@@ -236,7 +240,7 @@ for n=1:N % Loop over observed images (of channel c)
             end
         end % End loop over line-search
 
-        if ll <= oll
+        if ll/nm <= oll/onm
             % Use old log-likelihood
             ll = oll;
             
@@ -255,19 +259,22 @@ end % End loop over observations
 %==========================================================================
     
 %==========================================================================
-function ll = meansq_objfun(f,mu,y,A,tau,speak,method,show_moved)
+function [ll,nm] = meansq_objfun(f,mu,y,A,tau,speak,method,show_moved)
 if nargin < 8, show_moved = 0; end
 
 dm = size(f);
 dm = [dm 1];
 ll = 0;
+nm = 0;
 for z=1:dm(3)
-    ll = ll + meansq_objfun_slice(f,mu,y,A,tau,speak,z,method,show_moved);
+    [dll,dnm] = meansq_objfun_slice(f,mu,y,A,tau,speak,z,method,show_moved);
+    ll        = ll + dll;
+    nm        = nm + dnm;
 end
 %==========================================================================
 
 %==========================================================================
-function [ll,g,H] = meansq_objfun_slice(f,mu,y,A,tau,speak,z,method,show_moved)
+function [ll,nm,g,H] = meansq_objfun_slice(f,mu,y,A,tau,speak,z,method,show_moved)
 if nargin < 9, show_moved = 0; end
 
 dm = size(f); % Observation dimensions
@@ -275,7 +282,7 @@ dm = [dm 1];
 
 % Move template to image space
 dmu = cell(1,3);
-if nargout >= 2
+if nargout >= 3
     if strcmp(method,'superres')
         [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',mu,y(:,:,z,:),single(A.J),double(A.win)); 
     elseif strcmp(method,'denoise')               
@@ -291,6 +298,11 @@ else
     end
 end
 
+% nm = sum(~isfinite(mu(:)));
+% if nm > 0
+%     disp(num2str(nm))
+% end
+
 if speak >= 2 && z == floor((dm(3) + 1)/2)     
     % Some verbose    
     show_reg(mu,f(:,:,z),dmu,show_moved);
@@ -305,12 +317,13 @@ dmu{2} = double(dmu{2});
 dmu{3} = double(dmu{3});
 
 % Compute log-likelihood of slice
-msk  = isfinite(f(:,:,z));% & isfinite(mu);
-msk  = msk(:);
+msk  = get_msk(f(:,:,z),mu);
 ftmp = f(:,:,z);
 ll   = -0.5*tau*sum((double(ftmp(msk)) - mu(msk)).^2);
 
-if nargout >= 2
+nm = sum(msk);
+
+if nargout >= 3
     % Compute gradient    
     g = zeros([dm(1:2),3]);
     
@@ -319,7 +332,7 @@ if nargout >= 2
         g(:,:,d) = diff1.*dmu{d};
     end
     
-    if nargout >= 3
+    if nargout >= 4
         % Compute Hessian
         H = zeros([dm(1:2),6]);
         
@@ -333,9 +346,9 @@ if nargout >= 2
 end
 
 % Remove missing data from derivatives (represented by NaNs)
-if nargout >= 2
+if nargout >= 3
     g(~isfinite(g)) = 0;
-    if nargout >= 3
+    if nargout >= 4
         H(~isfinite(H)) = 0;
     end
 end
