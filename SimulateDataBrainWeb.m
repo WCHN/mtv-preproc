@@ -22,10 +22,10 @@ Deg          = 4;
 % If true, reslices images to have the same size and orientation matrix.
 % Also crops a little bit of the FOV.
 Reslice = false;
-Padding = 5;
+Padding = 10;
 
 % Translate images a bit
-offset = {[3.5 -2.75 0.75]',[-3.25 0.5 -1.75]',[0.75 3.25 -3.0]'};
+offset = {[3.5 -2.75 1.25]',[1.75 -3.25 -3.0]',[-3.25 1.5 -2.75]'};
 
 % Determines what plane to extract when creating 2D slices
 % 1 - Sagittal, 2 - Coronal, 3 - Axial

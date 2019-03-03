@@ -22,12 +22,12 @@ EstimateRigid        = true;
 VoxelSize            = sqrt(sum(Nii(1).mat(1:3,1:3).^2));
 PaddingBB            = 0;
 ADMMStepSize         = 0;
-IterMax              = 40;
+IterMax              = 200;
 Tolerance            = 1e-4;
 MeanCorrectRigid     = true;
-RegScaleDenoisingMRI = 10;
+RegScaleDenoisingMRI = 6;
 
-IterImage            = 12;
+IterImage            = 3;
 IterGaussNewtonRigid = 3;
 IterGaussNewtonImage = 1;
 
