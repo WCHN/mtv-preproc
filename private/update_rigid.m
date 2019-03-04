@@ -90,7 +90,7 @@ function [dat,sll,armijo] = update_channel(Nii_x,Nii_y,dat,B,tau,speak,nitgn,c,a
 % Parameters
 Nq          = size(B,3);             % Number of registration parameters
 lkp         = [1 4 5; 4 2 6; 5 6 3]; % Que?
-nlinesearch = 6;                     % Number of line-searches    
+nlinesearch = 12;                    % Number of line-searches    
 method      = dat.method;
 
 % Cell-array of observations    
@@ -99,8 +99,11 @@ N = numel(f); % Number of observations
 
 % Template parameters
 mu   = get_nii(Nii_y);
-Mmu  = dat.mat;        
+Mmu  = dat.mat; 
+dmmu = size(mu);
+dmmu = [dmmu 1];
 vsmu = sqrt(sum(Mmu(1:3,1:3).^2));
+is3d = dmmu(3) > 1;
 
 sll = 0;
 for n=1:N % Loop over observed images (of channel c)
@@ -142,8 +145,8 @@ for n=1:N % Loop over observed images (of channel c)
 
             % Compute matching-term part (log likelihood)
             [llz,dnm,gz,Hz] = meansq_objfun_slice(f{n},mu,y,dat.A(n),tauf,speak,z,method);
-            ll          = ll + llz;           
-            onm         = onm + dnm;
+            ll              = ll + llz;           
+            onm             = onm + dnm;
             
             % Add dRq to gradients
             dAff = cell(Nq,3);
@@ -202,7 +205,7 @@ for n=1:N % Loop over observed images (of channel c)
         Update = H\g;
 
         % Start line-search    
-%         armijo(n) = 1;
+        armijo(n) = 1;
         oll       = ll;    
         onm       = 1;
         for linesearch=1:nlinesearch
@@ -226,7 +229,8 @@ for n=1:N % Loop over observed images (of channel c)
             [ll,nm] = meansq_objfun(f{n},mu,y,dat.A(n),tauf,speak,method,true);
             nm      = 1;
             
-            if ll/nm > oll/onm
+            if ll/nm > oll/onm && q_constraint(q,is3d)
+                % Log-likelihood improved
                 armijo(n) = min(1.2*armijo(n),1);
 
                 break;
@@ -242,11 +246,14 @@ for n=1:N % Loop over observed images (of channel c)
 
         if ll/nm <= oll/onm
             % Use old log-likelihood
-            ll = oll;
+            ll = oll;                        
             
             if speak >= 1
                 fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f | a=%7.5f, q=%s | :''(\n', c, n, gnit, linesearch, ll, armijo(n), sprintf(' %5.2f', dat.A(n).q)); 
             end
+            
+            % We didn't improve the objective function, so exit GN loop
+            break
         elseif speak >= 1
             fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f | a=%7.5f, q=%s | :o)\n', c, n, gnit, linesearch, ll, armijo(n), sprintf(' %5.2f', dat.A(n).q)); 
         end
@@ -286,15 +293,18 @@ if nargout >= 3
     if strcmp(method,'superres')
         [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',mu,y(:,:,z,:),single(A.J),double(A.win)); 
     elseif strcmp(method,'denoise')               
-        [mu,dmu{1},dmu{2},dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
-%         mu                       = spm_diffeo('pull',mu,y(:,:,z,:));
+        [~,dmu{1},~,~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[2 0 0  0 0 0]); 
+        [~,~,dmu{2},~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 2 0  0 0 0]); 
+        [~,~,~,dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 0 2  0 0 0]); 
+        mu             = spm_diffeo('pull',mu,y(:,:,z,:));
+%         [mu,dmu{1},dmu{2},dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
     end
 else
     if strcmp(method,'superres')
         mu = pushpull('pull',mu,y(:,:,z,:),single(A.J),double(A.win));    
     elseif strcmp(method,'denoise')
-        mu = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
-%         mu = spm_diffeo('pull',mu,y(:,:,z,:));
+        mu = spm_diffeo('pull',mu,y(:,:,z,:));
+%         mu = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]);         
     end
 end
 
@@ -394,15 +404,16 @@ set(0, 'CurrentFigure', fig);
 
 mxf = max(f(:));
 if ~show_moved
-%     clf(fig)
-    subplot(2,3,1); imagesc(f', [0 mxf]); axis xy off; title('f'); colorbar
-    subplot(2,3,2); imagesc(mu',[0 mxf]); axis xy off; title('mu'); colorbar
-    subplot(2,3,3); imagesc(mu',[0 mxf]); axis xy off; title('nmu'); colorbar
-    subplot(2,3,4); imagesc(dmu{1}'); axis xy off; title('dmux'); colorbar
-    subplot(2,3,5); imagesc(dmu{2}'); axis xy off; title('dmuy'); colorbar
-    subplot(2,3,6); imagesc(dmu{3}'); axis xy off; title('dmuz'); colorbar
+    subplot(2,4,1); imagesc(f', [0 mxf]); axis xy off; title('f'); colorbar
+    subplot(2,4,2); imagesc(mu',[0 mxf]); axis xy off; title('mu'); colorbar
+    subplot(2,4,3); imagesc(mu',[0 mxf]); axis xy off; title('nmu'); colorbar        
+    subplot(2,4,4); imagesc((f - mu)',[0 mxf]); axis xy off; title('f - mu'); colorbar
+    subplot(2,4,5); imagesc(dmu{1}'); axis xy off; title('dmux'); colorbar
+    subplot(2,4,6); imagesc(dmu{2}'); axis xy off; title('dmuy'); colorbar
+    subplot(2,4,7); imagesc(dmu{3}'); axis xy off; title('dmuz'); colorbar        
 else
-    subplot(2,3,3); imagesc(mu',[0 mxf]); axis xy off; title('nmu'); colorbar
+    subplot(2,4,3); imagesc(mu',[0 mxf]); axis xy off; title('nmu'); colorbar
+    subplot(2,4,8); imagesc((f - mu)',[0 mxf]); axis xy off; title('f - nmu'); colorbar
 end
 drawnow
 %==========================================================================    
@@ -488,5 +499,19 @@ for n=1:Nq % Loop over rigid parameters
     end
     
     fprintf('---------------------------\n')
+end
+%==========================================================================
+
+%==========================================================================
+function ok = q_constraint(q,is3d)
+mx_tr = 5;
+ok    = true;
+if is3d
+    if q(1) > mx_tr || q(1) < -mx_tr, ok = false; return; end
+    if q(2) > mx_tr || q(2) < -mx_tr, ok = false; return; end
+    if q(3) > mx_tr || q(3) < -mx_tr, ok = false; return; end
+else
+    if q(1) > mx_tr || q(1) < -mx_tr, ok = false; return; end
+    if q(2) > mx_tr || q(2) < -mx_tr, ok = false; return; end    
 end
 %==========================================================================

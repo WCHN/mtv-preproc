@@ -6,6 +6,8 @@ function fnames = reslice_imgs(fnames,padding)
 
 if nargin < 2, padding = 0; end
 
+C = numel(fnames); % Number of channels
+
 % Get bounding-box of SPM template
 PthTemplateSPM = fullfile(spm('dir'),'tpm','TPM.nii,');
 V              = spm_vol(PthTemplateSPM);
@@ -16,14 +18,16 @@ bb(1,:) = bb(1,:) - padding;
 bb(2,:) = bb(2,:) + padding;
 
 % Collect spm_vol
-C = numel(fnames);
 V = spm_vol;
 for c=1:C
     V(c) = spm_vol(fnames{c});
 end
 
 % Reslice
-nV = reslice_to_bb(V,bb,[],'res_',0);
+vx     = [];     % Empty -> does not change voxel size
+prefix = 'res_'; % Prefix of resliced NIfTIs
+deg    = 0;      % Interpolation degree
+nV  = reslice_to_bb(V,bb,vx,prefix,deg);
 
 for c=1:C
     fnames{c} = nV(c).fname;

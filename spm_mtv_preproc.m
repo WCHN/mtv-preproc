@@ -191,6 +191,7 @@ gap           = p.Results.SliceGap;
 gapunit       = p.Results.SliceGapUnit;
 EstimateRigid = p.Results.EstimateRigid;
 bb_padding    = p.Results.PaddingBB;
+modality      = p.Results.Modality;
 
 %--------------------------------------------------------------------------
 % Preliminaries
@@ -279,7 +280,12 @@ if use_projmat
     % from maximum bounding-box
     vx        = vx_sr;    
     [mat,dm]  = max_bb_orient(Nii.x,vx,bb_padding);    
-    dec_reg   = true; 
+%     mat       = Nii.x{1}(1).mat;
+%     dm        = Nii.x{1}(1).dat.dim;
+    
+    if isempty(dec_reg)
+        dec_reg = true; 
+    end
 else
     mat       = Nii.x{1}(1).mat;
     dm        = Nii.x{1}(1).dat.dim;
@@ -287,7 +293,10 @@ else
     if ~is3d
         dm(3) = 1;
     end
-    dec_reg   = false; 
+    
+    if isempty(dec_reg)
+        dec_reg = false; 
+    end        
 end
 
 % Initialise dat struct with projection matrices, etc.
@@ -394,7 +403,7 @@ for it=1:nit % Start main loop
     end % End y loop
     
     % Check convergence
-    if tol > 0 && gain < tol && it > 1
+    if tol > 0 && gain < tol && it > 1 && sched == 1
         % Finished!
         break
     end
@@ -405,6 +414,16 @@ for it=1:nit % Start main loop
         % Gauss-Newton to update rigid alignment
         %------------------------------------------------------------------
                 
+        if 0
+            oNii = Nii;
+            odat = dat;
+            
+            offset = {[3.5 -2.75 0.75]',[0.75 -3.25 -3.0]',[-3.25 0.5 -2.75]'};
+            for c=1:C
+                dat(c).A(1).mat(1:3,4) = dat(c).A(1).mat(1:3,4) + offset{c};
+            end                        
+        end
+        
         % Update q
         [dat,armijo,ll1] = update_rigid(Nii,dat,tau,armijo,num_workers,p);                            
         
@@ -414,7 +433,7 @@ for it=1:nit % Start main loop
         gain   = get_gain(ll);
         
         if speak >= 1
-            fprintf('   | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', ll(end), sum(ll1), ll2, gain); 
+            fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, gain); 
             if speak >= 2
                 show_model('ll',ll,llpart);                
             end
@@ -432,8 +451,8 @@ if speak >= 1, toc; end
 % Write results
 %--------------------------------------------------------------------------
 
-if strcmpi(method,'superres'), prefix = 'sr';
-else,                          prefix = 'den';
+if     strcmpi(method,'superres'), prefix = 'sr';
+elseif strcmpi(method,'denoise'),  prefix = 'den';
 end
    
 Nii_out = nifti;
@@ -441,17 +460,24 @@ for c=1:C
     % Set output filename
     [pth,nam,ext] = fileparts(Nii.x{c}(1).dat.fname);
     if isempty(dir_out)
-        nfname    = fullfile(pth,[prefix '_' nam ext]);
+        % Write to same folder as input
+        nfname = fullfile(pth,    [prefix '_' nam ext]);
     else
-        nfname    = fullfile(dir_out,[prefix '_' nam ext]);
+        % Write to user specified folder
+        nfname = fullfile(dir_out,[prefix '_' nam ext]);
     end
     
     % Get output image data
     y = get_nii(Nii.y(c));  
     
+    if strcmpi(modality,'MRI')
+        % Ensure non-negativity (ad-hoc)
+        y(y < 0) = 0;
+    end  
+
     omat = mat;        
     if ~is3d
-        % If 2d, set z-translation to zero
+        % 2d, set z-translation to zero
         omat(3,4) = 0;
     end
     
