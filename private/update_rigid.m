@@ -98,12 +98,14 @@ f = get_nii(Nii_x);
 N = numel(f); % Number of observations
 
 % Template parameters
-mu   = get_nii(Nii_y);
-Mmu  = dat.mat; 
-dmmu = size(mu);
-dmmu = [dmmu 1];
-vsmu = sqrt(sum(Mmu(1:3,1:3).^2));
-is3d = dmmu(3) > 1;
+mu    = get_nii(Nii_y);
+Mmu   = dat.mat; 
+dmmu  = [size(mu) 1];
+dmmu  = dmmu(1:3);
+vsmu  = sqrt(sum(Mmu(1:3,1:3).^2));
+fovmu = abs(Mmu*[dmmu'+0.5; 1]-Mmu*[0.5*ones(3,1); 1]);
+fovmu = fovmu(1:3);
+is3d  = dmmu(3) > 1;
 
 sll = 0;
 for n=1:N % Loop over observed images (of channel c)
@@ -205,7 +207,7 @@ for n=1:N % Loop over observed images (of channel c)
         Update = H\g;
 
         % Start line-search    
-        armijo(n) = 1;
+        armijo(n) = max_armijo(oq,Update,fovmu,is3d);
         oll       = ll;    
         onm       = 1;
         for linesearch=1:nlinesearch
@@ -226,10 +228,10 @@ for n=1:N % Loop over observed images (of channel c)
 
             % Compute new log-likelihood
             y       = affine_transf(M,x);
-            [ll,nm] = meansq_objfun(f{n},mu,y,dat.A(n),tauf,speak,method,true);
+            [ll,nm0] = meansq_objfun(f{n},mu,y,dat.A(n),tauf,speak,method,true);
             nm      = 1;
             
-            if ll/nm > oll/onm && q_constraint(q,is3d)
+            if ll/nm > oll/onm % && q_constraint(q,is3d)
                 % Log-likelihood improved
                 armijo(n) = min(1.2*armijo(n),1);
 
@@ -249,13 +251,13 @@ for n=1:N % Loop over observed images (of channel c)
             ll = oll;                        
             
             if speak >= 1
-                fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f | a=%7.5f, q=%s | :''(\n', c, n, gnit, linesearch, ll, armijo(n), sprintf(' %5.2f', dat.A(n).q)); 
+                fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f, nm=%d | a=%7.5f, q=%s | :''(\n', c, n, gnit, linesearch, ll, nm0, armijo(n), sprintf(' %5.2f', dat.A(n).q)); 
             end
             
             % We didn't improve the objective function, so exit GN loop
             break
         elseif speak >= 1
-            fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f | a=%7.5f, q=%s | :o)\n', c, n, gnit, linesearch, ll, armijo(n), sprintf(' %5.2f', dat.A(n).q)); 
+            fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f, nm=%d  | a=%7.5f, q=%s | :o)\n', c, n, gnit, linesearch, ll, nm0, armijo(n), sprintf(' %5.2f', dat.A(n).q)); 
         end
         
     end % End loop over Gauss-Newton iterations
@@ -331,9 +333,9 @@ msk  = get_msk(f(:,:,z),mu);
 ftmp = f(:,:,z);
 % ll   = -0.5*tau*sum((double(ftmp(msk)) - mu(msk)).^2);
 ll   = -0.5*tau*sum(double(mu(msk).^2 - 2*mu(msk).*ftmp(msk)));
-msk  = reshape(msk, dm(1:2));
 
-nm = sum(msk);
+nm  = sum(msk);
+msk = reshape(msk, dm(1:2));
 
 if nargout >= 3
     % Compute gradient    
@@ -422,11 +424,11 @@ drawnow
 function compare_numerical_derivatives(g,H,f,mu,A,x,tau,Mmu,Mf,speak,method)
 
 % Parameters
-dm   = size(x);
-B    = get_rigid_basis(dm(3) > 1);               
-oq   = A.q;   
-Nq   = numel(oq);
-vsmu = sqrt(sum(Mmu(1:3,1:3).^2));
+dm    = size(x);
+B     = get_rigid_basis(dm(3) > 1);               
+oq    = A.q;   
+Nq    = numel(oq);
+vsmu  = sqrt(sum(Mmu(1:3,1:3).^2));
 
 % Modulate gradient w tau
 g = -tau*g;
@@ -513,5 +515,14 @@ if is3d
 else
     if q(1) > mx_tr || q(1) < -mx_tr, ok = false; return; end
     if q(2) > mx_tr || q(2) < -mx_tr, ok = false; return; end    
+end
+%==========================================================================
+
+%==========================================================================
+function armijo = max_armijo(q,Update,fovmu,is3d)
+armijo = 1;
+if is3d, imax = 3; else imax = 2; end
+for i=1:imax
+    armijo = min(armijo, abs((fovmu(i)/2-q(i))/Update(i)));
 end
 %==========================================================================

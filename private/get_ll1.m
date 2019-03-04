@@ -15,8 +15,7 @@ if use_projmat
     end
 else
     % We do not use the projection matrices (A, At)
-    msk = isfinite(x{1}) & isfinite(y);
-    msk = msk(:);
+        msk = get_msk(x{1},y);
 %     ll  = -0.5*tau*sum((double(x{1}(msk)) - double(y(msk))).^2);
     ll  = -0.5*tau*sum(double(y(msk).^2 - 2*y(msk).*x{1}(msk)));
 end   
