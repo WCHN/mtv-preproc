@@ -1,4 +1,4 @@
-function [dat,armijo,ll1] = update_rigid(Nii,dat,tau,armijo,num_workers,p)
+function [dat,ll1] = update_rigid(Nii,dat,tau,num_workers,p)
 % Update q with a Gauss-Newton algorithm
 %
 % Optimise the rigid alignment between observed images and their 
@@ -33,7 +33,7 @@ parfor (c=1:C,num_workers) % Loop over channels
     
     set_boundary_conditions;
     
-    [dat(c),ll1(c),armijo{c}] = update_channel(Nii.x(c),Nii.y(c),dat(c),B,tau{c},speak,nitgn,c,armijo{c});    
+    [dat(c),ll1(c)] = update_channel(Nii.x(c),Nii.y(c),dat(c),B,tau{c},speak,nitgn,c);    
     
 end % End loop over channels
 
@@ -85,7 +85,7 @@ end
 %==========================================================================
 
 %==========================================================================
-function [dat,sll,armijo] = update_channel(Nii_x,Nii_y,dat,B,tau,speak,nitgn,c,armijo)
+function [dat,sll] = update_channel(Nii_x,Nii_y,dat,B,tau,speak,nitgn,c)
 
 % Parameters
 Nq          = size(B,3);             % Number of registration parameters
@@ -207,13 +207,13 @@ for n=1:N % Loop over observed images (of channel c)
         Update = H\g;
 
         % Start line-search    
-        armijo(n) = max_armijo(oq,Update,fovmu,is3d);
-        oll       = ll;    
-        onm       = 1;
+        armijo = max_armijo(oq,Update,fovmu,is3d);
+        oll    = ll;    
+        onm    = 1;
         for linesearch=1:nlinesearch
 
             % Take step
-            q = oq - armijo(n)*Update;
+            q = oq - armijo*Update;
 
             % Compute new parameters
             R  = spm_dexpm(q,B);
@@ -233,8 +233,6 @@ for n=1:N % Loop over observed images (of channel c)
             
             if ll/nm > oll/onm % && q_constraint(q,is3d)
                 % Log-likelihood improved
-                armijo(n) = min(1.2*armijo(n),1);
-
                 break;
             else                
                 % Revert to previous values in dat struct
@@ -242,7 +240,7 @@ for n=1:N % Loop over observed images (of channel c)
                 dat.A(n).J = oJ;
                 dat.A(n).R = oR;
                 
-                armijo(n) = 0.5*armijo(n);
+                armijo = 0.5*armijo;
             end
         end % End loop over line-search
 
@@ -251,13 +249,13 @@ for n=1:N % Loop over observed images (of channel c)
             ll = oll;                        
             
             if speak >= 1
-                fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f, nm=%d | a=%7.5f, q=%s | :''(\n', c, n, gnit, linesearch, ll, nm0, armijo(n), sprintf(' %5.2f', dat.A(n).q)); 
+                fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f, nm=%d | a=%7.5f, q=%s | :''(\n', c, n, gnit, linesearch, ll, nm0, armijo, sprintf(' %5.2f', dat.A(n).q)); 
             end
             
             % We didn't improve the objective function, so exit GN loop
             break
         elseif speak >= 1
-            fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f, nm=%d  | a=%7.5f, q=%s | :o)\n', c, n, gnit, linesearch, ll, nm0, armijo(n), sprintf(' %5.2f', dat.A(n).q)); 
+            fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f, nm=%d  | a=%7.5f, q=%s | :o)\n', c, n, gnit, linesearch, ll, nm0, armijo, sprintf(' %5.2f', dat.A(n).q)); 
         end
         
     end % End loop over Gauss-Newton iterations

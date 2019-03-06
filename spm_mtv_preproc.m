@@ -280,8 +280,6 @@ if use_projmat
     % from maximum bounding-box
     vx        = vx_sr;    
     [mat,dm]  = max_bb_orient(Nii.x,vx,bb_padding);    
-%     mat       = Nii.x{1}(1).mat;
-%     dm        = Nii.x{1}(1).dat.dim;
     
     if isempty(dec_reg)
         dec_reg = true; 
@@ -310,14 +308,11 @@ if use_projmat
     Nii.H = approx_hessian(Nii.H,dat);
 end
 
-% Rigid optimisation line-search parameter
-armijo = get_armijo(dat);
-
 %--------------------------------------------------------------------------
 % Estimate model hyper-parameters
 %--------------------------------------------------------------------------
 
-[tau,lam,rho,sched_lam,lam0] = estimate_model_hyperpars(Nii.x,dec_reg,vx,p);
+[tau,lam0,rho,sched_lam] = estimate_model_hyperpars(Nii.x,dec_reg,vx,p);
 
 %--------------------------------------------------------------------------
 % Start solving
@@ -344,25 +339,17 @@ if ~isempty(Nii_ref)
     fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', 0, 0, 0, 0, psnr1, ssim1); 
 end
 
+% Set coarse-to-fine schedueler
+sched_it  = 1;
+sched_cnt = 1;
+sched     = sched_lam(sched_it);
+lam       = sched*lam0;
+
+        
 ll = -Inf;
 llpart = 1;
 for it=1:nit % Start main loop
-        
-    if dec_reg
-        % Decrease regularisation with iteration number
-        if it > 1
-            osched = sched_lam(min(it - 1,numel(sched_lam)));
-        end
-        sched  = sched_lam(min(it,numel(sched_lam)));
-        lam    = sched*lam0;    
-        if it > 1 && osched ~= sched
-            % Regularisation changed, reset rigid armijo to one
-            armijo = get_armijo(dat);             
-        end
-    else
-        sched = 1;
-    end
-    
+            
     %----------------------------------------------------------------------
     % ADMM to update image
     %----------------------------------------------------------------------    
@@ -375,7 +362,7 @@ for it=1:nit % Start main loop
         % Compute log-posterior (objective value)        
         ll     = [ll, sum(ll1) + ll2];
         llpart = [llpart 1];
-        gain   = get_gain(ll);
+        gain_y = get_gain(ll);
 
         if speak >= 1 || ~isempty(Nii_ref)
             % Some verbose    
@@ -384,9 +371,9 @@ for it=1:nit % Start main loop
                 % Reference image(s) given, compute SSIM and PSNR
                 [psnr1,ssim1] = compute_image_metrics(Nii.y,Nii_ref);
                 
-                fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', it, ll(end), sum(ll1), ll2, gain, psnr1, ssim1); 
+                fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', it, ll(end), sum(ll1), ll2, gain_y, psnr1, ssim1); 
             else
-                fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, gain); 
+                fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, gain_y); 
             end
 
             if speak >= 2
@@ -394,20 +381,8 @@ for it=1:nit % Start main loop
             end
         end   
         
-        if  tol > 0 && ity > 1 && ...
-           (gain < 1e-3 && sched ~= 1 || ...
-            gain < tol  && sched == 1)
-            break
-        end
-        
-    end % End y loop
-    
-    % Check convergence
-    if tol > 0 && gain < tol && it > 1 && sched == 1
-        % Finished!
-        break
-    end
-    
+    end % End y loop    
+   
     if EstimateRigid
         
         %------------------------------------------------------------------
@@ -425,15 +400,15 @@ for it=1:nit % Start main loop
         end
         
         % Update q
-        [dat,armijo,ll1] = update_rigid(Nii,dat,tau,armijo,num_workers,p);                            
+        [dat,ll1] = update_rigid(Nii,dat,tau,num_workers,p);                            
         
         % Compute log-posterior (objective value)             
         ll     = [ll, sum(ll1) + ll2];
         llpart = [llpart 2];
-        gain   = get_gain(ll);
+        gain_q = get_gain(ll);
         
         if speak >= 1
-            fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, gain); 
+            fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, gain_q); 
             if speak >= 2
                 show_model('ll',ll,llpart);                
             end
@@ -443,6 +418,25 @@ for it=1:nit % Start main loop
         Nii.H = approx_hessian(Nii.H,dat);
     end
  
+    %----------------------------------------------------------------------
+    % Convergence checks
+    %----------------------------------------------------------------------
+        
+    % Check convergence
+    if tol > 0 && gain_y < tol && it > 1 && sched == 1 && sched_cnt >= 4
+        % Finished!
+        break
+    end
+
+    % Change coarse-to-fine schedueler
+    if  (tol > 0 && gain_y < tol && sched_cnt >= 4) || sched_cnt > 14
+        sched_it  = sched_it + 1;
+        sched     = sched_lam(min(sched_it,numel(sched_lam)));
+        lam       = sched*lam0;
+        sched_cnt = 0;
+    end    
+    sched_cnt = sched_cnt + 1;
+    
 end % End main loop
 
 if speak >= 1, toc; end
@@ -491,11 +485,11 @@ end
 
 if speak >= 3
     fnames = cell(1,2*C);
-    cnt    = 1;
+    sched_cnt    = 1;
     for c=1:2:2*C    
-        fnames{c}     = Nii.x0{cnt}(1).dat.fname;    
-        fnames{c + 1} = Nii_out(cnt).dat.fname;
-        cnt           = cnt + 1;
+        fnames{c}     = Nii.x0{sched_cnt}(1).dat.fname;    
+        fnames{c + 1} = Nii_out(sched_cnt).dat.fname;
+        sched_cnt           = sched_cnt + 1;
     end
 
     spm_check_registration(char(fnames))

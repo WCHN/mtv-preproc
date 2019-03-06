@@ -11,12 +11,20 @@ function SimulateDataBrainWeb
 DirRef = './ReferenceData/BrainWeb';
 DirSim = './SimulatedData/BrainWeb';
 
-% If DownSampling > 0 & DownSampling < 1, creates downsampled 3D images.
 % The variable NoisePrct determines the amount of noise to add to the noise
-% free down-sampled BrainWeb image. Deg determines the interpolation degree.
+% free BrainWeb image
+NoisePrct = 0;
+
+% Load noisy BrainWeb (9%)?
+UseNoisy = true;
+
+% Simulate a bias field when value is greater than zero
+BiasFieldScl = 0;
+
+% If DownSampling > 0 & DownSampling < 1, creates downsampled 3D images.
+% Deg determines the interpolation degree.
 % DownSampling = 1/3;
 DownSampling = 0;
-NoisePrct    = 0.15;
 Deg          = 4;
 
 % If true, reslices images to have the same size and orientation matrix.
@@ -25,7 +33,8 @@ Reslice = false;
 Padding = 10;
 
 % Translate images a bit
-offset = {[3.5 -2.75 1.25]',[1.75 -3.25 -3.0]',[-3.25 1.5 -2.75]'};
+Offset   = {[5.5 -4.75 3.25]',[3.75 -5.25 -5.0]',[-5.25 3.5 -4.75]'};
+Rotation = {[0 0 0]',[0 0 0]',[0.0 0 0]'};
 
 % Determines what plane to extract when creating 2D slices
 % 1 - Sagittal, 2 - Coronal, 3 - Axial
@@ -53,10 +62,10 @@ if  (exist(DirSim2D,'dir') == 7),  rmdir(DirSim2D,'s'); end; mkdir(DirSim2D);
 % Get noisy BrainWeb images
 %--------------------------------------------------------------------------
 
-if DownSampling > 0
-    Nii_ref = nifti(spm_select('FPList',DirRef,'^.*\pn0_rf0.nii$'));
-else
+if UseNoisy
     Nii_ref = nifti(spm_select('FPList',DirRef,'^.*\pn9_rf0.nii$'));
+else
+    Nii_ref = nifti(spm_select('FPList',DirRef,'^.*\pn0_rf0.nii$'));
 end
 
 C = numel(Nii_ref); % Number of channels
@@ -81,17 +90,29 @@ for c=1:C % Loop over channels
     
     if DownSampling > 0
         % Down-sample image w NN interpolation
-        [img,mat] = resample_img(Nii_ref(c),DownSampling,Deg);
-        
-        % Add noise
-        msk = isfinite(img) & img > 0;
-        sd  = std(img(msk));
-        img = abs(img + (NoisePrct*sd)*randn(size(img)));
+        [img,mat] = resample_img(Nii_ref(c),DownSampling,Deg);      
     end
     
-    if exist('offset','var')
+    dm = size(img);
+    vx = sqrt(sum(mat(1:3,1:3).^2));
+    
+    if BiasFieldScl
+        % Multiply with bias field        
+        bf  = sample_bf(BiasFieldScl,dm,vx);
+        img = bf.*img;
+        clear bf
+    end
+    
+    if NoisePrct > 0
+        % Add noise
+        msk = isfinite(img) & img > 0;
+        mx  = max(img(msk));
+        img = abs(img + (NoisePrct*mx)*randn(size(img)));
+    end
+    
+    if exist('Offset','var')
         % Rigidly realign the image a little bit
-        mat(1:3,4) = mat(1:3,4) + offset{c};
+        mat = rigidly_realign(mat,Offset{c},Rotation{c});        
     end    
     
     %----------------------------------------------------------------------

@@ -1,4 +1,4 @@
-function [tau,lam,rho,sched_lam,lam0] = estimate_model_hyperpars(Nii_x,dec_reg,vx,p)
+function [tau,lam,rho,sched_lam] = estimate_model_hyperpars(Nii_x,dec_reg,vx,p)
 % Estimate MTV model parameters
 %
 %_______________________________________________________________________
@@ -86,7 +86,7 @@ for c=1:C
 end
 
 % Incorporate template voxel size into regularisation
-lam = (prod(vx))^(1/3)*lam;
+lam = (prod(vx))^(1/2)*lam;
 
 % An attempt to combat the bias-variance trade-off -> scale lambda by the 
 % number of observations of each channel
@@ -96,11 +96,8 @@ for c=1:C
 end
 
 % For decreasing regularisation with iteration number
-lam0      = lam;
 sched_lam = get_lam_sched;
-if dec_reg
-    lam       = sched_lam(1)*lam;
-else
+if ~dec_reg
     sched_lam = 1;
 end
 
@@ -113,7 +110,7 @@ if rho == 0
             atau = [atau tau{c}(n)];
         end
     end
-    rho = sqrt(mean(atau))/mean(lam0);        
+    rho = sqrt(mean(atau))/mean(lam);        
 end
 
 if speak  >= 1
@@ -131,7 +128,5 @@ end
 
 %==========================================================================
 function sched = get_lam_sched
-nrep  = 10;
-sched = fliplr([1 2 4 6 8 10:5:40]);
-sched = repelem(sched,1,nrep);
+sched = fliplr(2.^(0:5));
 %==========================================================================

@@ -30,7 +30,7 @@ matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.tol      = [0.02 0.02 0.02 0.
 matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.fwhm     = [7 7];
 
 % Start co-registration
-for ref=1:numel(V) % Iterate over all images
+for ref=1:1%numel(V) % Iterate over all images
     matlabbatch{1}.spm.spatial.coreg.estimate.ref = {V(ref).fname}; % Reference image to register to
     
     source = 1:numel(V);
