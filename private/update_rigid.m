@@ -209,7 +209,7 @@ for n=1:N % Loop over observed images (of channel c)
         % Start line-search    
         armijo(n) = max_armijo(oq,Update,fovmu,is3d);
         oll       = ll;    
-        onm       = 1;
+        onm       = nm;
         for linesearch=1:nlinesearch
 
             % Take step
@@ -228,8 +228,7 @@ for n=1:N % Loop over observed images (of channel c)
 
             % Compute new log-likelihood
             y       = affine_transf(M,x);
-            [ll,nm0] = meansq_objfun(f{n},mu,y,dat.A(n),tauf,speak,method,true);
-            nm      = 1;
+            [ll,nm] = meansq_objfun(f{n},mu,y,dat.A(n),tauf,speak,method,true);
             
             if ll/nm > oll/onm % && q_constraint(q,is3d)
                 % Log-likelihood improved
@@ -249,6 +248,7 @@ for n=1:N % Loop over observed images (of channel c)
         if ll/nm <= oll/onm
             % Use old log-likelihood
             ll = oll;                        
+            nm = onm;
             
             if speak >= 1
                 fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f, nm=%d | a=%7.5f, q=%s | :''(\n', c, n, gnit, linesearch, ll, nm0, armijo(n), sprintf(' %5.2f', dat.A(n).q)); 
@@ -294,12 +294,13 @@ dmu = cell(1,3);
 if nargout >= 3
     if strcmp(method,'superres')
         [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',mu,y(:,:,z,:),single(A.J),double(A.win)); 
-    elseif strcmp(method,'denoise')               
-        [~,dmu{1},~,~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[2 0 0  0 0 0]); 
-        [~,~,dmu{2},~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 2 0  0 0 0]); 
-        [~,~,~,dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 0 2  0 0 0]); 
+    elseif strcmp(method,'denoise')
+        % (JA) Not convinced by this, and would prefer the commented out version:
+        [~,dmu{1},~,~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[2 0 0  0 0 0]);
+        [~,~,dmu{2},~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 2 0  0 0 0]);
+        [~,~,~,dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 0 2  0 0 0]);
         mu             = spm_diffeo('pull',mu,y(:,:,z,:));
-%         [mu,dmu{1},dmu{2},dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
+%       [mu,dmu{1},dmu{2},dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
     end
 else
     if strcmp(method,'superres')
