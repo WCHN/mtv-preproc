@@ -16,11 +16,11 @@ for i=1:numel(Scans)
     if spm_type(Nii.dat.dtype(1:(end-3)),'intt')
         f(f==max(f(:))) = 0;
         x      = 0:Nii.dat.scl_slope:max(f(:));
-        [h,x]  = hist(f(f~=0),x);
+        [h,x]  = hist(f(f>0),x);
     else
         x      = (0:1023)*(max(f(:))/1023);
         f(f==max(f(:))) = 0;
-        [h,x]  = hist(f(f~=0 & isfinite(f)),x);
+        [h,x]  = hist(f(f>0 & isfinite(f)),x);
     end
     [mg,nu,sd,mu] = spm_rice_mixture_mod(double(h(:)),double(x(:)),2,speak,nr,nc,cnt_subplot + i);
     

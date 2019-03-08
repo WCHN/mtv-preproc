@@ -7,34 +7,37 @@ function SimulateDataBrainWeb
 % Parameters
 %--------------------------------------------------------------------------
 
+% Show simulated images vs reference
+ShowSimulated = true;
+
+% Create thick-sliced data, for validating super-resolution
+ThickSliced = false;
+
 % Where to write output
 DirRef = './ReferenceData/BrainWeb';
-DirSim = './SimulatedData/BrainWeb';
+if ThickSliced
+    DirSim = fullfile('./SimulatedData/BrainWeb','ThickSliced');    
+else
+    DirSim = fullfile('./SimulatedData/BrainWeb','Noisy');
+end
 
 % The variable NoisePrct determines the amount of noise to add to the noise
 % free BrainWeb image
-NoisePrct = 0;
-
-% Load noisy BrainWeb (9%)?
-UseNoisy = true;
+NoisePrct = 0.2;
 
 % Simulate a bias field when value is greater than zero
 BiasFieldScl = 0;
 
-% If DownSampling > 0 & DownSampling < 1, creates downsampled 3D images.
-% Deg determines the interpolation degree.
-% DownSampling = 1/3;
-DownSampling = 0;
-Deg          = 4;
+% % If DownSampling > 0 & DownSampling < 1, creates downsampled 3D images.
+% % Deg determines the interpolation degree.
+% % DownSampling = 1/3;
+% DownSampling = 0;
+% Deg          = 4;
 
 % If true, reslices images to have the same size and orientation matrix.
 % Also crops a little bit of the FOV.
 Reslice = false;
-Padding = 10;
-
-% Translate images a bit
-Offset   = {[5.5 -4.75 3.25]',[3.75 -5.25 -5.0]',[-5.25 3.5 -4.75]'};
-Rotation = {[0 0 0]',[0 0 0]',[0.0 0 0]'};
+Padding = -10;
 
 % Determines what plane to extract when creating 2D slices
 % 1 - Sagittal, 2 - Coronal, 3 - Axial
@@ -50,6 +53,25 @@ ExtractSlab3d = false;
 SlabSize3d    = 5;
 
 %--------------------------------------------------------------------------
+% Set translation, rotations and thick-slices
+%--------------------------------------------------------------------------
+
+% Define translation and rotation
+% 3D
+Offset   = {[5.5 -4.75 3.25]',[3.75 -5.25 -5.0]',[-5.25 3.5 -4.75]'};
+% Rotation = {[0 0 0]',[0 0 0]',[0.0 0 0]'};
+% 2D
+% Offset   = {[5.5 -4.75 0]',[3.75 -5.25 0]',[-5.25 3.5 0]'};
+Rotation = {[-0.15 -0 0]',[0.15 -0 -0]',[0 0 0]'};
+
+% Define thick-slices
+DownSampling = 1/6;
+TS           = {[DownSampling 1 1], ... 
+                [1 DownSampling 1], ...
+                [2*DownSampling 2*DownSampling 1;]};
+Gap          = 0;
+
+%--------------------------------------------------------------------------
 % Create output directory
 %--------------------------------------------------------------------------
 
@@ -59,14 +81,10 @@ if  (exist(DirSim3D,'dir') == 7),  rmdir(DirSim3D,'s'); end; mkdir(DirSim3D);
 if  (exist(DirSim2D,'dir') == 7),  rmdir(DirSim2D,'s'); end; mkdir(DirSim2D);
 
 %--------------------------------------------------------------------------
-% Get noisy BrainWeb images
+% Get reference BrainWeb images
 %--------------------------------------------------------------------------
 
-if UseNoisy
-    Nii_ref = nifti(spm_select('FPList',DirRef,'^.*\pn9_rf0.nii$'));
-else
-    Nii_ref = nifti(spm_select('FPList',DirRef,'^.*\pn0_rf0.nii$'));
-end
+Nii_ref = nifti(spm_select('FPList',DirRef,'^.*\.nii$'));
 
 C = numel(Nii_ref); % Number of channels
 
@@ -87,17 +105,34 @@ for c=1:C % Loop over channels
     
     mat = Nii_ref(c).mat;
     img = Nii_ref(c).dat(:,:,:);   
+    dm  = size(img);
     
-    if DownSampling > 0
-        % Down-sample image w NN interpolation
-        [img,mat] = resample_img(Nii_ref(c),DownSampling,Deg);      
-    end
-    
-    dm = size(img);
-    vx = sqrt(sum(mat(1:3,1:3).^2));
+%     if DownSampling > 0
+%         % Down-sample image w NN interpolation
+%         [img,mat] = resample_img(Nii_ref(c),DownSampling,Deg);      
+%         dm        = size(img);
+%     end
+        
+    if ThickSliced
+        % Build dat object       
+        D    = diag([TS{c} 1]);
+        mat1 = mat/D;
+        dm1  = floor(D(1:3,1:3)*dm')';
+        vx   = sqrt(sum(mat1(1:3,1:3).^2));   
+
+        proj.mat     = mat1;
+        proj.dat.dim = dm1;
+
+        dat = init_dat('superres',{proj},mat,dm,[],Gap);
+        img = A(single(img),dat);
+        img = img{1};
+        mat = mat1;
+    end            
     
     if BiasFieldScl
         % Multiply with bias field        
+        vx  = sqrt(sum(mat(1:3,1:3).^2));
+        dm  = size(img);
         bf  = sample_bf(BiasFieldScl,dm,vx);
         img = bf.*img;
         clear bf
@@ -106,11 +141,11 @@ for c=1:C % Loop over channels
     if NoisePrct > 0
         % Add noise
         msk = isfinite(img) & img > 0;
-        mx  = max(img(msk));
-        img = abs(img + (NoisePrct*mx)*randn(size(img)));
+        mn  = mean(img(msk));
+        img = abs(img + (NoisePrct*mn)*randn(size(img)));
     end
     
-    if exist('Offset','var')
+    if exist('Offset','var') && exist('Rotation','var')
         % Rigidly realign the image a little bit
         mat = rigidly_realign(mat,Offset{c},Rotation{c});        
     end    
@@ -162,15 +197,15 @@ for c=1:C % Loop over channels
     
 end % End loop
 
-%--------------------------------------------------------------------------
-% Show simulated results
-%--------------------------------------------------------------------------
+if ShowSimulated   
+    % Show simulated results
 
-fnames = {};
-for c=1:C
-    fnames{end + 1} = fnames_in{c};
-    fnames{end + 1} = fnames_out{c};
+    fnames = {};
+    for c=1:C
+%         fnames{end + 1} = fnames_in{c};
+        fnames{end + 1} = fnames_out{c};
+    end
+
+    spm_check_registration(char(fnames))
 end
-
-spm_check_registration(char(fnames))
 %==========================================================================

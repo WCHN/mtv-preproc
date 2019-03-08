@@ -12,9 +12,9 @@ for n=1:dat.N
     y = apply_affine(T,dat.A(n).dm);
     
     if strcmp(dat.method,'superres')
-        tmp = pushpull('push',X{n},y,single(dat.A(n).J),double(dat.A(n).win),double(dat.dm));     
+        tmp = pushpull('pushc',X{n},y,single(dat.A(n).J),double(dat.A(n).win),double(dat.dm));     
     elseif strcmp(dat.method,'denoise')
-        tmp = spm_diffeo('push',X{n},y,dat.dm);
+        tmp = spm_diffeo('pushc',X{n},y,dat.dm);
     end
     clear y
      

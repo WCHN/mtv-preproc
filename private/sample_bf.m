@@ -7,7 +7,7 @@ if nargin < 1, scl      = 1; end
 if nargin < 2, lat      = [256 256 150]; end
 if nargin < 3, vs       = [1 1 1]; end
 if nargin < 4, fwhm     = 100; end
-if nargin < 5, prm      = [1e-2 0 1e-3]; end
+if nargin < 5, prm      = [1e-3 0 1e-6]; end
 if nargin < 6, Verbose  = false; end
 
 if scl == 0

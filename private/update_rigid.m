@@ -56,6 +56,10 @@ if meancrct
     % Compute mean
     q_avg = sq/cnt;
 
+    if speak >= 1
+        fprintf('   | mean(q)=%s, norm(q)=%8.5f\n', sprintf(' %8.5f', q_avg),norm(q_avg)); 
+    end
+                        
     % Update all q and J
     for c=1:C
 
@@ -139,16 +143,16 @@ for n=1:N % Loop over observed images (of channel c)
         y = affine_transf(M,x);
 
         % Build gradient and Hessian
-        g   = zeros([Nq 1]);
-        H   = zeros([Nq Nq]);
-        ll  = 0;
-        onm = 0;
+        g    = zeros([Nq 1]);
+        H    = zeros([Nq Nq]);
+        ll   = 0;
+        onvx = 0;
         for z=1:dmf(3) % Loop over slices
 
             % Compute matching-term part (log likelihood)
-            [llz,dnm,gz,Hz] = meansq_objfun_slice(f{n},mu,y,dat.A(n),tauf,speak,z,method);
+            [llz,vxz,gz,Hz] = sumsq_objfun_slice(f{n},mu,y,dat.A(n),tauf,speak,z,method);
             ll              = ll + llz;           
-            onm             = onm + dnm;
+            onvx            = onvx + vxz;
             
             % Add dRq to gradients
             dAff = cell(Nq,3);
@@ -196,7 +200,7 @@ for n=1:N % Loop over observed images (of channel c)
         H = H + 1e-5*max(diag(H))*eye(size(H));
         
         if 0
-            compare_numerical_derivatives(g,H,f{n},mu,dat.A(n),x,tauf,Mmu,Mf,speak,method);
+            compare_numerical_derivatives(g,f{n},mu,dat.A(n),x,tauf,Mmu,Mf,speak,method);
         end
         
         %------------------------------------------------------------------
@@ -208,8 +212,7 @@ for n=1:N % Loop over observed images (of channel c)
 
         % Start line-search    
         armijo = max_armijo(oq,Update,fovmu,is3d);
-        oll    = ll;    
-        onm    = 1;
+        oll    = ll;  
         for linesearch=1:nlinesearch
 
             % Take step
@@ -227,11 +230,10 @@ for n=1:N % Loop over observed images (of channel c)
             dat.A(n).R = R;
 
             % Compute new log-likelihood
-            y       = affine_transf(M,x);
-            [ll,nm0] = meansq_objfun(f{n},mu,y,dat.A(n),tauf,speak,method,true);
-            nm      = 1;
+            y        = affine_transf(M,x);
+            [ll,nvx] = sumsq_objfun(f{n},mu,y,dat.A(n),tauf,speak,method,true);
             
-            if ll/nm > oll/onm % && q_constraint(q,is3d)
+            if ll/nvx > oll/onvx % && q_constraint(q,is3d)
                 % Log-likelihood improved
                 break;
             else                
@@ -244,18 +246,18 @@ for n=1:N % Loop over observed images (of channel c)
             end
         end % End loop over line-search
 
-        if ll/nm <= oll/onm
+        if ll/nvx <= oll/onvx
             % Use old log-likelihood
             ll = oll;                        
             
             if speak >= 1
-                fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f, nm=%d | a=%7.5f, q=%s | :''(\n', c, n, gnit, linesearch, ll, nm0, armijo, sprintf(' %5.2f', dat.A(n).q)); 
+                fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f, nvx=%7.0f | a=%7.7f, q=%s | :''(\n', c, n, gnit, linesearch, ll/nvx, nvx, armijo, sprintf(' %5.2f', dat.A(n).q)); 
             end
             
             % We didn't improve the objective function, so exit GN loop
             break
         elseif speak >= 1
-            fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f, nm=%d  | a=%7.5f, q=%s | :o)\n', c, n, gnit, linesearch, ll, nm0, armijo, sprintf(' %5.2f', dat.A(n).q)); 
+            fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f, nvx=%7.0f | a=%7.7f, q=%s | :o)\n', c, n, gnit, linesearch, ll/nvx, nvx, armijo, sprintf(' %5.2f', dat.A(n).q)); 
         end
         
     end % End loop over Gauss-Newton iterations
@@ -266,22 +268,22 @@ end % End loop over observations
 %==========================================================================
     
 %==========================================================================
-function [ll,nm] = meansq_objfun(f,mu,y,A,tau,speak,method,show_moved)
+function [ll,nvx] = sumsq_objfun(f,mu,y,A,tau,speak,method,show_moved)
 if nargin < 8, show_moved = 0; end
 
-dm = size(f);
-dm = [dm 1];
-ll = 0;
-nm = 0;
+dm  = size(f);
+dm  = [dm 1];
+ll  = 0;
+nvx = 0;
 for z=1:dm(3)
-    [dll,dnm] = meansq_objfun_slice(f,mu,y,A,tau,speak,z,method,show_moved);
+    [dll,vxz] = sumsq_objfun_slice(f,mu,y,A,tau,speak,z,method,show_moved);
     ll        = ll + dll;
-    nm        = nm + dnm;
+    nvx       = nvx + vxz;
 end
 %==========================================================================
 
 %==========================================================================
-function [ll,nm,g,H] = meansq_objfun_slice(f,mu,y,A,tau,speak,z,method,show_moved)
+function [ll,nvx,g,H] = sumsq_objfun_slice(f,mu,y,A,tau,speak,z,method,show_moved)
 if nargin < 9, show_moved = 0; end
 
 dm = size(f); % Observation dimensions
@@ -291,27 +293,21 @@ dm = [dm 1];
 dmu = cell(1,3);
 if nargout >= 3
     if strcmp(method,'superres')
-        [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pull',mu,y(:,:,z,:),single(A.J),double(A.win)); 
+        [mu,dmu{1},dmu{2},dmu{3}] = pushpull('pullc',mu,y(:,:,z,:),single(A.J),double(A.win)); 
     elseif strcmp(method,'denoise')               
-        [~,dmu{1},~,~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[2 0 0  0 0 0]); 
-        [~,~,dmu{2},~] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 2 0  0 0 0]); 
-        [~,~,~,dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[0 0 2  0 0 0]); 
-        mu             = spm_diffeo('pull',mu,y(:,:,z,:));
-%         [mu,dmu{1},dmu{2},dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]); 
+        [~,dmu{1},dmu{2},dmu{3}] = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  1 1 1]);   
+        mu                       = spm_diffeo('pullc',mu,y(:,:,z,:));     
     end
 else
     if strcmp(method,'superres')
-        mu = pushpull('pull',mu,y(:,:,z,:),single(A.J),double(A.win));    
-    elseif strcmp(method,'denoise')
-        mu = spm_diffeo('pull',mu,y(:,:,z,:));
-%         mu = spm_diffeo('bsplins',mu,y(:,:,z,:),[1 1 1  0 0 0]);         
+        mu = pushpull('pullc',mu,y(:,:,z,:),single(A.J),double(A.win));    
+    elseif strcmp(method,'denoise')    
+        mu = spm_diffeo('pullc',mu,y(:,:,z,:));     
     end
 end
 
-% nm = sum(~isfinite(mu(:)));
-% if nm > 0
-%     disp(num2str(nm))
-% end
+msk      = isfinite(mu);
+mu(~msk) = 0; 
 
 if speak >= 2 && z == floor((dm(3) + 1)/2)     
     % Some verbose    
@@ -329,31 +325,34 @@ dmu{3} = double(dmu{3});
 % Compute log-likelihood of slice
 msk  = get_msk(f(:,:,z),mu);
 ftmp = f(:,:,z);
-% ll   = -0.5*tau*sum((double(ftmp(msk)) - mu(msk)).^2);
-ll   = -0.5*tau*sum(double(mu(msk).^2 - 2*mu(msk).*ftmp(msk)));
+ll   = -0.5*tau*sum((double(ftmp(msk)) - mu(msk)).^2);
+% ll   = -0.5*tau*sum(double(mu(msk).^2 - 2*mu(msk).*ftmp(msk)));
 
-nm  = sum(msk);
-msk = reshape(msk, dm(1:2));
+nvx = sum(msk); % Number of voxels, exluding missing values
 
 if nargout >= 3
     % Compute gradient    
     g = zeros([dm(1:2),3]);
     
-    diff1        = mu - double(f(:,:,z));
+%     diff1       = double(f(:,:,z)) - mu;
+    diff1       = mu - double(f(:,:,z));
+    diff1(~msk) = 0;
+    
     for d=1:3
-        g(:,:,d) = diff1.*dmu{d}.*msk;
+        dmu{d}(~msk) = 0;
+        g(:,:,d)     = diff1.*dmu{d};
     end
     
     if nargout >= 4
         % Compute Hessian
         H = zeros([dm(1:2),6]);
         
-        H(:,:,1) = dmu{1}.*dmu{1}.*msk;
-        H(:,:,2) = dmu{2}.*dmu{2}.*msk;
-        H(:,:,3) = dmu{3}.*dmu{3}.*msk;
-        H(:,:,4) = dmu{1}.*dmu{2}.*msk;
-        H(:,:,5) = dmu{1}.*dmu{3}.*msk;
-        H(:,:,6) = dmu{2}.*dmu{3}.*msk;             
+        H(:,:,1) = dmu{1}.*dmu{1};
+        H(:,:,2) = dmu{2}.*dmu{2};
+        H(:,:,3) = dmu{3}.*dmu{3};
+        H(:,:,4) = dmu{1}.*dmu{2};
+        H(:,:,5) = dmu{1}.*dmu{3};
+        H(:,:,6) = dmu{2}.*dmu{3};             
     end
 end
 
@@ -419,7 +418,7 @@ drawnow
 %==========================================================================    
 
 %==========================================================================
-function compare_numerical_derivatives(g,H,f,mu,A,x,tau,Mmu,Mf,speak,method)
+function compare_numerical_derivatives(g,f,mu,A,x,tau,Mmu,Mf,speak,method)
 
 % Parameters
 dm    = size(x);
@@ -435,7 +434,6 @@ g = -tau*g;
 R  = spm_dexpm(oq,B);  
 M  = Mmu\R*Mf;       
 y  = affine_transf(M,x);
-fx = meansq_objfun(f,mu,y,A,tau,speak,method);
 
 % Step-size
 h = 10.^(-8:1:-1);
@@ -468,7 +466,7 @@ for n=1:Nq % Loop over rigid parameters
         J   = single(reshape(Mg, [1 1 1 3 3]));
         A.J = J;
         
-        fxph = meansq_objfun(f,mu,y,A,tau,speak,method);
+        fxph = sumsq_objfun(f,mu,y,A,tau,speak,method);
 
         q    = oq;
         q(n) = q(n) - h(i);
@@ -483,19 +481,13 @@ for n=1:Nq % Loop over rigid parameters
         J   = single(reshape(Mg, [1 1 1 3 3]));
         A.J = J;
         
-        fxmh = meansq_objfun(f,mu,y,A,tau,speak,method);
+        fxmh = sumsq_objfun(f,mu,y,A,tau,speak,method);
         
         % Gradient
         num_g = (fxph - fxmh)/(2*h(i));
         
         fprintf('com_g(%i)   = %g\n',n,g(n));    
         fprintf('num_g(%i)   = %g\n',n,num_g);
-        
-%         % Hessian
-%         num_H = (fxph + fxmh - 2*fx)/(h(i)^2);
-%     
-%         fprintf('com_H(%i,%i) = %g\n',n,n,H(n,n));
-%         fprintf('num_H(%i,%i) = %g\n',n,n,num_H);
     end
     
     fprintf('---------------------------\n')
@@ -504,7 +496,7 @@ end
 
 %==========================================================================
 function ok = q_constraint(q,is3d)
-mx_tr = 5;
+mx_tr = 6;
 ok    = true;
 if is3d
     if q(1) > mx_tr || q(1) < -mx_tr, ok = false; return; end

@@ -312,7 +312,7 @@ end
 % Estimate model hyper-parameters
 %--------------------------------------------------------------------------
 
-[tau,lam0,rho,sched_lam] = estimate_model_hyperpars(Nii.x,dec_reg,vx,p);
+[tau,lam0,rho,sched] = estimate_model_hyperpars(Nii.x,dec_reg,vx,p);
 
 %--------------------------------------------------------------------------
 % Start solving
@@ -339,12 +339,8 @@ if ~isempty(Nii_ref)
     fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', 0, 0, 0, 0, psnr1, ssim1); 
 end
 
-% Set coarse-to-fine schedueler
-sched_it  = 1;
-sched_cnt = 1;
-sched     = sched_lam(sched_it);
-lam       = sched*lam0;
-
+% Init coarse-to-fine schedueler
+lam = sched.scl(1,:).*lam0;
         
 ll = -Inf;
 llpart = 1;
@@ -388,17 +384,7 @@ for it=1:nit % Start main loop
         %------------------------------------------------------------------
         % Gauss-Newton to update rigid alignment
         %------------------------------------------------------------------
-                
-        if 0
-            oNii = Nii;
-            odat = dat;
-            
-            offset = {[3.5 -2.75 0.75]',[0.75 -3.25 -3.0]',[-3.25 0.5 -2.75]'};
-            for c=1:C
-                dat(c).A(1).mat(1:3,4) = dat(c).A(1).mat(1:3,4) + offset{c};
-            end                        
-        end
-        
+                        
         % Update q
         [dat,ll1] = update_rigid(Nii,dat,tau,num_workers,p);                            
         
@@ -423,19 +409,18 @@ for it=1:nit % Start main loop
     %----------------------------------------------------------------------
         
     % Check convergence
-    if tol > 0 && gain_y < tol && it > 1 && sched == 1 && sched_cnt >= 4
+    if tol > 0 && gain_y < tol && it > 1 && sched.scl(sched.it,1) == 1 && sched.cnt >= 4
         % Finished!
         break
     end
 
-    % Change coarse-to-fine schedueler
-    if  (tol > 0 && gain_y < tol && sched_cnt >= 4) || sched_cnt > 14
-        sched_it  = sched_it + 1;
-        sched     = sched_lam(min(sched_it,numel(sched_lam)));
-        lam       = sched*lam0;
-        sched_cnt = 0;
+    % Stuff related to coarse-to-fine schedueler        
+    if  sched.scl(sched.it,1) ~= 1 && sched.cnt >= sched.nxt(min(sched.it,numel(sched.nxt)))
+        sched.it  = sched.it + 1;        
+        lam       = sched.scl(min(sched.it,size(sched.scl,1)),:).*lam0;        
+        sched.cnt = 0;
     end    
-    sched_cnt = sched_cnt + 1;
+    sched.cnt = sched.cnt + 1;
     
 end % End main loop
 
@@ -485,11 +470,11 @@ end
 
 if speak >= 3
     fnames = cell(1,2*C);
-    sched_cnt    = 1;
+    cnt    = 1;
     for c=1:2:2*C    
-        fnames{c}     = Nii.x0{sched_cnt}(1).dat.fname;    
-        fnames{c + 1} = Nii_out(sched_cnt).dat.fname;
-        sched_cnt           = sched_cnt + 1;
+        fnames{c}     = Nii.x0{cnt}(1).dat.fname;    
+        fnames{c + 1} = Nii_out(cnt).dat.fname;
+        cnt           = cnt + 1;
     end
 
     spm_check_registration(char(fnames))

@@ -1,27 +1,48 @@
 clear;
 
-dir_data = './SimulatedData/IXI/2D';
+%--------------------------------------------------------------------------
+% Read input data
+%--------------------------------------------------------------------------
+
+dir_data = './SimulatedData/BrainWeb/ThickSliced/2D';
 Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
+%--------------------------------------------------------------------------
+% Algorithm parameters
+%--------------------------------------------------------------------------
 
-Verbose         = 2;
 WorkersParfor   = Inf;
-OutputDirectory = 'Output/SuperresRigid';
+Verbose         = 3;  % 0 = silent, 1 = text, 2 = +figures, 3 = +spm_chec_reg
+OutputDirectory = 'Output/TestEstimateRigidSuperres';
 
-IterMax             = 30;
-VoxelSize           = 1;
-ADMMStepSize        = 0;
-RegScaleSuperResMRI = 6;
-DecreasingReg       = true;
-CoRegister          = false;
-IterImage           = 3;
-EstimateRigid       = false;
+CoRegister           = true;
+DecreasingReg        = true;
+EstimateRigid        = true;
 
-spm_mtv_preproc('InputImages',Nii,'Method','superres', ...
-                'VoxelSize',VoxelSize,'Verbose',Verbose, ...
-                'RegScaleSuperResMRI',RegScaleSuperResMRI, ...                
-                'ADMMStepSize',ADMMStepSize,'WorkersParfor',WorkersParfor, ...
-                'IterMax',IterMax, ...
-                'DecreasingReg',DecreasingReg,'CoRegister',CoRegister, ...
-                'EstimateRigid',EstimateRigid,'IterImage',IterImage, ...
-                'OutputDirectory',OutputDirectory); 
+VoxelSize            = 1;
+PaddingBB            = 0;
+ADMMStepSize         = 0;
+IterMax              = 100;
+Tolerance            = 1e-4;
+MeanCorrectRigid     = true;
+RegScaleDenoisingMRI = 40;
+
+IterImage            = 1;
+IterGaussNewtonRigid = 3;
+IterGaussNewtonImage = 1;
+
+%--------------------------------------------------------------------------
+% Run algorithm
+%--------------------------------------------------------------------------
+
+Nii_den = spm_mtv_preproc('InputImages',Nii,'Verbose',Verbose,'Method','superres', ...
+                          'WorkersParfor',WorkersParfor, ...                          
+                          'OutputDirectory',OutputDirectory, ...
+                          'CoRegister',CoRegister,'EstimateRigid',EstimateRigid, ...
+                          'ADMMStepSize',ADMMStepSize,'MeanCorrectRigid',MeanCorrectRigid, ...
+                          'IterMax',IterMax,'Tolerance',Tolerance,'IterImage',IterImage, ...
+                          'RegScaleDenoisingMRI',RegScaleDenoisingMRI, ...
+                          'IterGaussNewtonRigid',IterGaussNewtonRigid, ...
+                          'IterGaussNewtonImage',IterGaussNewtonImage, ...
+                          'DecreasingReg',DecreasingReg,'PaddingBB',PaddingBB, ...
+                          'VoxelSize',VoxelSize);            

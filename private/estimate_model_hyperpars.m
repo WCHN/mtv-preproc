@@ -1,4 +1,4 @@
-function [tau,lam,rho,sched_lam] = estimate_model_hyperpars(Nii_x,dec_reg,vx,p)
+function [tau,lam,rho,sched] = estimate_model_hyperpars(Nii_x,dec_reg,vx,p)
 % Estimate MTV model parameters
 %
 %_______________________________________________________________________
@@ -92,14 +92,11 @@ lam = (prod(vx))^(1/2)*lam;
 % number of observations of each channel
 for c=1:C
     N      = numel(tau{c});
-    lam(c) = sqrt(N)*lam(c);
+    lam(c) = (1/sqrt(N))*lam(c);
 end
 
 % For decreasing regularisation with iteration number
-sched_lam = get_lam_sched;
-if ~dec_reg
-    sched_lam = 1;
-end
+sched = get_lam_sched(mu,tau,scl_lam,dec_reg);
 
 if rho == 0
     % Estimate rho (this value seems to lead to reasonably good convergence)
@@ -127,6 +124,40 @@ end
 %==========================================================================
 
 %==========================================================================
-function sched = get_lam_sched
-sched = fliplr(2.^(0:5));
+function sched = get_lam_sched(mu,tau,scl_lam,dec_reg)
+C     = numel(tau);
+sched = struct;
+
+if dec_reg
+    steps     = 7;
+    sched.scl = zeros(steps,C);
+    for c=1:C
+        sched.scl(:,c) = fliplr(2.^(0:steps - 1));
+    end
+
+    sched.it  = 1;
+    sched.cnt = 1;
+    sched.nxt = [20 15 10 8 6 4 1];
+%     sched.nxt = [7 6 4 3 2 1];
+else
+    sched.scl = ones(1,C);
+    sched.nxt = Inf;
+end
+
+% C    = numel(tau);
+% scl1 = zeros(1,C);
+% for c=1:C
+%     N    = numel(tau{c});
+%     atau = zeros(1,N);
+%     for n=1:N
+%         atau(n) = tau{c}(n);
+%     end
+%     scl1(c) = mean(atau(n));
+% end
+% scl = 1e6*scl1/scl_lam;
+% 
+% sched = zeros(7,C);
+% for c=1:C
+%     sched(:,c) = exp(linspace(log(scl(c)),0,7))';
+% end
 %==========================================================================

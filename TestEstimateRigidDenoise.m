@@ -4,7 +4,7 @@ clear;
 % Read input data
 %--------------------------------------------------------------------------
 
-dir_data = './SimulatedData/BrainWeb/2D';
+dir_data = './SimulatedData/BrainWeb/Noisy/2D';
 Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
 %--------------------------------------------------------------------------
@@ -13,7 +13,8 @@ Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
 WorkersParfor   = Inf;
 Verbose         = 2;  % 0 = silent, 1 = text, 2 = +figures, 3 = +spm_chec_reg
-OutputDirectory = 'Output/DenoiseRigid';
+OutputDirectory = 'Output/TestEstimateRigidDenoise';
+ReadWrite       = true;
 
 CoRegister           = false;
 DecreasingReg        = true;
@@ -25,10 +26,10 @@ ADMMStepSize         = 0;
 IterMax              = 100;
 Tolerance            = 1e-4;
 MeanCorrectRigid     = true;
-RegScaleDenoisingMRI = 6;
+RegScaleDenoisingMRI = 40;
 
-IterImage            = 5;
-IterGaussNewtonRigid = 5;
+IterImage            = 3;
+IterGaussNewtonRigid = 1;
 IterGaussNewtonImage = 1;
 
 %--------------------------------------------------------------------------
@@ -45,4 +46,4 @@ Nii_den = spm_mtv_preproc('InputImages',Nii,'Verbose',Verbose, ...
                           'IterGaussNewtonRigid',IterGaussNewtonRigid, ...
                           'IterGaussNewtonImage',IterGaussNewtonImage, ...
                           'DecreasingReg',DecreasingReg,'PaddingBB',PaddingBB, ...
-                          'VoxelSize',VoxelSize);
+                          'VoxelSize',VoxelSize,'ReadWrite',ReadWrite);
