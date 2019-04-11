@@ -1,4 +1,4 @@
-function Nii = spm_mtv_preproc(varargin)
+function [Nii,dat,prg] = spm_mtv_preproc(varargin)
 % Multi-channel total variation (MTV) preprocessing of MR and CT data. 
 %
 % Requires that the SPM software is on the MATLAB path.
@@ -7,7 +7,7 @@ function Nii = spm_mtv_preproc(varargin)
 % For super-resolution, remember to compile private/pushpull.c (see 
 % private/compile_pushpull)
 %
-% FORMAT Nii = spm_mtv_preproc(...)
+% FORMAT [Nii,dat,prg] = spm_mtv_preproc(...)
 %
 % KEYWORD
 % -------
@@ -88,6 +88,8 @@ function Nii = spm_mtv_preproc(varargin)
 % ------
 % 
 % Nii - nifti object containing denoised/super-resolved images
+% dat - 
+% prg - 
 % 
 %__________________________________________________________________________
 %
@@ -149,7 +151,7 @@ p.addParameter('RegScaleDenoisingMRI', 6, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegSuperresCT', 0.06, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegDenoisingCT', 0.06, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('TemporaryDirectory', 'Temp', @ischar);
+p.addParameter('TemporaryDirectory', 'TempData', @ischar);
 p.addParameter('OutputDirectory', '', @ischar);
 p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') || strcmpi(in,'superres'))));
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
@@ -192,6 +194,7 @@ gapunit       = p.Results.SliceGapUnit;
 EstimateRigid = p.Results.EstimateRigid;
 bb_padding    = p.Results.PaddingBB;
 modality      = p.Results.Modality;
+rho           = p.Results.ADMMStepSize; 
 
 %--------------------------------------------------------------------------
 % Preliminaries
@@ -262,6 +265,11 @@ if ~isempty(Nii_ref) && use_projmat
     error('Solving with projection matrices and reference image(s) not yet implemented!');
 end
 
+% if speak >= 2
+%     % Show MTV prior
+%     show_model('rgb',Nii_x);
+% end
+
 %--------------------------------------------------------------------------
 % Co-register input images (modifies images' orientation matrices)
 %--------------------------------------------------------------------------
@@ -312,7 +320,7 @@ end
 % Estimate model hyper-parameters
 %--------------------------------------------------------------------------
 
-[tau,lam0,rho,sched] = estimate_model_hyperpars(Nii.x,dec_reg,vx,p);
+[tau,lam0,sched] = estimate_model_hyperpars(Nii.x,dec_reg,vx,p);
 
 %--------------------------------------------------------------------------
 % Start solving
@@ -324,7 +332,8 @@ if speak >= 1
     else
         fprintf('Start %s, running (max) %d iterations\n', method, nit);
     end
-    tic; 
+    
+    tstart = tic;
 end
 
 if ~isempty(Nii_ref)
@@ -341,7 +350,10 @@ end
 
 % Init coarse-to-fine schedueler
 lam = sched.scl(1,:).*lam0;
-        
+if rho == 0
+    rho = estimate_rho(tau,lam); 
+end
+
 ll = -Inf;
 llpart = 1;
 for it=1:nit % Start main loop
@@ -379,6 +391,11 @@ for it=1:nit % Start main loop
         
     end % End y loop    
    
+    if speak >= 2 
+        show_model('solution',use_projmat,modality,Nii);    
+        show_model('rgb',Nii.y);
+    end
+    
     if EstimateRigid
         
         %------------------------------------------------------------------
@@ -417,14 +434,20 @@ for it=1:nit % Start main loop
     % Stuff related to coarse-to-fine schedueler        
     if  sched.scl(sched.it,1) ~= 1 && sched.cnt >= sched.nxt(min(sched.it,numel(sched.nxt)))
         sched.it  = sched.it + 1;        
-        lam       = sched.scl(min(sched.it,size(sched.scl,1)),:).*lam0;        
+        lam       = sched.scl(min(sched.it,size(sched.scl,1)),:).*lam0;      
+        rho       = estimate_rho(tau,lam); 
         sched.cnt = 0;
     end    
     sched.cnt = sched.cnt + 1;
     
 end % End main loop
 
-if speak >= 1, toc; end
+if speak >= 1
+    telapsed = toc(tstart); 
+    fprintf('Elapsed time is %g seconds.',telapsed);
+else
+    telapsed = NaN;
+end
 
 %--------------------------------------------------------------------------
 % Write results
@@ -463,6 +486,12 @@ for c=1:C
     % Write to NIfTI
     Nii_out(c) = create_nii(nfname,y,omat,[spm_type('float32') spm_platform('bigend')],'MTV recovered');
 end
+
+% Output algorithm convergece, etc.
+prg    = struct;
+prg.ll = ll;
+prg.it = it;
+prg.t  = telapsed;
 
 %--------------------------------------------------------------------------
 % Show input and solved

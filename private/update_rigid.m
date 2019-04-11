@@ -248,8 +248,7 @@ for n=1:N % Loop over observed images (of channel c)
 
         if ll/nvx <= oll/onvx
             % Use old log-likelihood
-            ll = oll;                        
-            nm = onm;
+            ll = oll;
             
             if speak >= 1
                 fprintf('   | c=%i, n=%i, gn=%i, ls=%i | ll=%10.1f, nvx=%7.0f | a=%7.7f, q=%s | :''(\n', c, n, gnit, linesearch, ll/nvx, nvx, armijo, sprintf(' %5.2f', dat.A(n).q)); 

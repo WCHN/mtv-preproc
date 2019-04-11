@@ -51,15 +51,15 @@ end
 
 % Sanity check input (for denoising)
 dm0 = Nii.x{1}(1).dat.dim;
-for c=1:C
-    N = numel(Nii.x{c});
-    for n=1:N
-        dm = Nii.x{c}(n).dat.dim; 
-        if strcmpi(method,'denoise') && c > 1 && (~isequal(dm,dm0) || ~isequal(dm,dm0))
-            error('Images are not all the same size!')
-        end
-    end
-end
+% for c=1:C
+%     N = numel(Nii.x{c});
+%     for n=1:N
+%         dm = Nii.x{c}(n).dat.dim; 
+%         if strcmpi(method,'denoise') && c > 1 && (~isequal(dm,dm0) || ~isequal(dm,dm0))
+%             error('Images are not all the same size!')
+%         end
+%     end
+% end
 dm0  = [dm0 1];
 is3d = dm0(3) > 1;
 %==========================================================================

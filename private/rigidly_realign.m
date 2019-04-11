@@ -1,23 +1,18 @@
-function mat = rigidly_realign(mat,offset,rotation)
+function rigidly_realign(fname,offset,rotation)
 % Rigidly (translation and rotation) modify an orientation matrix
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
-B                = zeros(4,4,6);
-B(1,4,1)         = 1;
-B(2,4,2)         = 1;
-B(3,4,3)         = 1;
-B([1,2],[1,2],4) = [0 1;-1 0];
-B([3,1],[3,1],5) = [0 1;-1 0];
-B([2,3],[2,3],6) = [0 1;-1 0];
+Nii  = nifti(fname);
+dm   = Nii.dat.dim;
+is2d = numel(dm) == 2;
 
-Nr = size(B,3);
-q  = zeros(1,Nr);
-
-q(1:3) = offset(1:3);
-q(4:6) = rotation(1:3);
-
-R = spm_dexpm(q,B);
-
-mat = R*mat;
+if is2d
+    q = [offset(1) offset(2) 0 0 0 rotation(3)];
+else
+    q = [offset(1) offset(2) offset(3) rotation(1) rotation(2) rotation(3)];
+end
+M  = spm_matrix(q(:)');
+MM = spm_get_space(fname);
+spm_get_space(fname, M\MM);
 %==========================================================================

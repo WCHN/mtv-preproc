@@ -185,7 +185,7 @@ Nii.y = Nii_y;
 Nii.w = Nii_w;
 Nii.u = Nii_u;
 
-if speak >= 2
+if speak >= 3
     % Show MTV prior
     show_model('solution',use_projmat,modality,Nii);
     show_model('mtv',mtv_scale);

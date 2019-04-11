@@ -6,6 +6,11 @@ function [noise,mu_brain] = spm_noise_estimate_mod(Scans,speak,nr,nc,cnt_subplot
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
+if nargin < 2, speak       = 0; end
+if nargin < 3, nr          = 0; end
+if nargin < 4, nc          = 0; end
+if nargin < 5, cnt_subplot = 0; end
+
 if ~isa(Scans,'nifti'), Scans = nifti(Scans); end
 
 noise    = zeros(numel(Scans),1);
@@ -108,7 +113,9 @@ for iter=1:10000
 end
 
 if speak
-    subplot(nr,nc,cnt_subplot);
+    if nr > 0
+        subplot(nr,nc,cnt_subplot);
+    end
     
     md = mean(diff(x));
     plot(x(:),p,'--',x(:),h/sum(h)/md,'b.',x(:),sp,'r'); drawnow

@@ -4,8 +4,12 @@ clear;
 % Read input data
 %--------------------------------------------------------------------------
 
-dir_data = './SimulatedData/BrainWeb/Noisy/2D';
-Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
+NoisePrct = 0;
+Offset    = {[5.5; 4.25; 0],[0; 0; 0],[-4.5; -3.75; 0]};
+Rotation  = {[0; 0; 0],[0; 0; 0],[0; 0; 0]};
+
+[Nii_sim3d,Nii_sim2d] = SimulateDataBrainWeb(NoisePrct,Offset,Rotation);
+Nii                   = Nii_sim2d;
 
 %--------------------------------------------------------------------------
 % Algorithm parameters
@@ -14,7 +18,7 @@ Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 WorkersParfor   = Inf;
 Verbose         = 2;  % 0 = silent, 1 = text, 2 = +figures, 3 = +spm_chec_reg
 OutputDirectory = 'Output/TestEstimateRigidDenoise';
-ReadWrite       = true;
+ReadWrite       = false;
 
 CoRegister           = false;
 DecreasingReg        = true;
@@ -24,12 +28,12 @@ VoxelSize            = sqrt(sum(Nii(1).mat(1:3,1:3).^2));
 PaddingBB            = 0;
 ADMMStepSize         = 0;
 IterMax              = 100;
-Tolerance            = 1e-4;
+Tolerance            = 1e-3;
 MeanCorrectRigid     = true;
-RegScaleDenoisingMRI = 40;
+RegScaleDenoisingMRI = 30;
 
-IterImage            = 3;
-IterGaussNewtonRigid = 1;
+IterImage            = 5;
+IterGaussNewtonRigid = 5;
 IterGaussNewtonImage = 1;
 
 %--------------------------------------------------------------------------
