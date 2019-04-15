@@ -23,7 +23,8 @@ else
         if EstimateBias
             bf = exp(get_nii(Nii_b(n)));
         else
-            bf = 1;
+            msk = true;
+            bf  = 1;
         end
         ll  = ll - 0.5*tau(n)*sum((double(x(msk)) - double(bf(msk).*y(msk))).^2);
     end

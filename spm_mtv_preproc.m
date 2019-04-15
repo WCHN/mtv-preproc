@@ -549,13 +549,15 @@ end
 %     save(fname,'Niix');
 % end
     
-% figure(1);
-% crop = 60;
-% img0 = Nii.x{1}(1).dat(crop:end - crop,crop:end - crop,round(dm(3)/2));
-% img1 = Nii_out(1).dat(crop:end - crop,crop:end - crop,round(dm(3)/2));
-% img  = [img0 img1];
-% imagesc(img); axis off image xy
-% colormap(gray)
+if 0
+    figure(111)    
+    crop = 60;
+    img0 = Nii.x{1}(1).dat(crop:end - crop,crop:end - crop,round(dm(3)/2));
+    img1 = Nii_out(1).dat(crop:end - crop,crop:end - crop,round(dm(3)/2));
+    img  = [img0 img1];
+    imagesc(img); axis off image xy
+    colormap(gray)
+end
 
 if do_clean && (do_readwrite || (coreg && (C > 1 || numel(Nii.x{1}) > 1)))
     % Clean-up temporary files
