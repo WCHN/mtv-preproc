@@ -19,7 +19,7 @@ function [Nii,dat,prg] = spm_mtv_preproc(varargin)
 %                        If empty, uses spm_select ['']
 % IterMax              - Maximum number of iteration [30]
 % IterImage            - Maximum number of iterations for solving for the
-%                        super-resolved image(s) [3]
+%                        super-resolved image(s) [5]
 % ADMMStepSize         - The infamous ADMM step size, set to zero for an 
 %                        educated guess [0]
 % Tolerance            - Convergence threshold, set to zero to run until 
@@ -143,7 +143,7 @@ p.FunctionName = 'spm_mtv_preproc';
 p.addParameter('InputImages', {}, @(in) ( isa(in,'nifti') || isempty(in) || ...
                                         ((ischar(in{1}) || isa(in{1},'nifti')) || (ischar(in{1}{1}) || isa(in{1}{1},'nifti'))) ) );
 p.addParameter('IterMax', 30, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('IterImage', 3, @(in) (isnumeric(in) && in > 0));
+p.addParameter('IterImage', 5, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 1e-4, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('RegScaleSuperResMRI', 5, @(in) (isnumeric(in) && in > 0));
@@ -151,7 +151,7 @@ p.addParameter('RegScaleDenoisingMRI', 5, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegSuperresCT', 0.05, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegDenoisingCT', 0.05, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('TemporaryDirectory', 'TempData', @ischar);
+p.addParameter('TemporaryDirectory', './TempData', @ischar);
 p.addParameter('OutputDirectory', '', @ischar);
 p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') || strcmpi(in,'superres'))));
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
@@ -200,22 +200,25 @@ rho           = p.Results.ADMMStepSize;
 % Preliminaries
 %--------------------------------------------------------------------------
 
+% Flag saying if we solve using projection matrices (A, At), or not
+use_projmat = ~(strcmpi(method,'denoise') && ~EstimateRigid);
+
 % Struct that will hold model variables
 Nii = struct;
 
 % Get image data
-[Nii,C,is3d] = parse_input_data(Nii,InputImages,method);
+[Nii,C,is3d] = parse_input_data(Nii,InputImages,use_projmat);
 
-if isempty(zeroMissing)    
-    % Missing values (NaNs and zeros) will be...
-    if C == 1 && numel(Nii.x{1}) == 1
-        % ...set to zero after algorithm finishes
-        zeroMissing = true;
-    else
-        % ...filled in by the algorithm
-        zeroMissing = false;
-    end
-end
+% if isempty(zeroMissing)    
+%     % Missing values (NaNs and zeros) will be...
+%     if C == 1 && numel(Nii.x{1}) == 1
+%         % ...set to zero after algorithm finishes
+%         zeroMissing = true;
+%     else
+%         % ...filled in by the algorithm
+%         zeroMissing = false;
+%     end
+% end
 
 % Super-resolution voxel-size related
 if isempty(vx_sr)
@@ -223,11 +226,6 @@ if isempty(vx_sr)
     vx_sr = get_vx_sr(Nii.x);
 elseif numel(vx_sr) == 1
     vx_sr = vx_sr*ones(1,3); 
-end
-if vx_sr(1) < 0.9
-    % Voxels are quite small, read-write aux. variables to not run in to
-    % memory issues..
-    do_readwrite = true;
 end
 
 % Make some directories
@@ -242,10 +240,15 @@ if ~isempty(dir_out) && ~(exist(dir_out,'dir') == 7)
 end
 
 % Manage parfor
-num_workers                        = min(C,num_workers);
+num_workers                        = min(min(C,num_workers),4);
 if C == 1,             num_workers = 0; end
 if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
+
+if vx_sr(1) < 0.9 || C >= 4
+    % read-write aux. variables to not run in to memory issues..
+    do_readwrite = true;
+end
 
 if speak >= 3
     % So that Verbose = 3 works for superres (because Nii_x are copied, then copies are deleted)
@@ -256,9 +259,6 @@ if coreg && (C > 1 || numel(Nii.x{1}) > 1)
     % Make copies input data and update Nii_x        
     Nii.x = copy_ims(Nii.x,dir_tmp);
 end
-
-% Flag saying if we solve using projection matrices (A, At), or not
-use_projmat = ~(strcmpi(method,'denoise') && ~EstimateRigid);
 
 % Some sanity checks
 if ~isempty(Nii_ref) && use_projmat
@@ -309,7 +309,7 @@ end
 dat = init_dat(method,Nii.x,mat,dm,window,gap,gapunit);    
 
 % Allocate auxiliary variables
-Nii = alloc_aux_vars(Nii,do_readwrite,C,dm,mat,dir_tmp);
+Nii = alloc_aux_vars(Nii,do_readwrite,C,dm,mat,dir_tmp,use_projmat);
 
 if use_projmat
     % Compute approximation to the diagonal of the Hessian 
@@ -354,7 +354,7 @@ if rho == 0
     rho = estimate_rho(tau,lam); 
 end
 
-ll = -Inf;
+ll     = -Inf;
 llpart = 1;
 for it=1:nit % Start main loop
             
@@ -365,7 +365,7 @@ for it=1:nit % Start main loop
     for ity=1:nity % Start y loop
         
         % Update Nii_y, Nii_w, Nii_u
-        [Nii,ll1,ll2] = update_image(Nii,dat,tau,rho,lam,num_workers,p);
+        [Nii,ll1,ll2,mtv_scale] = update_image(Nii,dat,tau,rho,lam,num_workers,p);
 
         % Compute log-posterior (objective value)        
         ll     = [ll, sum(ll1) + ll2];
@@ -392,8 +392,9 @@ for it=1:nit % Start main loop
     end % End y loop    
    
     if speak >= 2 
-        show_model('solution',use_projmat,modality,Nii);    
-        show_model('rgb',Nii.y);
+        show_model('solution',use_projmat,modality,Nii,dat); 
+        show_model('mtv',mtv_scale); clear mtv_scale
+%         show_model('rgb',Nii.y);
     end
     
     if EstimateRigid
@@ -426,7 +427,7 @@ for it=1:nit % Start main loop
     %----------------------------------------------------------------------
         
     % Check convergence
-    if tol > 0 && gain_y < tol && it > 1 && sched.scl(sched.it,1) == 1 && sched.cnt >= 4
+    if tol > 0 && gain_y < tol && it > 1 && sched.scl(sched.it,1) == 1
         % Finished!
         break
     end
@@ -444,7 +445,7 @@ end % End main loop
 
 if speak >= 1
     telapsed = toc(tstart); 
-    fprintf('Elapsed time is %g seconds.',telapsed);
+    fprintf('Elapsed time is %g seconds.\n',telapsed);
 else
     telapsed = NaN;
 end
@@ -478,10 +479,10 @@ for c=1:C
     end  
 
     omat = mat;        
-    if ~is3d
-        % 2d, set z-translation to zero
-        omat(3,4) = 0;
-    end
+%     if ~is3d
+%         % 2d, set z-translation to zero
+%         omat(3,4) = 0;
+%     end
     
     % Write to NIfTI
     Nii_out(c) = create_nii(nfname,y,omat,[spm_type('float32') spm_platform('bigend')],'MTV recovered');
@@ -498,6 +499,8 @@ prg.t  = telapsed;
 %--------------------------------------------------------------------------
 
 if speak >= 3
+          
+    C      = numel(Nii_out);
     fnames = cell(1,2*C);
     cnt    = 1;
     for c=1:2:2*C    
@@ -508,6 +511,22 @@ if speak >= 3
 
     spm_check_registration(char(fnames))
 end
+
+if ~isempty(dir_out)
+    fname = fullfile(dir_out,'Nii_out.mat');
+    save(fname,'Nii_out');        
+    fname = fullfile(dir_out,'Nii_x.mat');
+    Niix = Nii.x;
+    save(fname,'Niix');
+end
+    
+% figure(1);
+% crop = 60;
+% img0 = Nii.x{1}(1).dat(crop:end - crop,crop:end - crop,round(dm(3)/2));
+% img1 = Nii_out(1).dat(crop:end - crop,crop:end - crop,round(dm(3)/2));
+% img  = [img0 img1];
+% imagesc(img); axis off image xy
+% colormap(gray)
 
 if do_clean && (do_readwrite || (coreg && (C > 1 || numel(Nii.x{1}) > 1)))
     % Clean-up temporary files

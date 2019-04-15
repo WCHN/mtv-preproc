@@ -96,10 +96,7 @@ Nq          = size(B,3);             % Number of registration parameters
 lkp         = [1 4 5; 4 2 6; 5 6 3]; % Que?
 nlinesearch = 12;                    % Number of line-searches    
 method      = dat.method;
-
-% Cell-array of observations    
-f = get_nii(Nii_x); 
-N = numel(f); % Number of observations
+N           = numel(Nii_x); % Number of observations
 
 % Template parameters
 mu    = get_nii(Nii_y);
@@ -115,7 +112,8 @@ sll = 0;
 for n=1:N % Loop over observed images (of channel c)
 
     % Observation parameters
-    dmf  = size(f{n});      
+    f    = get_nii(Nii_x(n)); 
+    dmf  = size(f);      
     dmf  = [dmf 1];
     Mf   = dat.A(n).mat;            
     tauf = tau(n);        % Noise precision
@@ -150,7 +148,7 @@ for n=1:N % Loop over observed images (of channel c)
         for z=1:dmf(3) % Loop over slices
 
             % Compute matching-term part (log likelihood)
-            [llz,vxz,gz,Hz] = sumsq_objfun_slice(f{n},mu,y,dat.A(n),tauf,speak,z,method);
+            [llz,vxz,gz,Hz] = sumsq_objfun_slice(f,mu,y,dat.A(n),tauf,speak,z,method);
             ll              = ll + llz;           
             onvx            = onvx + vxz;
             
@@ -231,7 +229,7 @@ for n=1:N % Loop over observed images (of channel c)
 
             % Compute new log-likelihood
             y        = affine_transf(M,x);
-            [ll,nvx] = sumsq_objfun(f{n},mu,y,dat.A(n),tauf,speak,method,true);
+            [ll,nvx] = sumsq_objfun(f,mu,y,dat.A(n),tauf,speak,method,true);
             
             if ll/nvx > oll/onvx % && q_constraint(q,is3d)
                 % Log-likelihood improved

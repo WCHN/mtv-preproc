@@ -141,8 +141,8 @@ if isempty(window)
         for n=1:N
             W{c}{n} = ones(1,3); % All Gaussian
             
-            thickslice_dir          = get_thickslice_dir(Nii_x{c}(n));
-            W{c}{n}(thickslice_dir) = 2; % Rectangle
+%             thickslice_dir          = get_thickslice_dir(Nii_x{c}(n));
+%             W{c}{n}(thickslice_dir) = 2; % Rectangle
         end
     end    
     window = W;    

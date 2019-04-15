@@ -25,12 +25,13 @@ end
 %==========================================================================
 
 %==========================================================================
-function show_solution(use_projmat,modality,Nii)
+function show_solution(use_projmat,modality,Nii,dat)
 
 figname          = '(SPM) MTV solution';
 fig              = findobj('Type', 'Figure', 'Name', figname);
 if isempty(fig), fig = figure('Name', figname, 'NumberTitle', 'off'); end
 set(0, 'CurrentFigure', fig);  
+clf(fig);
 
 C = numel(Nii.x);
 
@@ -61,50 +62,34 @@ if use_projmat
         end
     end   
 else
-    Cc = 2*C;
-    for c=1:C
-        img0 = single(Nii.x{c}.dat(:,:,:));        
-        dm   = size(img0);
-        dm   = [dm 1];
-        ix0  = floor(dm./2);
-        
-        img1 = single(Nii.y(c).dat(:,:,:));      
-        dm   = size(img1);
-        dm   = [dm 1];
-        ix1  = floor(dm./2);
-        
-        if ix0(3) > 1
-            % 3D
-            tmp = squeeze(img0(:,:,ix0(3)));
-            subplot(3,Cc,(c-1)*Cc + 1);
-            show_img(tmp,modality);
+    nrows = get_maxN(dat) + 1;
+    cnt   = 1;
+    
+    for rw=1:nrows
+        for c=1:C
+            if rw < nrows
+                % Observations
+                if rw <= dat(c).N
+                    dm  = dat(c).A(rw).dm;
+                    z   = round(dm(3)/2);
+                    img = single(Nii.x{c}(rw).dat(:,:,z));       
+                else
+                    img = [];
+                end                                
+            else
+                % Recovered
+                dm  = dat(c).dm;
+                z   = round(dm(3)/2);
+                img = single(Nii.y(c).dat(:,:,z));      
+            end
 
-            tmp = squeeze(img0(:,ix0(2),:));
-            subplot(3,Cc,(c-1)*Cc + 2);
-            show_img(tmp,modality);
-
-            tmp = squeeze(img0(ix0(1),:,:));
-            subplot(3,Cc,(c-1)*Cc + 3);
-            show_img(tmp,modality);
-
-            tmp = squeeze(img1(:,:,ix1(3)));
-            subplot(3,Cc,(c-1)*Cc + 4);
-            show_img(tmp,modality);
-
-            tmp = squeeze(img1(:,ix1(2),:));
-            subplot(3,Cc,(c-1)*Cc + 5);
-            show_img(tmp,modality);
-
-            tmp = squeeze(img1(ix1(1),:,:));
-            subplot(3,Cc,(c-1)*Cc + 6);
-            show_img(tmp,modality);
-        else
             % 2D
-            subplot(2,C,c)
-            show_img(img0,modality);
+            if ~isempty(img)   
+                subplot(nrows,C,cnt)
+                show_img(img,modality);
+            end
             
-            subplot(2,C,C + c)
-            show_img(img1,modality);
+            cnt = cnt + 1;
         end
     end
 end
@@ -204,5 +189,15 @@ if strcmpi(modality,'CT')
 else
     imagesc(img');
 end
-axis xy off; colormap(gray); 
+axis xy image off; colormap(gray); 
+%==========================================================================
+
+%==========================================================================
+function N = get_maxN(dat)
+N = 0;
+for c=1:numel(dat)
+    if dat(c).N > N
+        N = dat(c).N;
+    end
+end
 %==========================================================================

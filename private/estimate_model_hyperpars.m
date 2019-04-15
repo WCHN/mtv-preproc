@@ -26,18 +26,6 @@ end
 % Number of channels
 C = numel(Nii_x);
 
-% For verbose
-if speak >= 2
-    if strcmpi(modality,'MRI')
-        figname = '(SPM) Rice mixture fits MRI';
-    elseif strcmpi(modality,'CT')        
-        figname = '(SPM) Gaussian mixture fits CT';
-    end
-    f                = findobj('Type', 'Figure', 'Name', figname);
-    if isempty(f), f = figure('Name', figname, 'NumberTitle', 'off'); end
-    set(0, 'CurrentFigure', f);                 
-end
-
 % Just for making subplots
 N0 = 0;
 for c=1:C
@@ -54,6 +42,7 @@ sd  = cell(1,C);
 tau = cell(1,C);
 mu  = zeros(1,C);
 lam = zeros(1,C);
+if speak >= 2, clear_figure(modality); end
 for c=1:C           
         
     % Estimate image noise and mean brain intensity
@@ -66,6 +55,7 @@ for c=1:C
         else,     cnt_subplot = 0;
         end
         
+        if speak >= 2, set_figure(modality); end
         [sd{c},mu_brain] = spm_noise_estimate_mod(Nii_x{c},speak >= 2,nr,nc,cnt_subplot); % Noise standard deviation
         
         mu(c)  = mean(mu_brain);        % Mean brain intensity
@@ -75,6 +65,7 @@ for c=1:C
         % Data is CT
         %---------------------------
         
+        if speak >= 2, set_figure(modality); end
         sd{c} = noise_estimate_ct(Nii_x{c},speak >= 2); % Noise standard deviation
         
         mu(c)  = 0;     % Mean brain intensity not used for CT => intensities follow the Hounsfield scale
@@ -86,11 +77,11 @@ for c=1:C
 end
 
 % Get all stds
-asd = [];
+all_sd = [];
 for c=1:C        
     N = numel(Nii_x{c});
     for n=1:N
-        asd = [asd sd{c}(n)];
+        all_sd = [all_sd sd{c}(n)];
     end
 end
     
@@ -101,11 +92,11 @@ lam = (prod(vx))^(1/2)*lam;
 % number of observations of each channel
 for c=1:C
     N      = numel(tau{c});
-    lam(c) = (1/sqrt(N))*lam(c);
+    lam(c) = sqrt(N)*lam(c);
 end
 
 % For decreasing regularisation with iteration number
-sched = get_lam_sched(mu,tau,scl_lam,asd,dec_reg);
+sched = get_lam_sched(mu,tau,scl_lam,all_sd,dec_reg);
 
 if rho == 0
     % Estimate rho (this value seems to lead to reasonably good convergence)
@@ -139,9 +130,27 @@ if dec_reg
     for c=1:C
          sched.scl(:,c)  = vals;
     end    
-    sched.nxt = 5;
+    sched.nxt = 1;
 else
     sched.scl = ones(1,C);
     sched.nxt = Inf;
 end
 %==========================================================================
+
+%==========================================================================
+function f = set_figure(modality)
+if strcmpi(modality,'MRI')
+    figname = '(SPM) Rice mixture fits MRI';
+elseif strcmpi(modality,'CT')        
+    figname = '(SPM) Gaussian mixture fits CT';
+end
+f                = findobj('Type', 'Figure', 'Name', figname);
+if isempty(f), f = figure('Name', figname, 'NumberTitle', 'off'); end
+set(0, 'CurrentFigure', f);    
+%==========================================================================    
+
+%==========================================================================
+function clear_figure(modality)
+fig = set_figure(modality);
+clf(fig)
+%==========================================================================    
