@@ -79,6 +79,7 @@ function [Nii,dat,prg] = spm_mtv_preproc(varargin)
 % EstimateRigid        - Optimise a rigid alignment between observed images
 %                        and their corresponding channel's reconstruction
 %                        [false]
+% EstimateBias         - Optimise a bias field [false]
 % MeanCorrectRigid     - Mean correct the rigid-body transform parameters 
 %                        q [false]
 % PaddingBB            - Pad bounding box with extra zeros in each
@@ -169,6 +170,7 @@ p.addParameter('SliceProfile', {}, @(in) (isnumeric(in) || iscell(in)));
 p.addParameter('SliceGap', 0, @(in) (isnumeric(in) || iscell(in)));
 p.addParameter('SliceGapUnit', '%', @(in) (ischar(in) && (strcmp(in,'%') || strcmp(in,'mm'))));
 p.addParameter('EstimateRigid', false, @islogical);
+p.addParameter('EstimateBias', false, @islogical);
 p.addParameter('MeanCorrectRigid', true, @islogical);
 p.addParameter('PaddingBB', 0, @isnumeric);
 p.parse(varargin{:});
@@ -192,6 +194,7 @@ window        = p.Results.SliceProfile;
 gap           = p.Results.SliceGap;
 gapunit       = p.Results.SliceGapUnit;
 EstimateRigid = p.Results.EstimateRigid;
+EstimateBias  = p.Results.EstimateBias;
 bb_padding    = p.Results.PaddingBB;
 modality      = p.Results.Modality;
 rho           = p.Results.ADMMStepSize; 
@@ -309,7 +312,7 @@ end
 dat = init_dat(method,Nii.x,mat,dm,window,gap,gapunit);    
 
 % Allocate auxiliary variables
-Nii = alloc_aux_vars(Nii,do_readwrite,C,dm,mat,dir_tmp,use_projmat);
+Nii = alloc_aux_vars(Nii,do_readwrite,dm,mat,use_projmat,p);
 
 if use_projmat
     % Compute approximation to the diagonal of the Hessian 
@@ -356,6 +359,7 @@ end
 
 ll     = -Inf;
 llpart = 1;
+ll3    = zeros(1,C);
 for it=1:nit % Start main loop
             
     %----------------------------------------------------------------------
@@ -368,7 +372,7 @@ for it=1:nit % Start main loop
         [Nii,ll1,ll2,mtv_scale] = update_image(Nii,dat,tau,rho,lam,num_workers,p);
 
         % Compute log-posterior (objective value)        
-        ll     = [ll, sum(ll1) + ll2];
+        ll     = [ll, sum(ll1) + ll2 + sum(ll3)];
         llpart = [llpart 1];
         gain_y = get_gain(ll);
 
@@ -379,9 +383,9 @@ for it=1:nit % Start main loop
                 % Reference image(s) given, compute SSIM and PSNR
                 [psnr1,ssim1] = compute_image_metrics(Nii.y,Nii_ref);
                 
-                fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', it, ll(end), sum(ll1), ll2, gain_y, psnr1, ssim1); 
+                fprintf('%2d (y) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', it, ll(end), sum(ll1), ll2, sum(ll3), gain_y, psnr1, ssim1); 
             else
-                fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, gain_y); 
+                fprintf('%2d (y) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, sum(ll3), gain_y); 
             end
 
             if speak >= 2
@@ -397,6 +401,31 @@ for it=1:nit % Start main loop
 %         show_model('rgb',Nii.y);
     end
     
+    if EstimateBias && ~use_projmat
+        
+        %------------------------------------------------------------------
+        % Gauss-Newton to update bias field parameters
+        %------------------------------------------------------------------
+        
+        oNii = Nii;
+        Nii  = oNii;
+        for i=1:30
+            [Nii,ll1,ll3] = update_biasfield(Nii,dat,tau,num_workers,p);
+
+            % Compute log-posterior (objective value)             
+            ll     = [ll, sum(ll1) + ll2 + sum(ll3)];
+            llpart = [llpart 2];
+            gain_q = get_gain(ll);
+
+            if speak >= 1
+                fprintf('%2d (b) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, sum(ll3), gain_q); 
+                if speak >= 2
+                    show_model('ll',ll,llpart);                
+                end
+            end
+        end
+    end
+    
     if EstimateRigid
         
         %------------------------------------------------------------------
@@ -407,12 +436,12 @@ for it=1:nit % Start main loop
         [dat,ll1] = update_rigid(Nii,dat,tau,num_workers,p);                            
         
         % Compute log-posterior (objective value)             
-        ll     = [ll, sum(ll1) + ll2];
-        llpart = [llpart 2];
+        ll     = [ll, sum(ll1) + ll2 + sum(ll3)];
+        llpart = [llpart 3];
         gain_q = get_gain(ll);
         
         if speak >= 1
-            fprintf('%2d | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, gain_q); 
+            fprintf('%2d (q) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, sum(ll3), gain_q); 
             if speak >= 2
                 show_model('ll',ll,llpart);                
             end
@@ -512,13 +541,13 @@ if speak >= 3
     spm_check_registration(char(fnames))
 end
 
-if ~isempty(dir_out)
-    fname = fullfile(dir_out,'Nii_out.mat');
-    save(fname,'Nii_out');        
-    fname = fullfile(dir_out,'Nii_x.mat');
-    Niix = Nii.x;
-    save(fname,'Niix');
-end
+% if ~isempty(dir_out)
+%     fname = fullfile(dir_out,'Nii_out.mat');
+%     save(fname,'Nii_out');        
+%     fname = fullfile(dir_out,'Nii_x.mat');
+%     Niix = Nii.x;
+%     save(fname,'Niix');
+% end
     
 % figure(1);
 % crop = 60;

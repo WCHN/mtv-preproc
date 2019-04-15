@@ -1,8 +1,12 @@
-function Nii = alloc_aux_vars(Nii,do_readwrite,C,dm,mat,dir_tmp,use_projmat)
+function Nii = alloc_aux_vars(Nii,do_readwrite,dm,mat,use_projmat,p)
 % Allocate MTV model auxiliary variables
 %
 %_______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
+
+C             = numel(Nii.x);
+dir_tmp       = p.Results.TemporaryDirectory;
+EstimateBias  = p.Results.EstimateBias;
 
 if do_readwrite
     % Read/write temporary variables from disk (stored as NIfTIs)
@@ -15,8 +19,9 @@ else
     Nii.y = struct;
     Nii.u = struct;
     Nii.w = struct;
-    Nii.H = struct;
+    Nii.H = struct;   
 end
+Nii.b = cell(1,C);
 
 for c=1:C
     if do_readwrite
@@ -42,6 +47,17 @@ for c=1:C
             Nii.H(c) = nifti(fname_H);
         else
             Nii.H(c) = nifti;
+        end        
+        
+        Nii.b{c} = nifti;
+        for n=1:numel(Nii.x{c})
+            if EstimateBias    
+                fname_b     = fullfile(dir_tmp,['bf' num2str(c) num2str(n) '.nii']);  
+                create_nii(fname_b,zeros(dm,'single'),mat,[spm_type('float32') spm_platform('bigend')],'bf');
+                Nii.b{c}(n) = nifti(fname_b);
+            else
+                Nii.b{c}(n).dat = nifti;
+            end
         end
     else
         Nii.y(c).dat = zeros(dm,      'single');
@@ -51,6 +67,14 @@ for c=1:C
             Nii.H(c).dat = zeros(dm,      'single');
         else
             Nii.H(c).dat = 0;
+        end
+        
+        for n=1:numel(Nii.x{c})
+            if EstimateBias                    
+                Nii.b{c}(n).dat = zeros(dm,'single');
+            else
+                Nii.b{c}(n).dat = 0;
+            end
         end
     end
 end

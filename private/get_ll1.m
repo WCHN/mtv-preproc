@@ -1,4 +1,4 @@
-function ll = get_ll1(use_projmat,y,Nii_x,tau,dat)
+function ll = get_ll1(use_projmat,EstimateBias,y,Nii_x,Nii_b,tau,dat)
 % Compute log of likelihood part
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -20,7 +20,12 @@ else
     for n=1:dat.N
         x   = get_nii(Nii_x(n));
         msk = get_msk(x);
-        ll  = ll - 0.5*tau(n)*sum((double(x(msk)) - double(y(msk))).^2);
+        if EstimateBias
+            bf = exp(get_nii(Nii_b(n)));
+        else
+            bf = 1;
+        end
+        ll  = ll - 0.5*tau(n)*sum((double(x(msk)) - double(bf(msk).*y(msk))).^2);
     end
 %     ll  = -0.5*tau*sum(double(y(msk).^2 - 2*y(msk).*x{1}(msk)));
 end   

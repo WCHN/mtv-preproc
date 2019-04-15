@@ -10,6 +10,7 @@ method        = p.Results.Method;
 nitgn         = p.Results.IterGaussNewtonImage; 
 speak         = p.Results.Verbose; 
 EstimateRigid = p.Results.EstimateRigid;
+EstimateBias  = p.Results.EstimateBias;
 
 % Flag saying if we solve using projection matrices (A, At), or not
 use_projmat = ~(strcmpi(method,'denoise') && ~EstimateRigid);
@@ -20,6 +21,7 @@ Nii_y = Nii.y;
 Nii_H = Nii.H;
 Nii_w = Nii.w;
 Nii_u = Nii.u;
+Nii_b = Nii.b;
 
 C  = numel(Nii_x);
 vx = sqrt(sum(dat(1).mat(1:3,1:3).^2));
@@ -38,7 +40,7 @@ parfor (c=1:C,num_workers) % Loop over channels
     u = get_nii(Nii_u(c));   
     w = get_nii(Nii_w(c));   
     y = get_nii(Nii_y(c));   
-
+    
     if use_projmat
         % We use the projection matrices (A, At)
         
@@ -81,18 +83,35 @@ parfor (c=1:C,num_workers) % Loop over channels
         rhs = u - w/rho; 
         rhs = lam(c)*imdiv(rhs,vx);
         for n=1:dat(c).N
+            
+            if EstimateBias
+                bf = exp(get_nii(Nii_b{c}(n)));
+            else
+                bf = 1;
+            end
+    
             x         = get_nii(Nii_x{c}(n));
             msk       = get_msk(x);
-            tmp       = x*(tau{c}(n)/rho);
+            tmp       = (bf.*x)*(tau{c}(n)/rho);
             tmp(~msk) = 0;
             rhs       = rhs + tmp;
         end
         x   = [];
         tmp = [];
         msk = [];
-        
+        bf  = [];
+                
+        if EstimateBias && ~use_projmat
+            bf = zeros([dm dat(c).N],'single');
+            for n=1:dat(c).N
+                bf(:,:,:,n) = exp(get_nii(Nii_b{c}(n)));
+            end
+        else
+            bf = 1;
+        end
+            
         % LHS
-        lhs = ones(dm,'single')*sum(tau{c})/rho;
+        lhs = sum(bf,4).*ones(dm,'single')*sum(tau{c})/rho;
 
         % Compute new y
         y   = spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
@@ -108,7 +127,7 @@ parfor (c=1:C,num_workers) % Loop over channels
     Nii_y(c) = put_nii(Nii_y(c),y);
     
     % Compute log of likelihood    
-    ll1(c) = get_ll1(use_projmat,y,Nii_x{c},tau{c},dat(c));
+    ll1(c) = get_ll1(use_projmat,EstimateBias,y,Nii_x{c},Nii_b{c},tau{c},dat(c));
     y      = [];    
     x      = [];
     

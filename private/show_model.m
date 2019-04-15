@@ -18,6 +18,8 @@ switch lower(id)
         [varargout{1:nargout}] = show_mtv(varargin{:});
     case 'rgb'
         [varargout{1:nargout}] = show_rgb(varargin{:});        
+    case 'bf'
+        [varargout{1:nargout}] = show_bf(varargin{:});               
     otherwise
         help show_model
         error('Unknown function %s. Type ''help show_model'' for help.', id)
@@ -47,18 +49,22 @@ if use_projmat
             tmp = squeeze(img(:,:,ix(3)));
             subplot(3,C,(c-1)*C + 1);        
             show_img(tmp,modality);
-
+            colormap(gray); 
+            
             tmp = squeeze(img(:,ix(2),:));
             subplot(3,C,(c-1)*C + 2)
             show_img(tmp,modality);
-
+            colormap(gray); 
+            
             tmp = squeeze(img(ix(1),:,:));
             subplot(3,C,(c-1)*C + 3)
             show_img(tmp,modality);
+            colormap(gray);            
         else
             % 2D
             subplot(1,C,c);        
             show_img(img,modality);
+            colormap(gray);             
         end
     end   
 else
@@ -87,6 +93,7 @@ else
             if ~isempty(img)   
                 subplot(nrows,C,cnt)
                 show_img(img,modality);
+                colormap(gray);             
             end
             
             cnt = cnt + 1;
@@ -112,7 +119,7 @@ if nargin > 1 && ~isempty(llpart)
     for i=unique(llpart)
         subll = ll;
         subll(llpart ~= i) = NaN;
-        prev = find(llpart == i)-1;
+        prev = find(llpart == i) - 1;
         prev = prev(prev>0);
         subll(prev) = ll(prev);
         plot(idx,subll,[color{i} '-'],'LineWidth',2);
@@ -179,6 +186,54 @@ drawnow;
 %==========================================================================
 
 %==========================================================================
+function show_bf(dat,Nii,modality)
+
+figname          = '(SPM) Bias field';
+fig              = findobj('Type', 'Figure', 'Name', figname);
+if isempty(fig), fig = figure('Name', figname, 'NumberTitle', 'off'); end
+set(0, 'CurrentFigure', fig);  
+
+C      = numel(Nii.y);
+nrows  = 3;
+colors = 'hsv';
+
+for c=1:C
+
+    dm  = dat(c).dm;    
+    z   = round(dm(3)/2);
+    y   = get_nii(Nii.y(c),z); 
+
+    bfc      = get_nii(Nii.b{c}(1),z);
+    bf       = exp(bfc);    
+        
+    subplot(nrows,C,(c - 1)*C + 1)
+    show_img(y,modality);
+    colormap(gca,colors)
+    if c == 1
+        title('y')
+    end
+    
+    subplot(nrows,C,(c - 1)*C + 2)
+    show_img(bf,'');
+    colormap(gca,colors)
+    colorbar
+    if c == 1
+        title('bf')
+    end
+    
+    subplot(nrows,C,(c - 1)*C + 3)
+    show_img(bf.*y,modality);
+    colormap(gca,colors)
+    if c == 1
+        title('bf*y')
+    end    
+    
+end
+
+drawnow;
+%==========================================================================
+
+%==========================================================================
 % Helper functions
 %==========================================================================
 
@@ -189,7 +244,7 @@ if strcmpi(modality,'CT')
 else
     imagesc(img');
 end
-axis xy image off; colormap(gray); 
+axis xy image off;
 %==========================================================================
 
 %==========================================================================
