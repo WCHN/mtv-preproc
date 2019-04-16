@@ -192,9 +192,11 @@ figname          = '(SPM) Bias field';
 fig              = findobj('Type', 'Figure', 'Name', figname);
 if isempty(fig), fig = figure('Name', figname, 'NumberTitle', 'off'); end
 set(0, 'CurrentFigure', fig);  
+clf(fig)
 
 C      = numel(Nii.y);
-nrows  = 3;
+C0     = 5;
+nrows  = C;
 colors = 'hsv';
 
 for c=1:C
@@ -203,17 +205,28 @@ for c=1:C
     z   = round(dm(3)/2);
     y   = get_nii(Nii.y(c),z); 
 
-    bfc      = get_nii(Nii.b{c}(1),z);
-    bf       = exp(bfc);    
+    bfc = get_nii(Nii.b{c}(1),z);
+    bf  = exp(bfc);    
         
-    subplot(nrows,C,(c - 1)*C + 1)
+    x   = get_nii(Nii.x{c}(1),z);
+    
+    subplot(nrows,C0,(c - 1)*C0 + 1)
+    show_img(x,modality);
+    colormap(gca,colors)
+    colorbar
+    if c == 1
+        title('x')
+    end
+    
+    subplot(nrows,C0,(c - 1)*C0 + 2)
     show_img(y,modality);
     colormap(gca,colors)
+    colorbar
     if c == 1
         title('y')
     end
     
-    subplot(nrows,C,(c - 1)*C + 2)
+    subplot(nrows,C0,(c - 1)*C0 + 3)
     show_img(bf,'');
     colormap(gca,colors)
     colorbar
@@ -221,13 +234,21 @@ for c=1:C
         title('bf')
     end
     
-    subplot(nrows,C,(c - 1)*C + 3)
+    subplot(nrows,C0,(c - 1)*C0 + 4)
     show_img(bf.*y,modality);
     colormap(gca,colors)
+    colorbar
     if c == 1
         title('bf*y')
     end    
     
+    subplot(nrows,C0,(c - 1)*C0 + 5)
+    show_img(bf.*y - x,modality);
+    colormap(gca,colors)
+    colorbar
+    if c == 1
+        title('bf*y - x')
+    end    
 end
 
 drawnow;

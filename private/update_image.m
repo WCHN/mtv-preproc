@@ -107,11 +107,11 @@ parfor (c=1:C,num_workers) % Loop over channels
                 bf(:,:,:,n) = exp(get_nii(Nii_b{c}(n)));
             end
         else
-            bf = 1;
+            bf = ones(dm,'single');
         end
             
         % LHS
-        lhs = sum(bf,4).*ones(dm,'single')*sum(tau{c})/rho;
+        lhs = sum(reshape(tau{c},[1 1 1 dat(c).N]).*bf.^2,4)/rho;
 
         % Compute new y
         y   = spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);

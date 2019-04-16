@@ -1,5 +1,6 @@
 function [Nii,ll1,ll3] = update_biasfield(Nii,dat,tau,num_workers,p)
-% Update bias field
+% Update bias field coefficients (stored in Nii.b) using a Gauss-Newton
+% step.
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
@@ -8,30 +9,30 @@ modality      = p.Results.Modality;
 speak         = p.Results.Verbose; 
 method        = p.Results.Method;
 EstimateRigid = p.Results.EstimateRigid;
+bfreg         = p.Results.BiasFieldReg;
 use_projmat   = ~(strcmpi(method,'denoise') && ~EstimateRigid);
 C             = numel(dat); 
-if num_workers > 0
-    speak = min(speak,1);
-end
 
 %--------------------------------------------------------------------------
-% Start updating, for each observation
+% Start updating
 %--------------------------------------------------------------------------
+
+Nii_x = Nii.x;
+Nii_y = Nii.y;
+Nii_b = Nii.b;
 
 ll1   = zeros(1,C);
 ll3   = zeros(1,C);
-Nii_b = cell(1,C);
 % for c=1:C, fprintf('OBS! for c=1:C\n')
 parfor (c=1:C,num_workers) % Loop over channels
-    
+            
     set_boundary_conditions;
     
-    [Nii_b{c},ll1(c),ll3(c)] = update_channel(Nii.x{c},Nii.y(c),Nii.b{c},dat(c),tau{c},use_projmat);    
+    [Nii_b{c},ll1(c),ll3(c)] = update_channel(Nii_x{c},Nii_y(c),Nii_b{c},dat(c),tau{c},use_projmat,bfreg);    
 end % End loop over channels
+clear Nii_x Nii_y
 
-for c=1:C
-    Nii.b{c} = Nii_b{c};
-end
+Nii.b = Nii_b;
 clear Nii_b
 
 if speak >= 2
@@ -40,43 +41,54 @@ end
 %==========================================================================
 
 %==========================================================================
-function [Nii_b,ll1,ll3] = update_channel(Nii_x,Nii_y,Nii_b,dat,tau,use_projmat) 
+function [Nii_b,ll1,ll3] = update_channel(Nii_x,Nii_y,Nii_b,dat,tau,use_projmat,reg) 
 
-N    = numel(Nii_x);
-y    = get_nii(Nii_y); 
-beta = 1E5;
+N = numel(Nii_x);
+y = get_nii(Nii_y); 
 
 ll3 = zeros(1,N);
-for n=1:N
+for n=1:N % Loop over number of observations (N) of channel c
     
+    % Get voxel size
     vx = sqrt(sum(dat.A(n).mat(1:3,1:3).^2));
     
-    x        = get_nii(Nii_x(n));
-    msk      = get_msk(x);
-    bfc      = get_nii(Nii_b(n));
-    bf       = exp(bfc);
-    bf(~msk) = 1;
-
-    bf        = bf.*y;
-    rhs       = tau(n)*bf.*(bf - x);
-    lhs       = tau(n)*(bf.^2);
-    lhs(~msk) = 0;
-    rhs(~msk) = 0;
-    clear b
+    % Get image and bias field coefficients
+    x         = get_nii(Nii_x(n));
+    msk       = get_msk(x);
+    bfc       = get_nii(Nii_b(n));
+    bfy       = exp(bfc);
+    bfy(~msk) = 1;
+    bfy       = bfy.*y;
     
-    lhs = lhs + spm_field('vel2mom', bfc, [vx 0 0 beta]);
-%     lhs = lhs + 1e-7;
-    bfc  = spm_field(lhs,rhs,[vx 0 0 beta 2 2]);                      
-    clear lhs rhs
+    % Compute gradient
+    gr       = tau(n)*bfy.*(bfy - x);
+    gr(~msk) = 0;
+    gr       = gr + spm_field('vel2mom', bfc, [vx 0 0 reg]);
+        
+    % Compute Hessian
+    H        = tau(n)*(bfy.^2);
+    H        = H + eps('single')*max(H(:));
+    H(~msk)  = 0;
+    clear bfy
+        
+    % Compute GN step
+    Update = spm_field(H,gr,[vx 0 0 reg 2 2]);                          
+    clear H gr
+    
+    % Do GN step
+    bfc = bfc - Update;
+    clear Update
+    
+    % Compute prior log-likelihood of one observation
+    tmp    = spm_field('vel2mom', bfc, [vx 0 0 reg]);    
+    ll3(n) = -0.5*double(bfc(:))'*double(tmp(:));
 
-    tmp    = spm_field('vel2mom', bfc, [vx 0 0 beta]);
-    tmp    = -0.5*bfc(:)'*tmp(:);
-    ll3(n) = tmp;
-
+    % Save new bfc
     Nii_b(n) = put_nii(Nii_b(n),bfc);
-    clear bc
+    clear bfc
 end
 
+% Compute new log-likelihood
 ll1 = get_ll1(use_projmat,true,y,Nii_x,Nii_b,tau,dat);
 ll3 = sum(ll3);
 %==========================================================================

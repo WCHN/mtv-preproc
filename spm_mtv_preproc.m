@@ -80,6 +80,7 @@ function [Nii,dat,prg] = spm_mtv_preproc(varargin)
 %                        and their corresponding channel's reconstruction
 %                        [false]
 % EstimateBias         - Optimise a bias field [false]
+% BiasFieldReg         - Bias field regularisation [1e4]
 % MeanCorrectRigid     - Mean correct the rigid-body transform parameters 
 %                        q [false]
 % PaddingBB            - Pad bounding box with extra zeros in each
@@ -173,6 +174,7 @@ p.addParameter('EstimateRigid', false, @islogical);
 p.addParameter('EstimateBias', false, @islogical);
 p.addParameter('MeanCorrectRigid', true, @islogical);
 p.addParameter('PaddingBB', 0, @isnumeric);
+p.addParameter('BiasFieldReg', 1e4, @(in) (isnumeric(in) && in > 0));
 p.parse(varargin{:});
 InputImages   = p.Results.InputImages;
 nit           = p.Results.IterMax;
@@ -374,7 +376,7 @@ for it=1:nit % Start main loop
         % Compute log-posterior (objective value)        
         ll     = [ll, sum(ll1) + ll2 + sum(ll3)];
         llpart = [llpart 1];
-        gain_y = get_gain(ll);
+        gain   = get_gain(ll);
 
         if speak >= 1 || ~isempty(Nii_ref)
             % Some verbose    
@@ -383,9 +385,9 @@ for it=1:nit % Start main loop
                 % Reference image(s) given, compute SSIM and PSNR
                 [psnr1,ssim1] = compute_image_metrics(Nii.y,Nii_ref);
                 
-                fprintf('%2d (y) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', it, ll(end), sum(ll1), ll2, sum(ll3), gain_y, psnr1, ssim1); 
+                fprintf('%2d (y) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', it, ll(end), sum(ll1), ll2, sum(ll3), gain, psnr1, ssim1); 
             else
-                fprintf('%2d (y) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, sum(ll3), gain_y); 
+                fprintf('%2d (y) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, sum(ll3), gain); 
             end
 
             if speak >= 2
@@ -407,18 +409,18 @@ for it=1:nit % Start main loop
         % Gauss-Newton to update bias field parameters
         %------------------------------------------------------------------
         
-        oNii = Nii;
-        Nii  = oNii;
-        for i=1:30
+%         oNii = Nii;
+%         Nii  = oNii;
+        for i=1:1
             [Nii,ll1,ll3] = update_biasfield(Nii,dat,tau,num_workers,p);
 
             % Compute log-posterior (objective value)             
             ll     = [ll, sum(ll1) + ll2 + sum(ll3)];
             llpart = [llpart 2];
-            gain_q = get_gain(ll);
+            gain   = get_gain(ll);
 
             if speak >= 1
-                fprintf('%2d (b) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, sum(ll3), gain_q); 
+                fprintf('%2d (b) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, sum(ll3), gain); 
                 if speak >= 2
                     show_model('ll',ll,llpart);                
                 end
@@ -456,7 +458,7 @@ for it=1:nit % Start main loop
     %----------------------------------------------------------------------
         
     % Check convergence
-    if tol > 0 && gain_y < tol && it > 1 && sched.scl(sched.it,1) == 1
+    if tol > 0 && gain < tol && it > 1 && sched.scl(sched.it,1) == 1
         % Finished!
         break
     end
@@ -549,15 +551,15 @@ end
 %     save(fname,'Niix');
 % end
     
-if 0
-    figure(111)    
-    crop = 60;
-    img0 = Nii.x{1}(1).dat(crop:end - crop,crop:end - crop,round(dm(3)/2));
-    img1 = Nii_out(1).dat(crop:end - crop,crop:end - crop,round(dm(3)/2));
-    img  = [img0 img1];
-    imagesc(img); axis off image xy
-    colormap(gray)
-end
+% if 1
+%     figure(111)    
+%     crop = 60;
+%     img0 = Nii.x{1}(1).dat(crop:end - crop,crop:end - crop,round(dm(3)/2));
+%     img1 = Nii_out(1).dat(crop:end - crop,crop:end - crop,round(dm(3)/2));
+%     img  = [img0 img1];
+%     imagesc(img); axis off image xy
+%     colormap(gray)
+% end
 
 if do_clean && (do_readwrite || (coreg && (C > 1 || numel(Nii.x{1}) > 1)))
     % Clean-up temporary files

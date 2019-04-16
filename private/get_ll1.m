@@ -22,11 +22,11 @@ else
         msk = get_msk(x);
         if EstimateBias
             bf = exp(get_nii(Nii_b(n)));
+            bf = bf(msk);
         else
-            msk = true;
             bf  = 1;
         end
-        ll  = ll - 0.5*tau(n)*sum((double(x(msk)) - double(bf(msk).*y(msk))).^2);
+        ll  = ll - 0.5*tau(n)*sum((double(x(msk)) - double(bf.*y(msk))).^2);
     end
 %     ll  = -0.5*tau*sum(double(y(msk).^2 - 2*y(msk).*x{1}(msk)));
 end   

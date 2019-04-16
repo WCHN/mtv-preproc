@@ -92,7 +92,7 @@ lam = (prod(vx))^(1/2)*lam;
 % number of observations of each channel
 for c=1:C
     N      = numel(tau{c});
-    lam(c) = sqrt(N)*lam(c);
+    lam(c) = sqrt(N)*lam(c); % Maybe N*?
 end
 
 % For decreasing regularisation with iteration number
