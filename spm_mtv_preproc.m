@@ -535,8 +535,7 @@ prg.t  = telapsed;
 % Show input and solved
 %--------------------------------------------------------------------------
 
-if speak >= 3
-          
+if speak >= 3          
     C      = numel(Nii_out);
     fnames = cell(1,2*C);
     cnt    = 1;
