@@ -543,23 +543,10 @@ if speak >= 3
     spm_check_registration(char(fnames))
 end
 
-% if ~isempty(dir_out)
-%     fname = fullfile(dir_out,'Nii_out.mat');
-%     save(fname,'Nii_out');        
-%     fname = fullfile(dir_out,'Nii_x.mat');
-%     Niix = Nii.x;
-%     save(fname,'Niix');
-% end
-    
-% if 1
-%     figure(111)    
-%     crop = 60;
-%     img0 = Nii.x{1}(1).dat(crop:end - crop,crop:end - crop,round(dm(3)/2));
-%     img1 = Nii_out(1).dat(crop:end - crop,crop:end - crop,round(dm(3)/2));
-%     img  = [img0 img1];
-%     imagesc(img); axis off image xy
-%     colormap(gray)
-% end
+if speak >= 2 && ~use_projmat
+    % Have a look close-up
+    show_model('closeup',Nii,Nii_out,dm);
+end
 
 if do_clean && (do_readwrite || (coreg && (C > 1 || numel(Nii.x{1}) > 1)))
     % Clean-up temporary files

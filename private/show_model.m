@@ -19,7 +19,9 @@ switch lower(id)
     case 'rgb'
         [varargout{1:nargout}] = show_rgb(varargin{:});        
     case 'bf'
-        [varargout{1:nargout}] = show_bf(varargin{:});               
+        [varargout{1:nargout}] = show_bf(varargin{:});    
+    case 'closeup'
+        [varargout{1:nargout}] = show_closeup(varargin{:});         
     otherwise
         help show_model
         error('Unknown function %s. Type ''help show_model'' for help.', id)
@@ -198,6 +200,7 @@ C      = numel(Nii.y);
 C0     = 5;
 nrows  = C;
 colors = 'hsv';
+n      = 1;
 
 for c=1:C
 
@@ -205,10 +208,10 @@ for c=1:C
     z   = round(dm(3)/2);
     y   = get_nii(Nii.y(c),z); 
 
-    bfc = get_nii(Nii.b{c}(1),z);
+    bfc = get_nii(Nii.b{c}(n),z);
     bf  = exp(bfc);    
         
-    x   = get_nii(Nii.x{c}(1),z);
+    x   = get_nii(Nii.x{c}(n),z);
     
     subplot(nrows,C0,(c - 1)*C0 + 1)
     show_img(x,modality);
@@ -252,6 +255,40 @@ for c=1:C
 end
 
 drawnow;
+%==========================================================================
+
+%==========================================================================
+function show_closeup(Nii,Nii_out,dm,crop,mx)
+if nargin < 4, crop = 0.2; end
+if nargin < 5, mx   = 3; end
+
+figname = '(SPM) Close-up';
+fig     = findobj('Type', 'Figure', 'Name', figname);
+if isempty(fig), fig = figure('Name', figname, 'NumberTitle', 'off'); end
+set(0, 'CurrentFigure', fig);  
+clf(fig);
+
+cropx = crop*dm(1);
+cropy = crop*dm(2);
+
+C = numel(Nii.x);
+n = 1;
+for c=1:min(mx,C)
+    subplot(min(mx,C),1,c)     
+    x    = round(dm(1)/2) - cropx:round(dm(1)/2) + cropx;
+    y    = round(dm(2)/2) - cropy:round(dm(2)/2) + cropy;
+    img0 = Nii.x{c}(n).dat(x,y,round(dm(3)/2));
+    img1 = Nii_out(c).dat(x,y,round(dm(3)/2));
+    img  = [img0 img1];
+    ct   = any(img(:) < 0);
+    if ct
+        imagesc(img,[0 100]); 
+    else
+        imagesc(img); 
+    end
+    axis off image xy
+    colormap(gray)
+end
 %==========================================================================
 
 %==========================================================================
