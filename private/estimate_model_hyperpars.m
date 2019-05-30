@@ -38,10 +38,11 @@ nr = floor(sqrt(N0));
 nc = ceil(N0/nr);  
 
 % Make estimates
-sd  = cell(1,C);
-tau = cell(1,C);
-mu  = zeros(1,C);
-lam = zeros(1,C);
+sd          = cell(1,C);
+tau         = cell(1,C);
+mu          = zeros(1,C);
+lam         = zeros(1,C);
+cnt_subplot = 1;
 if speak >= 2, clear_figure(modality); end
 for c=1:C           
         
@@ -50,13 +51,19 @@ for c=1:C
         %---------------------------
         % Data is MRI
         %---------------------------
-    
-        if c > 1, cnt_subplot = cnt_subplot + numel(Nii_x{c - 1});
-        else,     cnt_subplot = 0;
-        end
         
         if speak >= 2, set_figure(modality); end
-        [sd{c},mu_brain] = spm_noise_estimate_mod(Nii_x{c},speak >= 2,nr,nc,cnt_subplot); % Noise standard deviation
+        
+        [sd{c},mu_brain,info] = spm_noise_estimate(Nii_x{c},3); % Noise standard deviation
+        
+        if speak >= 2
+            % Show fit   
+            for i=1:numel(info)
+                subplot(nr,nc,cnt_subplot);                        
+                plot(info(i).x(:),info(i).p,'--',info(i).x(:),info(i).h/sum(info(i).h)/info(i).md,'b.',info(i).x(:),info(i).sp,'r'); drawnow
+                cnt_subplot = cnt_subplot + 1;
+            end
+        end
         
         mu(c)  = mean(mu_brain);        % Mean brain intensity
         lam(c) = scl_lam/double(mu(c)); % This scaling is currently a bit arbitrary, and should be based on empiricism
@@ -66,15 +73,26 @@ for c=1:C
         %---------------------------
         
         if speak >= 2, set_figure(modality); end
-        sd{c} = noise_estimate_ct(Nii_x{c},speak >= 2); % Noise standard deviation
         
+        [sd{c},info] = noise_estimate_ct(Nii_x{c}); % Noise standard deviation
+           
+        if speak >= 2
+            % Show fit
+            subplot(121)
+            plot(info.x(:),info.p,'--',info.x(:),info.h/sum(info.h)/info.md,'b.',info.x(:),info.sp,'r'); 
+            subplot(122)
+            hist(info.f(:),info.x')
+            drawnow
+        end    
+    
         mu(c)  = 0;     % Mean brain intensity not used for CT => intensities follow the Hounsfield scale
         lam(c) = lam_ct;
     end
-    
+
     % Noise precision
     tau{c} = 1./(sd{c}.^2);
 end
+clear info
 
 % Get all stds
 all_sd = [];
