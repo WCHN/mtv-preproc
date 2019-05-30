@@ -23,6 +23,10 @@ for n=1:dat.N
               T(2,1)*x0 + T(2,2)*y0 + T(2,3)*z0 + T(2,4), ...
               T(3,1)*x0 + T(3,2)*y0 + T(3,3)*z0 + T(3,4));
 
+    if dm1(3) == 1
+        D(:,:,:,3) = 1;
+    end
+    
     % Mask according to whether these are < 1 or > than the dimensions of the reference image.        
     for i=1:3
         msk{n,i} = D(:,:,:,i) >= 1 & D(:,:,:,i) <= dm0(i);

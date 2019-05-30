@@ -509,6 +509,12 @@ for c=1:C
         y(y < 0) = 0;
     end  
 
+    if zeroMissing
+        % Zeros areas of non-matching FOVs that has been filled in by the
+        % algorithm.
+        y = clean_fov(y,dat(c));
+    end
+    
     omat = mat;        
 %     if ~is3d
 %         % 2d, set z-translation to zero
