@@ -1,4 +1,4 @@
-function [Nii,dat,prg] = spm_mtv_preproc(varargin)
+function [Nii_out,dat,prg] = spm_mtv_preproc(varargin)
 % Multi-channel total variation (MTV) preprocessing of MR and CT data. 
 %
 % Requires that the SPM software is on the MATLAB path.
@@ -25,9 +25,9 @@ function [Nii,dat,prg] = spm_mtv_preproc(varargin)
 % Tolerance            - Convergence threshold, set to zero to run until 
 %                        IterMax [1e-4]
 % RegScaleSuperResMRI  - Scaling of regularisation for MRI super-
-%                        resolution [5]
+%                        resolution [10]
 % RegScaleDenoisingMRI - Scaling of regularisation for MRI denoising, 
-%                        increase this value for stronger denoising [5]
+%                        increase this value for stronger denoising [10]
 % RegSuperresCT        - Regularisation used for CT denoising [0.05]
 % RegDenoisingCT       - Regularisation used for CT super-resolution [0.05]
 % WorkersParfor        - Maximum number of parfor workers [Inf]
@@ -69,7 +69,7 @@ function [Nii,dat,prg] = spm_mtv_preproc(varargin)
 %                        InputImages):
 %                        * 1 = Gaussian  (FWHM   = low-resolution voxel)
 %                        * 2 = Rectangle (length = low-resolution voxel)
-%                        [In-plane: Gaussian, Through-plane: Rectangle]
+%                        [In-plane: Gaussian, Through-plane: Gaussian]
 % SliceGap             - Gap between slices, either a scalar (and the 
 %                        slice-select direction will be found automatically) 
 %                        or along directions x, y, z (same shape as
@@ -79,12 +79,17 @@ function [Nii,dat,prg] = spm_mtv_preproc(varargin)
 % EstimateRigid        - Optimise a rigid alignment between observed images
 %                        and their corresponding channel's reconstruction
 %                        [false]
+% ApplyBias            - Estimate bias field using spm_preproc8 and then 
+%                        apply this bias field when denoising [false]
 % EstimateBias         - Optimise a bias field [false]
 % BiasFieldReg         - Bias field regularisation [1e4]
 % MeanCorrectRigid     - Mean correct the rigid-body transform parameters 
 %                        q [false]
 % PaddingBB            - Pad bounding box with extra zeros in each
 %                        direction [0]
+% IsMPM                - Are we denoising to reconstruct MPMs? In that
+%                        case, the bias field should be the same over
+%                        echoes [false]
 %
 % OUTPUT
 % ------
@@ -148,8 +153,8 @@ p.addParameter('IterMax', 30, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('IterImage', 5, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 1e-4, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('RegScaleSuperResMRI', 5, @(in) (isnumeric(in) && in > 0));
-p.addParameter('RegScaleDenoisingMRI', 5, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegScaleSuperResMRI', 10, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegScaleDenoisingMRI', 10, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegSuperresCT', 0.05, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegDenoisingCT', 0.05, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
@@ -172,9 +177,11 @@ p.addParameter('SliceGap', 0, @(in) (isnumeric(in) || iscell(in)));
 p.addParameter('SliceGapUnit', '%', @(in) (ischar(in) && (strcmp(in,'%') || strcmp(in,'mm'))));
 p.addParameter('EstimateRigid', false, @islogical);
 p.addParameter('EstimateBias', false, @islogical);
+p.addParameter('ApplyBias', false, @islogical);
 p.addParameter('MeanCorrectRigid', true, @islogical);
 p.addParameter('PaddingBB', 0, @isnumeric);
 p.addParameter('BiasFieldReg', 1e4, @(in) (isnumeric(in) && in > 0));
+p.addParameter('IsMPM', false, @islogical);
 p.parse(varargin{:});
 InputImages   = p.Results.InputImages;
 nit           = p.Results.IterMax;
@@ -196,10 +203,12 @@ window        = p.Results.SliceProfile;
 gap           = p.Results.SliceGap;
 gapunit       = p.Results.SliceGapUnit;
 EstimateRigid = p.Results.EstimateRigid;
+ApplyBias     = p.Results.ApplyBias;
 EstimateBias  = p.Results.EstimateBias;
 bb_padding    = p.Results.PaddingBB;
 modality      = p.Results.Modality;
 rho           = p.Results.ADMMStepSize; 
+IsMPM         = p.Results.IsMPM;
 
 %--------------------------------------------------------------------------
 % Preliminaries
@@ -214,16 +223,23 @@ Nii = struct;
 % Get image data
 [Nii,C,is3d] = parse_input_data(Nii,InputImages,use_projmat);
 
-% if isempty(zeroMissing)    
-%     % Missing values (NaNs and zeros) will be...
-%     if C == 1 && numel(Nii.x{1}) == 1
-%         % ...set to zero after algorithm finishes
-%         zeroMissing = true;
-%     else
-%         % ...filled in by the algorithm
-%         zeroMissing = false;
-%     end
-% end
+% Some sanity checks
+if ~is3d && ApplyBias
+    error('ApplyBias only works for 3D data!');
+end
+if IsMPM
+    % Uses A LOT of temporary variables, so write to disk instead of doing
+    % in memory
+    do_readwrite = true;
+end
+
+if isempty(zeroMissing) && (~use_projmat || (C == 1 && numel(Nii.x{1}) == 1))
+    % ...set to zero after algorithm finishes
+    zeroMissing = true;
+elseif isempty(zeroMissing)
+    % ...filled in by the algorithm
+    zeroMissing = false;
+end
 
 % Super-resolution voxel-size related
 if isempty(vx_sr)
@@ -316,6 +332,11 @@ dat = init_dat(method,Nii.x,mat,dm,window,gap,gapunit);
 % Allocate auxiliary variables
 Nii = alloc_aux_vars(Nii,do_readwrite,dm,mat,use_projmat,p);
 
+if ApplyBias && speak >= 2
+    % Show bias-field(s) generated by spm_preproc8
+    show_model('bf',dat,Nii,modality);   
+end
+
 if use_projmat
     % Compute approximation to the diagonal of the Hessian 
     Nii.H = approx_hessian(Nii.H,dat);
@@ -401,6 +422,10 @@ for it=1:nit % Start main loop
         show_model('solution',use_projmat,modality,Nii,dat); 
         show_model('mtv',mtv_scale); clear mtv_scale
 %         show_model('rgb',Nii.y);
+
+        if ApplyBias
+            show_model('bf',dat,Nii,modality);   
+        end
     end
     
     if EstimateBias && ~use_projmat
@@ -509,6 +534,15 @@ for c=1:C
         y(y < 0) = 0;
     end  
 
+    if strcmpi(modality,'CT')
+        % Masks part of CT data (for correspond with masking that happens in
+        % the segmentation toolbox)
+        img     = single(Nii.x{c}(1).dat(:,:,:));
+        msk     = isfinite(img) & (img~=0) & (img>-1020) & (img<3000);        
+        y(~msk) = 0;
+        clear msk img
+    end
+    
     if zeroMissing
         % Zeros areas of non-matching FOVs that has been filled in by the
         % algorithm.
@@ -516,10 +550,10 @@ for c=1:C
     end
     
     omat = mat;        
-%     if ~is3d
-%         % 2d, set z-translation to zero
-%         omat(3,4) = 0;
-%     end
+    if ~is3d
+        % 2d, set z-translation to zero
+        omat(3,4) = Nii.x{c}(1).mat(3,4);
+    end
     
     % Write to NIfTI
     Nii_out(c) = create_nii(nfname,y,omat,[spm_type('float32') spm_platform('bigend')],'MTV recovered');

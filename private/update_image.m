@@ -11,9 +11,11 @@ nitgn         = p.Results.IterGaussNewtonImage;
 speak         = p.Results.Verbose; 
 EstimateRigid = p.Results.EstimateRigid;
 EstimateBias  = p.Results.EstimateBias;
+ApplyBias     = p.Results.ApplyBias;
 
 % Flag saying if we solve using projection matrices (A, At), or not
 use_projmat = ~(strcmpi(method,'denoise') && ~EstimateRigid);
+inc_bf      = EstimateBias || ApplyBias;
 
 % Get data from Nii struct (otherwise we get parfor errors)
 Nii_x = Nii.x;
@@ -84,7 +86,7 @@ parfor (c=1:C,num_workers) % Loop over channels
         rhs = lam(c)*imdiv(rhs,vx);
         for n=1:dat(c).N
             
-            if EstimateBias
+            if inc_bf
                 bf = exp(get_nii(Nii_b{c}(n)));
             else
                 bf = 1;
@@ -101,7 +103,7 @@ parfor (c=1:C,num_workers) % Loop over channels
         msk = [];
         bf  = [];
                 
-        if EstimateBias && ~use_projmat
+        if inc_bf && ~use_projmat
             bf = zeros([dm dat(c).N],'single');
             for n=1:dat(c).N
                 bf(:,:,:,n) = exp(get_nii(Nii_b{c}(n)));
@@ -127,7 +129,7 @@ parfor (c=1:C,num_workers) % Loop over channels
     Nii_y(c) = put_nii(Nii_y(c),y);
     
     % Compute log of likelihood    
-    ll1(c) = get_ll1(use_projmat,EstimateBias,y,Nii_x{c},Nii_b{c},tau{c},dat(c));
+    ll1(c) = get_ll1(use_projmat,inc_bf,y,Nii_x{c},Nii_b{c},tau{c},dat(c));
     y      = [];    
     x      = [];
     
