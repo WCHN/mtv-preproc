@@ -520,10 +520,10 @@ for c=1:C
     [pth,nam,ext] = fileparts(Nii.x{c}(1).dat.fname);
     if isempty(dir_out)
         % Write to same folder as input
-        nfname = fullfile(pth,    [prefix '_' nam ext]);
+        nfname = fullfile(pth,    [prefix nam ext]);
     else
         % Write to user specified folder
-        nfname = fullfile(dir_out,[prefix '_' nam ext]);
+        nfname = fullfile(dir_out,[prefix nam ext]);
     end
     
     % Get output image data
