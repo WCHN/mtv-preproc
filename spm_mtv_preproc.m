@@ -25,9 +25,9 @@ function [Nii_out,dat,prg] = spm_mtv_preproc(varargin)
 % Tolerance            - Convergence threshold, set to zero to run until 
 %                        IterMax [1e-4]
 % RegScaleSuperResMRI  - Scaling of regularisation for MRI super-
-%                        resolution [10]
+%                        resolution [5]
 % RegScaleDenoisingMRI - Scaling of regularisation for MRI denoising, 
-%                        increase this value for stronger denoising [10]
+%                        increase this value for stronger denoising [5]
 % RegSuperresCT        - Regularisation used for CT denoising [0.05]
 % RegDenoisingCT       - Regularisation used for CT super-resolution [0.05]
 % WorkersParfor        - Maximum number of parfor workers [Inf]
@@ -153,8 +153,8 @@ p.addParameter('IterMax', 30, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('IterImage', 5, @(in) (isnumeric(in) && in > 0));
 p.addParameter('ADMMStepSize', 0, @(in) (isnumeric(in) && in >= 0));
 p.addParameter('Tolerance', 1e-4, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('RegScaleSuperResMRI', 10, @(in) (isnumeric(in) && in > 0));
-p.addParameter('RegScaleDenoisingMRI', 10, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegScaleSuperResMRI', 5, @(in) (isnumeric(in) && in > 0));
+p.addParameter('RegScaleDenoisingMRI', 5, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegSuperresCT', 0.05, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegDenoisingCT', 0.05, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
