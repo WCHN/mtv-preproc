@@ -1,11 +1,10 @@
-function [Nii,ll1,ll2,mtv_scale]= update_image(Nii,dat,tau,rho,lam,num_workers,p)
+function [Nii,ll1,ll2,mtv_scale]= update_image(Nii,dat,tau,rho,lam,num_workers,modality,p)
 % Update Nii.y, Nii.u, Nii.w by an ADMM algorithm
 %
 %_______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
 % Some parameters from options struct
-modality      = p.Results.Modality;
 method        = p.Results.Method;
 nitgn         = p.Results.IterGaussNewtonImage; 
 speak         = p.Results.Verbose; 

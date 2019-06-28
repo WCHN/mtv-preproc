@@ -1,10 +1,11 @@
-function [Nii,C,is3d] = parse_input_data(Nii,InputImages,use_projmat)
+function [Nii,C,is3d,modality] = parse_input_data(Nii,InputImages,use_projmat)
 % Parse input data and return Nii cell array
 %
 % InputImages  - [1 x C cell array] or empty (let user select)
 % method       - String either 'superres' or 'denoise'
 % Nii          - [1 x C cell array] Output array with observed data
 % C            - Number of image channels
+% modality     - 'CT' or 'MRI'
 %_______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
@@ -62,4 +63,12 @@ for c=1:C
 end
 dm0  = [dm0 1];
 is3d = dm0(3) > 1;
+
+% CT or MRI?
+has_negval = min(Nii.x{1}(1).dat(:)) < 0;
+if has_negval
+    modality = 'CT';
+else
+    modality = 'MRI';
+end
 %==========================================================================

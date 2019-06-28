@@ -46,8 +46,6 @@ function [Nii_out,dat,prg] = spm_mtv_preproc(varargin)
 % CleanUp              - Delete temporary files [true] 
 % VoxelSize            - Voxel size of super-resolved image [1 1 1]
 % CoRegister           - For super-resolution, co-register input images [true] 
-% Modality             - Either MRI (denoise and super-resolution) or CT 
-%                        (denoise) ['MRI']
 % ReadWrite            - Keep variables in workspace (requires more RAM,
 %                        but faster), or read/write from disk (requires 
 %                        less RAM, but slower) [false] 
@@ -165,7 +163,6 @@ p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
 p.addParameter('CleanUp', true, @islogical);
 p.addParameter('VoxelSize', [1 1 1], @(in) ((isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0)) || isempty(in));
 p.addParameter('CoRegister', true, @islogical);
-p.addParameter('Modality', 'MRI', @(in) (ischar(in) && (strcmpi(in,'MRI') || strcmpi(in,'CT'))));
 p.addParameter('ReadWrite', false, @islogical);
 p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
 p.addParameter('IterGaussNewtonImage', 1, @(in) (isnumeric(in) && in > 0));
@@ -206,7 +203,6 @@ EstimateRigid = p.Results.EstimateRigid;
 ApplyBias     = p.Results.ApplyBias;
 EstimateBias  = p.Results.EstimateBias;
 bb_padding    = p.Results.PaddingBB;
-modality      = p.Results.Modality;
 rho           = p.Results.ADMMStepSize; 
 IsMPM         = p.Results.IsMPM;
 
@@ -221,7 +217,7 @@ use_projmat = ~(strcmpi(method,'denoise') && ~EstimateRigid);
 Nii = struct;
 
 % Get image data
-[Nii,C,is3d] = parse_input_data(Nii,InputImages,use_projmat);
+[Nii,C,is3d,modality] = parse_input_data(Nii,InputImages,use_projmat);
 
 % Some sanity checks
 if ~is3d && ApplyBias
@@ -346,7 +342,7 @@ end
 % Estimate model hyper-parameters
 %--------------------------------------------------------------------------
 
-[tau,lam0,sched] = estimate_model_hyperpars(Nii.x,dec_reg,vx,p);
+[tau,lam0,sched] = estimate_model_hyperpars(Nii.x,dec_reg,vx,modality,p);
 
 %--------------------------------------------------------------------------
 % Start solving
@@ -392,7 +388,7 @@ for it=1:nit % Start main loop
     for ity=1:nity % Start y loop
         
         % Update Nii_y, Nii_w, Nii_u
-        [Nii,ll1,ll2,mtv_scale] = update_image(Nii,dat,tau,rho,lam,num_workers,p);
+        [Nii,ll1,ll2,mtv_scale] = update_image(Nii,dat,tau,rho,lam,num_workers,modality,p);
 
         % Compute log-posterior (objective value)        
         ll     = [ll, sum(ll1) + ll2 + sum(ll3)];
@@ -437,7 +433,7 @@ for it=1:nit % Start main loop
 %         oNii = Nii;
 %         Nii  = oNii;
         for i=1:1
-            [Nii,ll1,ll3] = update_biasfield(Nii,dat,tau,num_workers,p);
+            [Nii,ll1,ll3] = update_biasfield(Nii,dat,tau,num_workers,modality,p);
 
             % Compute log-posterior (objective value)             
             ll     = [ll, sum(ll1) + ll2 + sum(ll3)];

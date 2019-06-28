@@ -1,4 +1,4 @@
-function [tau,lam,sched] = estimate_model_hyperpars(Nii_x,dec_reg,vx,p)
+function [tau,lam,sched] = estimate_model_hyperpars(Nii_x,dec_reg,vx,modality,p)
 % Estimate MTV model parameters
 %
 %_______________________________________________________________________
@@ -7,7 +7,6 @@ function [tau,lam,sched] = estimate_model_hyperpars(Nii_x,dec_reg,vx,p)
 % Some parameters from options struct
 speak    = p.Results.Verbose; 
 rho      = p.Results.ADMMStepSize; 
-modality = p.Results.Modality;
 method   = p.Results.Method;
 if strcmpi(method,'denoise')
     %---------------------------

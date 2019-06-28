@@ -1,11 +1,10 @@
-function [Nii,ll1,ll3] = update_biasfield(Nii,dat,tau,num_workers,p)
+function [Nii,ll1,ll3] = update_biasfield(Nii,dat,tau,num_workers,modality,p)
 % Update bias field coefficients (stored in Nii.b) using a Gauss-Newton
 % step.
 % _______________________________________________________________________
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
 % Some parameters from options struct
-modality      = p.Results.Modality;
 speak         = p.Results.Verbose; 
 method        = p.Results.Method;
 EstimateRigid = p.Results.EstimateRigid;
