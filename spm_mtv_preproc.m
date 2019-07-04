@@ -98,25 +98,15 @@ function [Nii_out,dat,prg] = spm_mtv_preproc(varargin)
 % 
 %__________________________________________________________________________
 %
-% Example: Super-resolve a set thick-sliced MRIs simulated from an IXI subject
+% Example: Super-resolve a set of thick-sliced MRIs
 %
-% Simulate thick-sliced from IXI references by running the script:
-% >> GenerateTestData % Down-sampling factor set by DownSampling parameter
-%
-% Read simulated thick-sliced IXI MRIs
-% InputImages{1} = nifti(char({'./LowResData/ds_n1_IXI002-Guys-0828-PD.nii', ...
-%                              './LowResData/ds_n2_IXI002-Guys-0828-PD.nii'}));
-% InputImages{2} = nifti(char({'./LowResData/ds_n1_IXI002-Guys-0828-T2.nii', ...
-%                              './LowResData/ds_n2_IXI002-Guys-0828-T2.nii'}));
-% InputImages{3} = nifti(char({'./LowResData/ds_n1_IXI002-Guys-0828-T1.nii'}));
-%
-% Super-resolve the MRIs
-% >> spm_mtv_preproc('InputImages',InputImages,'Method','superres','Verbose',2);
-%
-% Compare super-resolved with known ground-truth
-% >> files_sr  = spm_select('FPList','./out', '^sr_.*\.nii$');
-% >> files_ref = spm_select('FPList','./data','^IXI.*\.nii$');
-% >> spm_check_registration(char({files_sr,files_ref}));
+% % Read simulated, degraded MRIs
+% InputImages{1} = nifti('TestData/sv_t1_icbm_normal_1mm_pn0_rf0.nii');                           
+% InputImages{2} = nifti('TestData/sv_pd_icbm_normal_1mm_pn0_rf0.nii');
+% InputImages{3} = nifti('TestData/sv_t2_icbm_normal_1mm_pn0_rf0.nii');
+% 
+% % Super-resolve the MRIs
+% spm_mtv_preproc('InputImages',InputImages,'Method','superres','Verbose',2,'WorkersParfor',0);
 %
 %__________________________________________________________________________
 % The general principles are described in the following paper:

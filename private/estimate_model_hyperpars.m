@@ -53,7 +53,12 @@ for c=1:C
         
         if speak >= 2, set_figure(modality); end
         
-        [sd{c},mu_brain,info] = spm_noise_estimate(Nii_x{c},3); % Noise standard deviation
+        % Compute noise standard deviation            
+        try
+            [sd{c},mu_brain,info] = spm_noise_estimate(Nii_x{c},3); 
+        catch
+            [sd{c},mu_brain,info] = my_spm_noise_estimate(Nii_x{c},3);
+        end
         
         if speak >= 2
             % Show fit   
