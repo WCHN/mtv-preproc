@@ -106,7 +106,7 @@ function [Nii_out,dat,prg] = spm_mtv_preproc(varargin)
 % InputImages{3} = nifti('TestData/sv_t2_icbm_normal_1mm_pn0_rf0.nii');
 % 
 % % Super-resolve the MRIs
-% spm_mtv_preproc('InputImages',InputImages,'Method','superres','Verbose',2,'WorkersParfor',0);
+% spm_mtv_preproc('InputImages',InputImages,'Method','superres','Verbose',2);
 %
 %__________________________________________________________________________
 % The general principles are described in the following paper:
