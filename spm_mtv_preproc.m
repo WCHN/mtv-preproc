@@ -49,8 +49,8 @@ function [Nii_out,dat,prg] = spm_mtv_preproc(varargin)
 % ReadWrite            - Keep variables in workspace (requires more RAM,
 %                        but faster), or read/write from disk (requires 
 %                        less RAM, but slower) [false] 
-% ZeroMissingValues    - Set NaNs and zero values to zero after algorithm 
-%                        has finished [C=1:true, C>1:false]
+% ZeroMissingValues    - Set outside field of view voxels to zero at end 
+%                        of algorithm [true]
 % IterGaussNewtonImage - Number of Gauss-Newton iterations for solving for 
 %                        super-resolution [1]
 % IterGaussNewtonRigid - Number of Gauss-Newton iterations for solving for
@@ -154,7 +154,7 @@ p.addParameter('CleanUp', true, @islogical);
 p.addParameter('VoxelSize', [1 1 1], @(in) ((isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0)) || isempty(in));
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('ReadWrite', false, @islogical);
-p.addParameter('ZeroMissingValues', [], @(in) (islogical(in) || isnumeric(in)));
+p.addParameter('ZeroMissingValues', true, @islogical);
 p.addParameter('IterGaussNewtonImage', 1, @(in) (isnumeric(in) && in > 0));
 p.addParameter('IterGaussNewtonRigid', 1, @(in) (isnumeric(in) && in > 0));
 p.addParameter('Reference', {}, @(in)  (isa(in,'nifti') || isempty(in)));
@@ -217,14 +217,6 @@ if IsMPM
     % Uses A LOT of temporary variables, so write to disk instead of doing
     % in memory
     do_readwrite = true;
-end
-
-if isempty(zeroMissing) && (~use_projmat || (C == 1 && numel(Nii.x{1}) == 1))
-    % ...set to zero after algorithm finishes
-    zeroMissing = true;
-elseif isempty(zeroMissing)
-    % ...filled in by the algorithm
-    zeroMissing = false;
 end
 
 % Super-resolution voxel-size related
@@ -332,7 +324,18 @@ end
 % Estimate model hyper-parameters
 %--------------------------------------------------------------------------
 
+% d  = '/home/mbrud/dev/mbrud/projects/MTV-preproc/Data/parashkev-reg';
+% f  = {fullfile(d,'cr_1282601181791321211130022749_Flair.nii'), ...
+%       fullfile(d,'cr_1282601181791321211130022749_T1.nii'), ...
+%       fullfile(d,'cr_1282601181791321211130022749_T2.nii')};
+% ox       = Nii.x;
+% Nii.x{1} = nifti(f{1});
+% Nii.x{2} = nifti(f{2});
+% Nii.x{3} = nifti(f{3});
+
 [tau,lam0,sched] = estimate_model_hyperpars(Nii.x,dec_reg,vx,modality,p);
+
+% Nii.x = ox;
 
 %--------------------------------------------------------------------------
 % Start solving

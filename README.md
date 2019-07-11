@@ -47,7 +47,7 @@ dir_data = '/pth/to/nii_data';
 Nii      = nifti(spm_select('FPList',dir_data,'^.*\.nii$'));
 
 % Denoise the CT
-spm_mtv_preproc('InputImages',Nii,'Modality','CT');
+spm_mtv_preproc('InputImages',Nii);
 ~~~~
 
 The denoised images will written to the 'out' folder, prefixed 'den_'.

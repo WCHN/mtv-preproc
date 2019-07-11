@@ -20,7 +20,7 @@ static const double two_div_root_pi     = 1.1283791670955125738961589031215452;
 
 static float wingaussfast(float x2)
 {
-    return(fasterexp(-0.5*x2));
+    return(fastexp(-0.5*x2));
 }
 // DIRAC (actually, DIRAC * GAUSSIAN)
 static float windirac(float x, float scl /* unused */, float sigbasis)
@@ -74,7 +74,7 @@ static float winrect(float x, float scl, float sigbasis)
 {
     float w1 = one_div_root_two/sigbasis;
     scl = 0.5*scl;
-    return(fastererfc(w1*(x-scl))-fastererfc(w1*(x+scl)));   
+    return(fasterfc(w1*(x-scl))-fasterfc(w1*(x+scl)));   
 }
 static float winrectnorm(float scl, float sigbasis)
 {
@@ -90,7 +90,7 @@ static float winrectderiv(float x, float scl, float sigbasis)
     scl = 0.5*scl;
     float xm = w1*(x-scl);
     float xp = w1*(x+scl);
-    return(two_div_root_pi*w1*(fasterexp(-xp*xp)-fasterexp(-xm*xm)));   
+    return(two_div_root_pi*w1*(fastexp(-xp*xp)-fastexp(-xm*xm)));   
 }
 
 //-------------------------------------------------------------------------
