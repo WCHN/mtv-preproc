@@ -306,6 +306,7 @@ end
 
 % Initialise dat struct with projection matrices, etc.
 dat = init_dat(method,Nii.x,mat,dm,window,gap,gapunit);    
+% dat = init_dat_diffeo(Nii.x,mat,dm);
 
 % Allocate auxiliary variables
 Nii = alloc_aux_vars(Nii,do_readwrite,dm,mat,use_projmat,p);
