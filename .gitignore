@@ -86,5 +86,6 @@
 ## Other ignore
 *.ipynb_checkpoints
 TempData/
+Output/
 SimulatedData/
 *~
