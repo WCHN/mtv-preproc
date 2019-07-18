@@ -145,7 +145,7 @@ sched     = struct;
 sched.it  = 1;
 sched.cnt = 1;    
 if dec_reg
-    vals      = exp(linspace(log(2^7),0,8));
+    vals      = exp(linspace(log(2^6),0,7));
     sched.scl = zeros(numel(vals),C);
     for c=1:C
          sched.scl(:,c)  = vals;
