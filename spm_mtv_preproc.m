@@ -231,7 +231,7 @@ end
 if  exist(dir_tmp,'dir') == 7  
     rmdir(dir_tmp,'s'); 
 end
-if  do_readwrite || (coreg && (C > 1 || numel(Nii.x{1}) > 1))
+if  do_readwrite || (coreg && (C > 1 || numel(Nii.x{1}) > 1)) || strcmpi(method,'superres')
     mkdir(dir_tmp); 
 end
 if ~isempty(dir_out) && ~(exist(dir_out,'dir') == 7)  
@@ -254,9 +254,23 @@ if speak >= 3
     Nii.x0 = Nii.x; 
 end
     
-if coreg && (C > 1 || numel(Nii.x{1}) > 1)
+if (coreg && (C > 1 || numel(Nii.x{1}) > 1)) || strcmpi(method,'superres')
     % Make copies input data and update Nii_x        
     Nii.x = copy_ims(Nii.x,dir_tmp);
+    
+    if strcmpi(method,'superres')
+        % For super-resolution, down-sample subject in-plane resolution to
+        % size of the in-plane resolution of the template image
+        for c=1:C
+            N = numel(Nii.x{c});
+            for n=1:N
+                f           = Nii.x{c}(n).dat.fname;        
+                nf          = downsample_inplane(f,vx_sr);
+                Nii.x{c}(n) = nifti(nf);
+                delete(f);
+            end
+        end
+    end
 end
 
 % Some sanity checks
@@ -577,7 +591,7 @@ if speak >= 2 && ~use_projmat
     show_model('closeup',Nii,Nii_out,dm);
 end
 
-if do_clean && (do_readwrite || (coreg && (C > 1 || numel(Nii.x{1}) > 1)))
+if exist(dir_tmp,'dir') == 7 && do_clean
     % Clean-up temporary files
     rmdir(dir_tmp,'s');
 end
