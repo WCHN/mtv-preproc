@@ -120,10 +120,10 @@ parfor (c=1:C,num_workers) % Loop over channels
         rhs = [];        
     end    
     
-    if strcmpi(modality,'MRI')
-        % Ensure non-negativity (ad-hoc)
-        y(y < 0) = 0;
-    end    
+%     if strcmpi(modality,'MRI')
+%         % Ensure non-negativity (ad-hoc)
+%         y(y < 0) = 0;
+%     end    
     
     Nii_y(c) = put_nii(Nii_y(c),y);
     
