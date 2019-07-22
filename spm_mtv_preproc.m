@@ -480,7 +480,7 @@ for it=1:nit % Start main loop
         end
         
         % Update approximation to the diagonal of the Hessian 
-        Nii.H = approx_hessian(Nii.H,dat);
+        Nii.H = approx_hessian(Nii.H,Nii.x,dat);
     end
  
     %----------------------------------------------------------------------
