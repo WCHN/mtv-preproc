@@ -244,7 +244,7 @@ if C == 1,             num_workers = 0; end
 if num_workers == Inf, num_workers = nbr_parfor_workers; end
 if num_workers > 1,    manage_parpool(num_workers);  end
 
-if vx_sr(1) < 0.9 || C >= 4
+if vx_sr(1) < 0.9
     % read-write aux. variables to not run in to memory issues..
     do_readwrite = true;
 end
