@@ -49,17 +49,17 @@ if use_projmat
         if ix(3) > 1
             % 3D
             tmp = squeeze(img(:,:,ix(3)));
-            subplot(3,C,(c-1)*C + 1);        
+            subplot(3,C,c);        
             show_img(tmp,modality);
             colormap(gray); 
             
             tmp = squeeze(img(:,ix(2),:));
-            subplot(3,C,(c-1)*C + 2)
+            subplot(3,C,C + c)
             show_img(tmp,modality);
             colormap(gray); 
             
             tmp = squeeze(img(ix(1),:,:));
-            subplot(3,C,(c-1)*C + 3)
+            subplot(3,C,2*C + c)
             show_img(tmp,modality);
             colormap(gray);            
         else
