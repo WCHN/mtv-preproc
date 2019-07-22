@@ -57,7 +57,7 @@ parfor (c=1:C,num_workers) % Loop over channels
                 Ayx       = A(y,dat(c),n);
                 msk       = get_msk(x,Ayx);
                 Ayx       = Ayx - x;
-                Ayx(~msk) = 0;
+                Ayx(~msk) = NaN;
                 
                 rhs = rhs + At(Ayx,dat(c),tau{c},n)*(1/rho); 
             end                  
