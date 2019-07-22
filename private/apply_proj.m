@@ -18,7 +18,7 @@ smo            = vsf./scl;
 smo(smo <= 1)  = 0;
 [~,ix]         = max(smo);
 gap            = 1/3;
-smo(ix)        = smo(ix) - gap*smo(ix);
+% smo(ix)        = smo(ix) - gap*smo(ix);
 sd             = smo./(2*sqrt(2*log(2)));
 sdscl          = 4;
 
