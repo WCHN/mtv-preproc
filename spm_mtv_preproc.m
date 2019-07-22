@@ -421,6 +421,11 @@ for it=1:nit % Start main loop
             end
         end   
         
+        if tol > 0 && gain < tol
+            % Converged
+            break
+        end
+        
     end % End y loop    
    
     if speak >= 2 
