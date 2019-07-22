@@ -4,8 +4,8 @@ function msk = get_msk(f,mu)
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
 msk = isfinite(f) & f ~= 0;
-if nargin > 1
-    msk = msk & isfinite(mu);
-end
+% if nargin > 1
+%     msk = msk & isfinite(mu);
+% end
 msk = msk(:);
 %==========================================================================
