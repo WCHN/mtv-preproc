@@ -343,6 +343,7 @@ end
 % f  = {fullfile(d,'cr_1282601181791321211130022749_Flair.nii'), ...
 %       fullfile(d,'cr_1282601181791321211130022749_T1.nii'), ...
 %       fullfile(d,'cr_1282601181791321211130022749_T2.nii')};
+% fprintf('OBS: using fixed parameter estimates!!\n')
 % ox       = Nii.x;
 % Nii.x{1} = nifti(f{1});
 % Nii.x{2} = nifti(f{2});
@@ -410,9 +411,9 @@ for it=1:nit % Start main loop
                 % Reference image(s) given, compute SSIM and PSNR
                 [psnr1,ssim1] = compute_image_metrics(Nii.y,Nii_ref);
                 
-                fprintf('%2d (y) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', it, ll(end), sum(ll1), ll2, sum(ll3), gain, psnr1, ssim1); 
+                fprintf('%2d %2d (y) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f | psnr=%2.3f, ssim=%1.3f\n', it, ity, ll(end), sum(ll1), ll2, sum(ll3), gain, psnr1, ssim1); 
             else
-                fprintf('%2d (y) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f\n', it, ll(end), sum(ll1), ll2, sum(ll3), gain); 
+                fprintf('%2d %2d (y) | ll=%10.1f, ll1=%10.1f, ll2=%10.1f, ll3=%10.1f, gain=%0.6f\n', it, ity, ll(end), sum(ll1), ll2, sum(ll3), gain); 
             end
 
             if speak >= 2
@@ -573,7 +574,7 @@ prg.t  = telapsed;
 % Show input and solved
 %--------------------------------------------------------------------------
 
-if speak >= 3          
+if speak >= 4          
     C      = numel(Nii_out);
     fnames = cell(1,2*C);
     cnt    = 1;
@@ -586,7 +587,7 @@ if speak >= 3
     spm_check_registration(char(fnames))
 end
 
-if speak >= 2 && ~use_projmat
+if speak >= 5 && ~use_projmat
     % Have a look close-up
     show_model('closeup',Nii,Nii_out,dm);
 end
