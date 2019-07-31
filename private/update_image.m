@@ -48,8 +48,8 @@ parfor (c=1:C,num_workers) % Loop over channels
         for gnit=1:nitgn % Iterate Gauss-Newton
 
             % Gradient      
-            rhs = w/rho - u; 
-            rhs = lam(c)*imdiv(rhs,vx);            
+            gr = w/rho - u; 
+            gr = lam(c)*imdiv(gr,vx);            
             for n=1:dat(c).N
                 % Here we discard missing data, for MRI these are
                 % assumed to be zeros and NaNs.
@@ -59,23 +59,22 @@ parfor (c=1:C,num_workers) % Loop over channels
                 Ayx       = Ayx - x;
                 Ayx(~msk) = NaN;
                 
-                rhs = rhs + At(Ayx,dat(c),tau{c},n)*(1/rho); 
+                gr = gr + At(Ayx,dat(c),tau{c},n)*(1/rho); 
             end                  
             msk = [];
             x   = [];                        
             Ayx = [];
             
-            rhs = rhs + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
+            gr = gr + spm_field('vel2mom',y,[vx 0 lam(c)^2 0]);
 
             % Hessian
-            H   = get_nii(Nii_H(c));
-            lhs = H*sum(tau{c})/rho;
-            H   = [];
+            H = get_nii(Nii_H(c));
+            H = H*sum(tau{c})/rho;
 
             % Compute GN step
-            y   = y - spm_field(lhs,rhs,[vx 0 lam(c)^2 0 2 2]);
-            lhs = [];
-            rhs = [];
+            y  = y - spm_field(H,gr,[vx 0 lam(c)^2 0 2 2]);
+            H  = [];
+            gr = [];
         end                                
     else
         % We do not use the projection matrices (A, At)

@@ -31,7 +31,6 @@ function [Nii_out,dat,prg] = spm_mtv_preproc(varargin)
 % RegSuperresCT        - Regularisation used for CT denoising [0.05]
 % RegDenoisingCT       - Regularisation used for CT super-resolution [0.05]
 % WorkersParfor        - Maximum number of parfor workers [Inf]
-% TemporaryDirectory   - Directory for temporary files ['./tmp']
 % OutputDirectory      - Directory for denoised images. If none given,
 %                        writes results to same folder as input (prefixed 
 %                        either den or sr) ['']
@@ -43,7 +42,6 @@ function [Nii_out,dat,prg] = spm_mtv_preproc(varargin)
 %                        *  2  = draw   +(figure w. log likelihood, mixture fits, recons)
 %                        *  3  = result +(show observed and reconstructed images 
 %                                         in spm_check_registration, when finished)
-% CleanUp              - Delete temporary files [true] 
 % VoxelSize            - Voxel size of super-resolved image [1 1 1]
 % CoRegister           - For super-resolution, co-register input images [true] 
 % ReadWrite            - Keep variables in workspace (requires more RAM,
@@ -146,11 +144,9 @@ p.addParameter('RegScaleDenoisingMRI', 5, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegSuperresCT', 0.05, @(in) (isnumeric(in) && in > 0));
 p.addParameter('RegDenoisingCT', 0.05, @(in) (isnumeric(in) && in > 0));
 p.addParameter('WorkersParfor', Inf, @(in) (isnumeric(in) && in >= 0));
-p.addParameter('TemporaryDirectory', './TempData', @ischar);
 p.addParameter('OutputDirectory', '', @ischar);
 p.addParameter('Method', 'denoise', @(in) (ischar(in) && (strcmpi(in,'denoise') || strcmpi(in,'superres'))));
 p.addParameter('Verbose', 1, @(in) (isnumeric(in) && in >= 0 && in <= 3));
-p.addParameter('CleanUp', true, @islogical);
 p.addParameter('VoxelSize', [1 1 1], @(in) ((isnumeric(in) && (numel(in) == 1 || numel(in) == 3)) && ~any(in <= 0)) || isempty(in));
 p.addParameter('CoRegister', true, @islogical);
 p.addParameter('ReadWrite', false, @islogical);
@@ -175,11 +171,9 @@ nit           = p.Results.IterMax;
 nity          = p.Results.IterImage;
 tol           = p.Results.Tolerance;
 num_workers   = p.Results.WorkersParfor;
-dir_tmp       = p.Results.TemporaryDirectory;
 dir_out       = p.Results.OutputDirectory;
 method        = p.Results.Method;
 speak         = p.Results.Verbose; 
-do_clean      = p.Results.CleanUp; 
 vx_sr         = p.Results.VoxelSize; 
 coreg         = p.Results.CoRegister; 
 do_readwrite  = p.Results.ReadWrite; 
@@ -227,17 +221,6 @@ elseif numel(vx_sr) == 1
     vx_sr = vx_sr*ones(1,3); 
 end
 
-% Make some directories
-if  exist(dir_tmp,'dir') == 7  
-    rmdir(dir_tmp,'s'); 
-end
-if  do_readwrite || (coreg && (C > 1 || numel(Nii.x{1}) > 1)) || strcmpi(method,'superres')
-    mkdir(dir_tmp); 
-end
-if ~isempty(dir_out) && ~(exist(dir_out,'dir') == 7)  
-    mkdir(dir_out);  
-end
-
 % Manage parfor
 num_workers                        = min(min(C,num_workers),4);
 if C == 1,             num_workers = 0; end
@@ -254,21 +237,19 @@ if speak >= 3
     Nii.x0 = Nii.x; 
 end
     
-if (coreg && (C > 1 || numel(Nii.x{1}) > 1)) || strcmpi(method,'superres')
-    % Make copies input data and update Nii_x        
-    Nii.x = copy_ims(Nii.x,dir_tmp);
-    
-    if strcmpi(method,'superres')
-        % For super-resolution, down-sample subject in-plane resolution to
-        % size of the in-plane resolution of the template image
-        for c=1:C
-            N = numel(Nii.x{c});
-            for n=1:N
-                f           = Nii.x{c}(n).dat.fname;        
-                nf          = downsample_inplane(f,vx_sr);
-                Nii.x{c}(n) = nifti(nf);
-                delete(f);
-            end
+% Make copies input data and update Nii_x        
+Nii.x = copy_ims(Nii.x);
+         
+if strcmpi(method,'superres')
+    % For super-resolution, down-sample subject in-plane resolution to
+    % size of the in-plane resolution of the template image
+    for c=1:C
+        N = numel(Nii.x{c});
+        for n=1:N
+            f           = Nii.x{c}(n).dat.fname;        
+            nf          = downsample_inplane(f,vx_sr);
+            Nii.x{c}(n) = nifti(nf);
+            delete(f);
         end
     end
 end
@@ -567,6 +548,24 @@ for c=1:C
     
     % Write to NIfTI
     Nii_out(c) = create_nii(nfname,y,omat,[spm_type('float32') spm_platform('bigend')],'MTV recovered');
+    
+    % Delete temporary files
+    for n=1:numel(Nii.x{c})
+        delete(Nii.x{c}(n).dat.fname);
+    end
+    if do_readwrite
+        delete(Nii.y(c).dat.fname);
+        delete(Nii.u(c).dat.fname);
+        delete(Nii.w(c).dat.fname);
+        if use_projmat
+            delete(Nii.H(c).dat.fname);
+        end
+        if ApplyBias || EstimateBias
+            for n=1:numel(Nii.b{c})
+                delete(Nii.b{c}(n).dat.fname);
+            end
+        end        
+    end
 end
 
 % Output algorithm convergece, etc.
@@ -595,10 +594,5 @@ end
 if speak >= 5 && ~use_projmat
     % Have a look close-up
     show_model('closeup',Nii,Nii_out,dm);
-end
-
-if exist(dir_tmp,'dir') == 7 && do_clean
-    % Clean-up temporary files
-    rmdir(dir_tmp,'s');
 end
 %==========================================================================

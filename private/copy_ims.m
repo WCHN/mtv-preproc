@@ -1,4 +1,4 @@
-function Nii = copy_ims(Nii,dir_write)
+function Nii = copy_ims(Nii)
 % Copy Niis to dir_write and update nifti struct.
 %__________________________________________________________________________
 % Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
@@ -8,9 +8,9 @@ C = numel(Nii);
 for c=1:C
     N = numel(Nii{c});
     for n=1:N
-        f           = Nii{c}(n).dat.fname;
-        [~,nam,ext] = fileparts(f);
-        nf          = fullfile(dir_write,[nam ext]);
+        f             = Nii{c}(n).dat.fname;
+        [pth,nam,ext] = fileparts(f);
+        nf            = fullfile(pth,['cpy' nam ext]);
 
         copyfile(f,nf);
 

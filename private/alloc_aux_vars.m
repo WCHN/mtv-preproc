@@ -5,7 +5,6 @@ function Nii = alloc_aux_vars(Nii,do_readwrite,dm,mat,use_projmat,p)
 %  Copyright (C) 2018 Wellcome Trust Centre for Neuroimaging
 
 C            = numel(Nii.x);
-dir_tmp      = p.Results.TemporaryDirectory;
 EstimateBias = p.Results.EstimateBias;
 ApplyBias    = p.Results.ApplyBias;
 IsMPM        = p.Results.IsMPM;
@@ -28,9 +27,12 @@ Nii.b = cell(1,C);
 bf_list = cell(1,2);
 for c=1:C
     if do_readwrite
-        fname_y = fullfile(dir_tmp,['y' num2str(c) '.nii']);
-        fname_u = fullfile(dir_tmp,['u' num2str(c) '.nii']); 
-        fname_w = fullfile(dir_tmp,['w' num2str(c) '.nii']);
+        f         = Nii.x{c}(1).dat.fname;
+        [pth,nam] = fileparts(f);
+        
+        fname_y = fullfile(pth,['y' nam '.nii']);
+        fname_u = fullfile(pth,['u' nam '.nii']); 
+        fname_w = fullfile(pth,['w' nam '.nii']);
                        
         create_nii(fname_y,zeros(dm,      'single'),mat,[spm_type('float32') spm_platform('bigend')],'y');
         create_nii(fname_u,zeros([dm 3 2],'single'),mat,[spm_type('float32') spm_platform('bigend')],'u');
@@ -42,7 +44,7 @@ for c=1:C
         
         if use_projmat        
             % Approximate Hessian when using A and At
-            fname_H = fullfile(dir_tmp,['H' num2str(c) '.nii']);        
+            fname_H = fullfile(pth,['H' nam '.nii']);        
             create_nii(fname_H,zeros(dm,'single'),mat,[spm_type('float32') spm_platform('bigend')],'H');
             Nii.H(c) = nifti(fname_H);
         else
@@ -57,7 +59,7 @@ for c=1:C
 
             if ApplyBias || EstimateBias
                 
-                fname_b = fullfile(dir_tmp,['bf' num2str(c) num2str(n) '.nii']);  
+                fname_b = fullfile(pth,['bf' num2str(n) nam '.nii']);  
                                 
                 if ApplyBias
                     
